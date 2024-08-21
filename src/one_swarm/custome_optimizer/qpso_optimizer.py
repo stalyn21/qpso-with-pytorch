@@ -7,7 +7,7 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 # Custom QDPSO Optimizer Class for the ExtendedModel class 
 class QDPSOptimizer(Optimizer):
-    def __init__(self, model, bounds, n_particles=20, max_iters=100, g=1.13, interval_parms_update=10):
+    def __init__(self, model, bounds, n_particles=20, max_iters=100, g=1.13, interval_parms_updated=10):
         if bounds is None:
             raise ValueError("Bounds must be provided")
         defaults = dict(n_particles=n_particles, max_iters=max_iters, g=g, bounds=bounds)
@@ -17,7 +17,7 @@ class QDPSOptimizer(Optimizer):
         self.n_particles = n_particles
         self.max_iters = max_iters
         self.g = g
-        self.interval_parms_update = interval_parms_update
+        self.interval_parms_updated = interval_parms_updated
         self.model = model
         self.params = list(model.parameters())
         self.dim = sum(p.numel() for p in self.params)
@@ -32,7 +32,8 @@ class QDPSOptimizer(Optimizer):
     def _fitness_function(self, flat_params):
         self.model._set_params(flat_params)
         output = self.model(self.X_train)
-        loss = self.model.lf.cross_entropy(self.y_train_one_hot, output, self.model)
+        # loss = self.model.lf.cross_entropy(self.y_train_one_hot, output, self.model)
+        loss = self.model.lf.cross_entropy(self.y_train_one_hot, output)
         return loss.item()
 
     def _set_params(self, flat_params):
@@ -44,7 +45,7 @@ class QDPSOptimizer(Optimizer):
 
     def step(self):
         self._initialize_optimizer()
-        self.optimizer.update(callback=self._log_callback, interval=self.interval_parms_update)
+        self.optimizer.update(callback=self._log_callback, interval=self.interval_parms_updated)
         self._set_params(self.optimizer.gbest)
 
     def _log_callback(self, s):
@@ -53,7 +54,6 @@ class QDPSOptimizer(Optimizer):
         #best_value_std = torch.std(best_value).item()
 
         self._set_params(s.gbest)
-
         if s.gbest_value < self.best_loss:
             self.best_loss = s.gbest_value
             self.best_params = s.gbest.clone()
