@@ -77,9 +77,9 @@ class Swarm:
         self._gbest = self._particles[best_idx].best.clone()
         self._gbest_value = best_values[best_idx].clone()
 
-class QPSO(Swarm):
+class QPSOo(Swarm):
     def __init__(self, cf, size, dim, bounds, maxIters):
-        super(QPSO, self).__init__(size, dim, bounds)
+        super(QPSOo, self).__init__(size, dim, bounds)
         self._cf = cf
         self._maxIters = maxIters
         self._iters = 0
@@ -149,7 +149,7 @@ class QPSO(Swarm):
     def maxIters(self):
         return self._maxIters
 
-class QDPSO(QPSO):
+class QDPSO(QPSOo):
     def __init__(self, cf, size, dim, bounds, maxIters, g):
         super(QDPSO, self).__init__(cf, size, dim, bounds, maxIters)
         self._g = g
