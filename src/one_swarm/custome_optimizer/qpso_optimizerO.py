@@ -7,15 +7,16 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 # Custom QDPSO Optimizer Class for the ExtendedModel class
 class QDPSOoOptimizer(Optimizer):
-    def __init__(self, model, bounds, n_particles=20, max_iters=100, g=1.13):
+    def __init__(self, model, bounds, n_particles=20, max_iters=100, g=1.13, interval_parms_updated=10):
         if bounds is None:
             raise ValueError("Bounds must be provided")
         defaults = dict(n_particles=n_particles, max_iters=max_iters, g=g, bounds=bounds)
-        super(QDPSOoOptimizer, self).__init__(model.parameters(), defaults)
+        super().__init__(model.parameters(), defaults)
 
         self.bounds = bounds
         self.n_particles = n_particles
         self.max_iters = max_iters
+        self.interval_parms_updated = interval_parms_updated
         self.g = g
         self.model = model
         self.params = list(model.parameters())
@@ -28,13 +29,13 @@ class QDPSOoOptimizer(Optimizer):
         self.optimizer = QDPSO(self._fitness_function, self.n_particles, self.dim, self.bounds, self.max_iters, self.g)
 
     def _fitness_function(self, flat_params_batch):
-        losses = []
-        for flat_params in flat_params_batch:
+        losses = torch.empty(len(flat_params_batch), device=device)
+        for i, flat_params in enumerate(flat_params_batch):
             self.model._set_params(flat_params)
             output = self.model(self.X_train)
             loss = self.model.lf.cross_entropy(self.y_train_one_hot, output)
-            losses.append(loss.item())
-        return torch.tensor(losses, device=device)
+            losses[i] = loss.item()
+        return losses
 
     def _set_params(self, flat_params):
         offset = 0
@@ -45,13 +46,13 @@ class QDPSOoOptimizer(Optimizer):
 
     def step(self):
         self._initialize_optimizer()
-        self.optimizer.update(callback=self._log_callback, interval=10)
+        self.optimizer.update(callback=self._log_callback, interval=self.interval_parms_updated)
         self._set_params(self.optimizer.gbest)
 
     def _log_callback(self, s):
-        best_value = torch.tensor([p.best_value for p in s.particles()], device=device)
-        best_value_avg = torch.mean(best_value).item()
-        best_value_std = torch.std(best_value).item()
+        # best_value = torch.tensor([p.best_value for p in s.particles()], device=device)
+        # best_value_avg = torch.mean(best_value).item()
+        # best_value_std = torch.std(best_value).item()
         self._set_params(s.gbest)
         if s.gbest_value < self.best_loss:
             self.best_loss = s.gbest_value

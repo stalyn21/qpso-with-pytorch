@@ -6,47 +6,35 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 # Activation function class
 class ActivationFunction:
     @staticmethod
-    def softmax(z):
-        return torch.nn.functional.softmax(z, dim=1)
+    def softmax(z, dim=1):
+        return torch.nn.functional.softmax(z, dim=dim)
 
 # Loss functions class
 class LossFunction:
-    def __init__(self, X_sample, model):
-        self.n_sample_lf = X_sample
-        self.beta = 5e-4
-        self.L2 = self.beta / self.n_sample_lf
+    def __init__(self, num_samples, model, beta=5e-4):
+        self.L2 = beta / num_samples
         self.model = model
 
-    # Customize cross-entropy loss function with L2 regularization
     def cross_entropy(self, y, y_hat):
         cross_entropy_loss = torch.nn.functional.cross_entropy(y_hat, y, reduction='mean')
-        l2_reg = sum(torch.norm(param) for param in self.model.parameters())
+        l2_reg = sum(param.norm() for param in self.model.parameters())
         return cross_entropy_loss + self.L2 * l2_reg
 
 # Extended Model Class
 class ExtendedModel(torch.nn.Module):
-    def __init__(self, X_sample, input_dim, output_dim, hidden_layers):
-        super(ExtendedModel, self).__init__()
-        self.layers = torch.nn.ModuleList()
-        self.n_sample = X_sample
-
-        # Input layer
-        self.layers.append(torch.nn.Linear(input_dim, hidden_layers[0]))
-
-        # Hidden layers
-        for i in range(len(hidden_layers) - 1):
-            self.layers.append(torch.nn.Linear(hidden_layers[i], hidden_layers[i + 1]))
-
-        # Output layer
-        self.layers.append(torch.nn.Linear(hidden_layers[-1], output_dim))
-
+    def __init__(self, num_samples, input_dim, output_dim, hidden_layers):
+        super().__init__()
+        self.layers = torch.nn.ModuleList(
+            [torch.nn.Linear(input_dim, hidden_layers[0])] +
+            [torch.nn.Linear(hidden_layers[i], hidden_layers[i + 1]) for i in range(len(hidden_layers) - 1)] +
+            [torch.nn.Linear(hidden_layers[-1], output_dim)]
+        )
         self.af = ActivationFunction()
-        self.lf = LossFunction(X_sample, self)
+        self.lf = LossFunction(num_samples, self)
 
     def forward(self, X, params=None):
         if params is not None:
             self._set_params(params)
-
         for i in range(len(self.layers) - 1):
             X = torch.tanh(self.layers[i](X))
         y_hat = self.af.softmax(self.layers[-1](X))
