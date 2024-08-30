@@ -9,7 +9,6 @@ class ActivationFunction:
     def softmax(z, dim=1):
         return torch.nn.functional.softmax(z, dim=dim)
 
-# Loss functions class
 class LossFunction:
     def __init__(self, num_samples, model, beta=5e-4):
         self.L2 = beta / num_samples
@@ -20,7 +19,7 @@ class LossFunction:
         l2_reg = sum(param.norm() for param in self.model.parameters())
         return cross_entropy_loss + self.L2 * l2_reg
 
-# Extended Model Class
+# Model ANN class
 class ExtendedModel(torch.nn.Module):
     def __init__(self, num_samples, input_dim, output_dim, hidden_layers):
         super().__init__()
@@ -37,8 +36,7 @@ class ExtendedModel(torch.nn.Module):
             self._set_params(params)
         for i in range(len(self.layers) - 1):
             X = torch.tanh(self.layers[i](X))
-        y_hat = self.af.softmax(self.layers[-1](X))
-        return y_hat
+        return self.af.softmax(self.layers[-1](X))
 
     def _set_params(self, flat_params):
         offset = 0
@@ -53,5 +51,4 @@ class ExtendedModel(torch.nn.Module):
 
     def evaluate(self, X, y, params):
         y_hat = self.forward(X, params)
-        loss = self.lf.cross_entropy(y, y_hat)
-        return loss
+        return self.lf.cross_entropy(y, y_hat)

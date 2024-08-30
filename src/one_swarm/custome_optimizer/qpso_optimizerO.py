@@ -7,12 +7,11 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 # Custom QDPSO Optimizer Class for the ExtendedModel class
 class QDPSOoOptimizer(Optimizer):
-    def __init__(self, model, bounds, n_particles=20, max_iters=100, g=1.13, interval_parms_updated=10):
+    def __init__(self, model, bounds, n_particles, max_iters, g, interval_parms_updated):
         if bounds is None:
             raise ValueError("Bounds must be provided")
         defaults = dict(n_particles=n_particles, max_iters=max_iters, g=g, bounds=bounds)
         super().__init__(model.parameters(), defaults)
-
         self.bounds = bounds
         self.n_particles = n_particles
         self.max_iters = max_iters
@@ -50,9 +49,6 @@ class QDPSOoOptimizer(Optimizer):
         self._set_params(self.optimizer.gbest)
 
     def _log_callback(self, s):
-        # best_value = torch.tensor([p.best_value for p in s.particles()], device=device)
-        # best_value_avg = torch.mean(best_value).item()
-        # best_value_std = torch.std(best_value).item()
         self._set_params(s.gbest)
         if s.gbest_value < self.best_loss:
             self.best_loss = s.gbest_value
