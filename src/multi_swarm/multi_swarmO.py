@@ -1,4 +1,5 @@
 import torch
+import time
 import numpy as np
 from sklearn.datasets import load_iris, load_breast_cancer, load_wine, make_circles
 from collections import namedtuple
@@ -121,6 +122,7 @@ def main():
     logging.info(f"=============================================")
 
     test_results = []
+    training_time_results = []
 
     for fold, (train_index, val_index) in enumerate(kf.split(X_train_val), 1):
         logging.info(f"======= Fold {fold} =======")
@@ -140,27 +142,31 @@ def main():
         best_val_loss = float('inf')
         best_model_state = None
 
-        for epoch in range(config['n_epochs']):
-            logging.info(f"Starting epoch {epoch + 1} for fold {fold}")
-            for optimizer in reversed(swarms):
-                optimizer.set_training_data(X_train, y_train_one_hot)
-                optimizer.print_layer_info()
-                optimizer.step()
+        with torch.no_grad():  # Disable gradient tracking
+            for epoch in range(config['n_epochs']):
+                logging.info(f"Starting epoch {epoch + 1} for fold {fold}")
+                for optimizer in reversed(swarms):
+                    optimizer.set_training_data(X_train, y_train_one_hot)
+                    optimizer.print_layer_info()
+                    training_start_time = time.perf_counter()
+                    optimizer.step()
+                    training_end_time = time.perf_counter()
+                    training_elapsed_time = training_end_time - training_start_time
+                    training_time_results.append(training_elapsed_time)
 
-            output = model(X_train)
-            loss = model.lf.cross_entropy(y_train_one_hot, output)
-            train_losses.append(loss.item())
+                output = model(X_train)
+                loss = model.lf.cross_entropy(y_train_one_hot, output)
+                train_losses.append(loss.item())
 
-            with torch.no_grad():
                 val_output = model(X_val)
                 val_loss = model.lf.cross_entropy(y_val_one_hot, val_output)
                 val_losses.append(val_loss.item())
 
-            logging.info(f'Fold {fold}, Epoch {epoch + 1}, Loss: {loss.item():.4f} - Validation Loss: {val_loss.item():.4f}')
+                logging.info(f'Fold {fold}, Epoch {epoch + 1}, Loss: {loss.item():.4f} - Validation Loss: {val_loss.item():.4f}')
 
-            if val_loss < best_val_loss:
-                best_val_loss = val_loss
-                best_model_state = model.state_dict().copy()
+                if val_loss < best_val_loss:
+                    best_val_loss = val_loss
+                    best_model_state = model.state_dict().copy()
 
         model.load_state_dict(best_model_state)
         save_model(best_model_state, config, 'best_model.pth')
@@ -180,8 +186,10 @@ def main():
     logging.info(f"Total Parameters: {total_params.numel()}")
     logging.info("=============================================")
 
+    mean_training_time = np.mean(training_time_results)
     mean_accuracy = np.mean(test_results)
     std_accuracy = np.std(test_results)
+    logging.info(f'Mean training time per epoch and folder: {mean_training_time:.4f} seconds')
     logging.info(f'Mean accuracy on test dataset: {mean_accuracy:.4f}')
     logging.info(f'Standard deviation of accuracy on test dataset: {std_accuracy:.4f}')
     logging.info("=============================================")
