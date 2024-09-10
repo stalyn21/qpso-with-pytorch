@@ -55,14 +55,16 @@ class LayerQDPSOoOptimizer(Optimizer):
         Returns:
             torch.Tensor: Tensor of loss values for each parameter set.
         """
-        losses = torch.empty(len(flat_params_batch), device=device)
-        for i, flat_params in enumerate(flat_params_batch):
-            #self.model._set_params(flat_params)
-            self.model.set_flat_params_layer(self.layer_idx, flat_params)
-            output = self.model(self.X_train)
-            loss = self.model.lf.cross_entropy(self.y_train_one_hot, output)
-            losses[i] = loss.item()
-        return losses
+
+        with torch.no_grad():  # Disable gradient tracking
+            losses = torch.empty(len(flat_params_batch), device=device)
+            for i, flat_params in enumerate(flat_params_batch):
+                #self.model._set_params(flat_params)
+                self.model.set_flat_params_layer(self.layer_idx, flat_params)
+                output = self.model(self.X_train)
+                loss = self.model.lf.cross_entropy(self.y_train_one_hot, output)
+                losses[i] = loss.item()
+            return losses
 
     def step(self):
         """Perform one step of optimization."""
