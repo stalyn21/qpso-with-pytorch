@@ -1,98 +1,162 @@
 import torch
-from sklearn.datasets import load_iris
+import logging
+import numpy as np
+import time
+
+from sklearn.datasets import load_iris, load_breast_cancer, load_wine, make_circles
+from collections import namedtuple
 from sklearn.preprocessing import StandardScaler
 from sklearn.model_selection import train_test_split, KFold
-#from collections import Counter
 
 # custome optimizer and model
 from custome_optimizer.qpso_optimizer import QDPSOptimizer
 from ann.ann import ExtendedModel
 
+# Logging Setup
+logging.basicConfig(
+    level=logging.INFO,  # Establecer el nivel de registro en INFO
+    format='%(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler("./outputs/iris.output"),  # Enviar logs al archivo iris.output
+        logging.StreamHandler()  # También enviar logs a la consola
+    ]
+)
+
 # Aseguramos que PyTorch use GPU si está disponible
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-# Cargar el conjunto de datos iris
-data = load_iris()
-X, y = data.data, data.target
+# Loading and split datasets 
+def load_and_preprocess_data(dataset='iris'):
+    dataset_dict = {
+        'iris': load_iris,
+        'breast_cancer': load_breast_cancer,
+        'wine': load_wine,
+    }
+    if dataset in dataset_dict:
+        data = dataset_dict[dataset]()
+    elif dataset == 'circle':
+        n = 500
+        X, y = make_circles(n_samples=n, factor=0.5, noise=0.05)
+        Dataset = namedtuple('Dataset', ['data', 'target', 'feature_names', 'target_names'])
+        data = Dataset(
+            data=X,
+            target=y,
+            feature_names=['X coordinate', 'Y coordinate'],
+            target_names=['outer circle', 'inner circle']
+        )
+    else:
+        raise ValueError("Unknown dataset")
 
-# Escalar las características
-scaler = StandardScaler()
-X = scaler.fit_transform(X)
+    X, y = data.data, data.target
+    scaler = StandardScaler()
+    X = scaler.fit_transform(X)
+    return train_test_split(X, y, test_size=0.2, random_state=100)
 
-# Dividir el conjunto de datos: 80% para entrenamiento y validación, 20% para pruebas
-X_train_val, X_test, y_train_val, y_test = train_test_split(X, y, test_size=0.2, random_state=100)
+def main():
+    # load and preprocess the data accepcting the dataset name: iris, breast_cancer, wine, and circle 
+    dataset_name = 'iris'
+    X_train_val, X_test, y_train_val, y_test = load_and_preprocess_data(dataset_name)
+    
+    input_shape = X_train_val.shape[1]
+    output_shape = len(np.unique(y_train_val))
+    n_samples = X_train_val.shape[0]
 
-# K-Fold Cross-Validation: 4 pliegues en el conjunto de entrenamiento y validación
-kf = KFold(n_splits=4, shuffle=True, random_state=100)
+    # Config for the model
+    config = {
+        'dataset': dataset_name,
+        'input_dim': input_shape,
+        'output_dim': output_shape,
+        'n_samples': n_samples,
+        'hidden_layers': [input_shape * 3], # 3 times the input dimension, also accepted multi layers [3, 5, 8]
+        'n_particles': 20,
+        'max_iters': 500,
+        'g': 1.13,
+        'interval_parms_updated': 100,
+        'n_folds': 4,
+        'n_epochs': 15
+    }
 
-input_dim = X.shape[1]
-output_dim = len(torch.unique(torch.tensor(y)))
-hidden_layers = [input_dim * 3]
-
-n_particles = 40
-max_iters = 50
-g = 1.13
-interval_parms_updated = 10
-
-X_test = torch.tensor(X_test, dtype=torch.float32).to(device)
-y_test = torch.tensor(y_test, dtype=torch.long).to(device)
-
-test_results = []
-
-for fold, (train_index, val_index) in enumerate(kf.split(X_train_val)):
-    print(f"Fold {fold + 1}")
-
-    X_train, X_val = X_train_val[train_index], X_train_val[val_index]
-    y_train, y_val = y_train_val[train_index], y_train_val[val_index]
-
-    X_train = torch.tensor(X_train, dtype=torch.float32).to(device)
-    y_train = torch.tensor(y_train, dtype=torch.long).to(device)
-    X_val = torch.tensor(X_val, dtype=torch.float32).to(device)
-    y_val = torch.tensor(y_val, dtype=torch.long).to(device)
-
-    n_samples = X_train.shape[0]
+    X_test = torch.tensor(X_test, dtype=torch.float32).to(device)
+    y_test = torch.tensor(y_test, dtype=torch.long).to(device)
 
     # model = ExtendedModel(input_dim, output_dim, hidden_layers).to(device)
-    model = ExtendedModel(n_samples, input_dim, output_dim, hidden_layers).to(device)
-
-    y_train_one_hot = torch.nn.functional.one_hot(y_train, num_classes=output_dim).float().to(device)
-    y_val_one_hot = torch.nn.functional.one_hot(y_val, num_classes=output_dim).float().to(device)
-
+    model = ExtendedModel(n_samples, config['input_dim'], config['output_dim'], config['hidden_layers']).to(device)
     bounds = [(-1, 1) for _ in range(sum(p.numel() for p in model.parameters()))]
-    optimizer = QDPSOptimizer(model, bounds, n_particles=n_particles, max_iters=max_iters, g=g, interval_parms_updated=interval_parms_updated)
+    optimizer = QDPSOptimizer(model, bounds, n_particles=config['n_particles'], max_iters=config['max_iters'], g=config['g'], interval_parms_updated=config['interval_parms_updated'])
+    
+    # K-Fold Cross-Validation: 4 pliegues en el conjunto de entrenamiento y validación
+    kf = KFold(n_splits=config['n_folds'], shuffle=True, random_state=100)
 
-    optimizer.set_training_data(X_train, y_train_one_hot)
+    train_results = []
+    val_results = []
+    test_results = []
 
-    for epoch in range(4):
-        print(f"Starting epoch {epoch + 1}")
-        optimizer.step()
-        output = model(X_train)
-        # loss = model.lf.cross_entropy(self.y_train_one_hot, output, model)
-        loss = model.lf.cross_entropy(y_train_one_hot, output)
+    time_results = []
+
+    for fold, (train_index, val_index) in enumerate(kf.split(X_train_val)):
+        logging.info(f"======= Fold {fold} =======")
+        X_train, X_val = X_train_val[train_index], X_train_val[val_index]
+        y_train, y_val = y_train_val[train_index], y_train_val[val_index]
+
+        X_train = torch.tensor(X_train, dtype=torch.float32).to(device)
+        y_train = torch.tensor(y_train, dtype=torch.long).to(device)
+        X_val = torch.tensor(X_val, dtype=torch.float32).to(device)
+        y_val = torch.tensor(y_val, dtype=torch.long).to(device)
+        
+        y_train_one_hot = torch.nn.functional.one_hot(y_train, num_classes=config['output_dim']).float().to(device)
+        y_val_one_hot = torch.nn.functional.one_hot(y_val, num_classes=config['output_dim']).float().to(device)
+        optimizer.set_training_data(X_train, y_train_one_hot)
 
         with torch.no_grad():
-            val_output = model(X_val)
-            # val_loss = model.lf.cross_entropy(self.y_val_one_hot, val_output, model)
-            val_loss = model.lf.cross_entropy(y_val_one_hot, val_output)
-        
-        print(f'Fold {fold + 1}, Epoch {epoch + 1}, Loss: {loss.item()} - Validation Loss: {val_loss.item()}')
-        print(f"Finished epoch {epoch + 1}")
+            for epoch in range(config['n_epochs']):
+                #print(f"Starting epoch {epoch + 1}")
+                start_time = time.perf_counter()
+                optimizer.step()
+                end_time = time.perf_counter()
+                elapsed_time = end_time - start_time
+                time_results.append(elapsed_time)
+                
+                output = model(X_train)
+                loss = model.lf.cross_entropy(y_train_one_hot, output)
 
-    # Evaluación final en el conjunto de validación
-    model._set_params(optimizer.best_params)
+                val_output = model(X_val)
+                val_loss = model.lf.cross_entropy(y_val_one_hot, val_output)
+                
+                logging.info(f'Epoch {epoch + 1}, Loss: {loss.item():.4f} - Validation Loss: {val_loss.item():.4f}')
 
-    with torch.no_grad():
-        val_output = model(X_val)
-        # val_loss = model.lf.cross_entropy(self.y_val_one_hot, val_output, model
-        val_loss = model.lf.cross_entropy(y_val_one_hot, val_output)
-        print(f'Fold {fold + 1}, Final Validation Loss: {val_loss.item()}')
+            # Evaluación final en el conjunto de validación
+            model._set_params(optimizer.best_params)
+            train_pred = model(X_train).argmax(dim=1)
+            train_acc = (train_pred == y_train).float().mean().item()
+            val_pred = model(X_val).argmax(dim=1)
+            val_acc = (val_pred == y_val).float().mean().item()
+            y_pred = model(X_test).argmax(dim=1)    
+            accuracy = (y_pred == y_test).float().mean().item()
+            logging.info(f'Fold {fold}, Accuracy on training dataset: {train_acc:.4f}')
+            logging.info(f'Fold {fold}, Accuracy on validation dataset: {val_acc:.4f}')
+            logging.info(f'Fold {fold}, Accuracy on test dataset: {accuracy:.4f}')            
+            logging.info(f"=========================")
+            
+            train_results.append(train_acc)
+            val_results.append(val_acc)
+            test_results.append(accuracy)
+    
+    logging.info("=============================================")
+    logging.info("Model Setup:")
+    for key, value in config.items():
+        logging.info(f"{key}: {value}")
+    logging.info("=============================================")
+    mean_time = np.mean(time_results)
+    mean_train = np.mean(train_results)
+    mean_val = np.mean(val_results)
+    mean_accuracy = np.mean(test_results)
+    std_accuracy = np.std(test_results)
+    logging.info(f'Mean time per epoch and folder: {mean_time:.4f} seconds')
+    logging.info(f'Mean accuracy on training dataset: {mean_train:.4f}')
+    logging.info(f'Mean accuracy on validation dataset: {mean_val:.4f}')
+    logging.info(f'Mean accuracy on test dataset: {mean_accuracy:.4f}')
+    logging.info(f'Standard deviation of accuracy on test dataset: {std_accuracy:.4f}')
+    logging.info("=============================================")
 
-        # Evaluación en el conjunto de prueba
-        y_pred = model(X_test).argmax(dim=1)
-        accuracy = (y_pred == y_test).float().mean().item()
-        print(f'Fold {fold + 1}, Accuracy on iris test dataset: {accuracy:.4f}')
-        test_results.append(accuracy)
-
-# Resultados finales
-print(f'Mean accuracy on test dataset: {torch.tensor(test_results).mean().item():.4f}')
-print(f'Standard deviation of accuracy on test dataset: {torch.tensor(test_results).std().item():.4f}')
+if __name__ == "__main__":
+    main()
