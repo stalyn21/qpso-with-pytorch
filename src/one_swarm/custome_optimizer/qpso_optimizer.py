@@ -1,11 +1,11 @@
 import torch
+import logging
+
 from torch.optim import Optimizer
 from tensor_qpso.qpso import QDPSO
 
-# Aseguramos que PyTorch use GPU si está disponible
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-# Custom QDPSO Optimizer Class for the ExtendedModel class 
 class QDPSOptimizer(Optimizer):
     def __init__(self, model, bounds, n_particles=20, max_iters=100, g=1.13, interval_parms_updated=10):
         if bounds is None:
@@ -24,7 +24,9 @@ class QDPSOptimizer(Optimizer):
 
         self.optimizer = None
         self.best_params = None
-        self.best_loss = float('inf')
+        self.best_val_loss = float('inf')
+
+        self.epoch = 0
 
     def _initialize_optimizer(self):
         self.optimizer = QDPSO(self._fitness_function, self.n_particles, self.dim, self.bounds, self.max_iters, self.g)
@@ -32,7 +34,6 @@ class QDPSOptimizer(Optimizer):
     def _fitness_function(self, flat_params):
         self.model._set_params(flat_params)
         output = self.model(self.X_train)
-        # loss = self.model.lf.cross_entropy(self.y_train_one_hot, output, self.model)
         loss = self.model.lf.cross_entropy(self.y_train_one_hot, output)
         return loss.item()
 
@@ -49,15 +50,28 @@ class QDPSOptimizer(Optimizer):
         self._set_params(self.optimizer.gbest)
 
     def _log_callback(self, s):
-        #best_value = torch.tensor([p.best_value for p in s.particles()], device=device)
-        #best_value_avg = torch.mean(best_value).item()
-        #best_value_std = torch.std(best_value).item()
+        if self.epoch > self.max_iters:
+            self.epoch = 0
 
         self._set_params(s.gbest)
-        if s.gbest_value < self.best_loss:
-            self.best_loss = s.gbest_value
+        
+        # Evaluate the model on the validation set
+        with torch.no_grad():
+            val_output = self.model(self.X_val)
+            val_loss = self.model.lf.cross_entropy(self.y_val_one_hot, val_output)
+        
+        # Update the best parameters if the validation loss improves
+        if val_loss.item() < self.best_val_loss:
+            self.best_val_loss = val_loss.item()
             self.best_params = s.gbest.clone()
+            logging.info(f'Epoch {self.epoch}, Loss: {s.gbest_value:.4f} - Validation Loss: {self.best_val_loss:.4f}')
+        else:
+            logging.info(f'Epoch {self.epoch}, Loss: {s.gbest_value:.4f} - Validation Loss: {val_loss.item():.4f}')
 
-    def set_training_data(self, X_train, y_train_one_hot):
+        self.epoch = self.epoch + 1
+
+    def set_training_data(self, X_train, y_train_one_hot, X_val, y_val_one_hot):
         self.X_train = X_train.to(device)
         self.y_train_one_hot = y_train_one_hot.to(device)
+        self.X_val = X_val.to(device)
+        self.y_val_one_hot = y_val_one_hot.to(device)

@@ -1,4 +1,6 @@
 import torch
+import logging
+
 from torch.optim import Optimizer
 from tensor_qpso.qpsoO import QDPSO
 
@@ -22,7 +24,8 @@ class QDPSOoOptimizer(Optimizer):
         self.dim = sum(p.numel() for p in self.params)
         self.optimizer = None
         self.best_params = None
-        self.best_loss = float('inf')
+        self.best_val_loss = float('inf')
+        self.epoch = 0
 
     def _initialize_optimizer(self):
         self.optimizer = QDPSO(self._fitness_function, self.n_particles, self.dim, self.bounds, self.max_iters, self.g)
@@ -49,11 +52,28 @@ class QDPSOoOptimizer(Optimizer):
         self._set_params(self.optimizer.gbest)
 
     def _log_callback(self, s):
-        self._set_params(s.gbest)
-        if s.gbest_value < self.best_loss:
-            self.best_loss = s.gbest_value
-            self.best_params = s.gbest.clone()
+        if self.epoch > self.max_iters:
+            self.epoch = 0
 
-    def set_training_data(self, X_train, y_train_one_hot):
+        self._set_params(s.gbest)
+        
+        # Evaluate the model on the validation set
+        with torch.no_grad():
+            val_output = self.model(self.X_val)
+            val_loss = self.model.lf.cross_entropy(self.y_val_one_hot, val_output)
+        
+        # Update the best parameters if the validation loss improves
+        if val_loss.item() < self.best_val_loss:
+            self.best_val_loss = val_loss.item()
+            self.best_params = s.gbest.clone()
+            logging.info(f'Epoch {self.epoch}, Loss: {s.gbest_value:.4f} - Validation Loss: {self.best_val_loss:.4f}')
+        else:
+            logging.info(f'Epoch {self.epoch}, Loss: {s.gbest_value:.4f} - Validation Loss: {val_loss.item():.4f}')
+
+        self.epoch = self.epoch + 1
+
+    def set_training_data(self, X_train, y_train_one_hot, X_val, y_val_one_hot):
         self.X_train = X_train.to(device)
         self.y_train_one_hot = y_train_one_hot.to(device)
+        self.X_val = X_val.to(device)
+        self.y_val_one_hot = y_val_one_hot.to(device)

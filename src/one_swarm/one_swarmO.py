@@ -12,18 +12,6 @@ from sklearn.model_selection import KFold, train_test_split
 from custome_optimizer.qpso_optimizerO import QDPSOoOptimizer
 from ann.annO import ExtendedModel
 
-# Logging Setup
-# logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
-# Logging Setup
-logging.basicConfig(
-    level=logging.INFO,  # Establecer el nivel de registro en INFO
-    format='%(levelname)s - %(message)s',
-    handlers=[
-        logging.FileHandler("./outputs/breast_cancerO.output"),  # Enviar logs al archivo iris.output
-        logging.StreamHandler()  # También enviar logs a la consola
-    ]
-)
-
 # Aseguramos que PyTorch use GPU si está disponible
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -54,9 +42,34 @@ def load_and_preprocess_data(dataset='iris'):
     X = scaler.fit_transform(X)
     return train_test_split(X, y, test_size=0.2, random_state=100)
 
+def save_best_model(model, config, best_val_acc):
+    model_path = f"./models/{config['dataset']}O_best_model.pth"
+    torch.save({
+        'model_state_dict': model.state_dict(),
+        'config': config,
+        'best_val_acc': best_val_acc
+    }, model_path)
+    logging.info(f"Best model saved at: {model_path}")
+
 def main():
+    best_val_acc = 0
+    best_model = None
+
     # load and preprocess the data accepcting the dataset name: iris, breast_cancer, wine, and circle 
-    dataset_name = 'breast_cancer'
+    dataset_name = 'circle'
+
+    # Logging Setup
+    # logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+    # Logging Setup
+    logging.basicConfig(
+        level=logging.INFO,  # Establecer el nivel de registro en INFO
+        format='%(levelname)s - %(message)s',
+        handlers=[
+            logging.FileHandler(f"./output/{dataset_name}O.output"),  # Enviar logs al archivo iris.output
+            logging.StreamHandler()  # También enviar logs a la consola
+        ]
+    )
+
     X_train_val, X_test, y_train_val, y_test = load_and_preprocess_data(dataset_name)
 
     input_shape = X_train_val.shape[1]
@@ -69,13 +82,12 @@ def main():
         'input_dim': input_shape,
         'output_dim': output_shape,
         'n_samples': n_samples,
-        'hidden_layers': [input_shape * 3], # 3 times the input dimension, also accepted multi layers [3, 5, 8]
+        'hidden_layers': [4, 5, 4], # 3 times the input dimension, also accepted multi layers [4, 5, 4]
         'n_particles': 20,
-        'max_iters': 500,
         'g': 1.13,
-        'interval_parms_updated': 100,
+        'interval_parms_updated': 1,
         'n_folds': 4,
-        'n_epochs': 15
+        'n_epochs': 100
     }
 
     X_test_tensor = torch.tensor(X_test, dtype=torch.float32).to(device)
@@ -83,7 +95,7 @@ def main():
 
     model = ExtendedModel(num_samples=config['n_samples'], input_dim=config['input_dim'], output_dim=config['output_dim'], hidden_layers=config['hidden_layers']).to(device)
     bounds = [(-1, 1) for _ in range(sum(p.numel() for p in model.parameters()))]
-    optimizer = QDPSOoOptimizer(model, bounds, n_particles=config['n_particles'], max_iters=config['max_iters'], g=config['g'], interval_parms_updated=config['interval_parms_updated'])
+    optimizer = QDPSOoOptimizer(model, bounds, n_particles=config['n_particles'], max_iters=config['n_epochs'], g=config['g'], interval_parms_updated=config['interval_parms_updated'])
     
     kf = KFold(n_splits=config['n_folds'], shuffle=True, random_state=100)
     
@@ -105,24 +117,14 @@ def main():
 
         y_train_one_hot = torch.nn.functional.one_hot(y_train, num_classes=model.layers[-1].out_features).float().to(device)
         y_val_one_hot = torch.nn.functional.one_hot(y_val, num_classes=model.layers[-1].out_features).float().to(device)
-        optimizer.set_training_data(X_train, y_train_one_hot)
+        optimizer.set_training_data(X_train, y_train_one_hot, X_val, y_val_one_hot)
         
         with torch.no_grad():
-            for epoch in range(config['n_epochs']):
-                # logging.info(f"Starting epoch {epoch + 1}")
-                start_time = time.perf_counter()
-                optimizer.step()
-                end_time = time.perf_counter()
-                elapsed_time = end_time - start_time
-                time_results.append(elapsed_time)
-
-                output = model(X_train)
-                loss = model.lf.cross_entropy(y_train_one_hot, output)
-
-                val_output = model(X_val)
-                val_loss = model.lf.cross_entropy(y_val_one_hot, val_output)
-                
-                logging.info(f'Epoch {epoch + 1}, Loss: {loss.item():.4f} - Validation Loss: {val_loss.item():.4f}')
+            start_time = time.perf_counter()
+            optimizer.step()
+            end_time = time.perf_counter()
+            elapsed_time = end_time - start_time
+            time_results.append(elapsed_time)
 
             model._set_params(optimizer.best_params)
             train_pred = model(X_train).argmax(dim=1)
@@ -134,11 +136,19 @@ def main():
             logging.info(f'Fold {fold}, Accuracy on training dataset: {train_acc:.4f}')
             logging.info(f'Fold {fold}, Accuracy on validation dataset: {val_acc:.4f}')
             logging.info(f'Fold {fold}, Accuracy on test dataset: {accuracy:.4f}')            
-            logging.info(f"=========================")
-            
+            logging.info(f"=========================") 
+
+            if val_acc > best_val_acc:
+                best_val_acc = val_acc
+                best_model = model.state_dict()
+
             train_results.append(train_acc)
             val_results.append(val_acc)
             test_results.append(accuracy)
+
+    if best_model is not None:
+        model.load_state_dict(best_model)
+        save_best_model(model, config, best_val_acc)
 
     logging.info("=============================================")
     logging.info("Model Setup:")
