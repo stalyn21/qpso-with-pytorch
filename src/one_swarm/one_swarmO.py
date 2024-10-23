@@ -56,7 +56,7 @@ def main():
     best_model = None
 
     # load and preprocess the data accepcting the dataset name: iris, breast_cancer, wine, and circle 
-    dataset_name = 'circle'
+    dataset_name = 'breast_cancer'
 
     # Logging Setup
     # logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -82,7 +82,7 @@ def main():
         'input_dim': input_shape,
         'output_dim': output_shape,
         'n_samples': n_samples,
-        'hidden_layers': [4, 5, 4], # 3 times the input dimension, also accepted multi layers [4, 5, 4]
+        'hidden_layers': [3*input_shape], # 3 times the input dimension, also accepted multi layers [4, 6, 4]
         'n_particles': 20,
         'g': 1.13,
         'interval_parms_updated': 1,
