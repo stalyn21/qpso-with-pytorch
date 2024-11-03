@@ -52,7 +52,7 @@ def save_best_model(model, config, best_val_acc):
     logging.info(f"Best model saved at: {model_path}")
 
 def main():
-    best_val_acc = 0
+    best_acc = 0
     best_model = None
 
     # load and preprocess the data accepcting the dataset name: iris, breast_cancer, wine, and circle 
@@ -138,8 +138,8 @@ def main():
             logging.info(f'Fold {fold}, Accuracy on test dataset: {accuracy:.4f}')            
             logging.info(f"=========================") 
 
-            if val_acc > best_val_acc:
-                best_val_acc = val_acc
+            if accuracy > best_acc:
+                best_acc = accuracy
                 best_model = model.state_dict()
 
             train_results.append(train_acc)
@@ -148,7 +148,7 @@ def main():
 
     if best_model is not None:
         model.load_state_dict(best_model)
-        save_best_model(model, config, best_val_acc)
+        save_best_model(model, config, best_acc)
 
     logging.info("=============================================")
     logging.info("Model Setup:")
