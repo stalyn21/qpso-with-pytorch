@@ -42,12 +42,12 @@ def load_and_preprocess_data(dataset='iris'):
     X = scaler.fit_transform(X)
     return train_test_split(X, y, test_size=0.2, random_state=100)
 
-def save_best_model(model, config, best_val_acc):
+def save_best_model(model, config, best_acc):
     model_path = f"./models/{config['dataset']}O_best_model.pth"
     torch.save({
         'model_state_dict': model.state_dict(),
         'config': config,
-        'best_val_acc': best_val_acc
+        'best_val_acc': best_acc
     }, model_path)
     logging.info(f"Best model saved at: {model_path}")
 
@@ -82,7 +82,7 @@ def main():
         'input_dim': input_shape,
         'output_dim': output_shape,
         'n_samples': n_samples,
-        'hidden_layers': [3*input_shape], # 3 times the input dimension, also accepted multi layers [4, 6, 4]
+        'hidden_layers': [input_shape * 2, (input_shape * 3) // 2, input_shape], 
         'n_particles': 20,
         'g': 1.13,
         'interval_parms_updated': 1,
@@ -154,17 +154,20 @@ def main():
     logging.info("Model Setup:")
     for key, value in config.items():
         logging.info(f"{key}: {value}")
+    logging.info(f"Total Parameters: {sum(p.numel() for p in model.parameters())}")
     logging.info("=============================================")
     mean_time = np.mean(time_results)
+    std_time = np.std(time_results)
     mean_train = np.mean(train_results)
+    std_train = np.std(train_results)
     mean_val = np.mean(val_results)
+    std_val = np.std(val_results)
     mean_accuracy = np.mean(test_results)
     std_accuracy = np.std(test_results)
-    logging.info(f'Mean time per epoch and folder: {mean_time:.4f} seconds')
-    logging.info(f'Mean accuracy on training dataset: {mean_train:.4f}')
-    logging.info(f'Mean accuracy on validation dataset: {mean_val:.4f}')
-    logging.info(f'Mean accuracy on test dataset: {mean_accuracy:.4f}')
-    logging.info(f'Standard deviation of accuracy on test dataset: {std_accuracy:.4f}')
+    logging.info(f'Mean time per epoch and folder: {mean_time:.4f} - std:{std_time:.4f} seconds')
+    logging.info(f'Mean accuracy on training dataset: {mean_train:.4f} - std: {std_train:.4f}')
+    logging.info(f'Mean accuracy on validation dataset: {mean_val:.4f} - std: {std_val:.4f}')
+    logging.info(f'Mean accuracy on test dataset: {mean_accuracy:.4f} - std: {std_accuracy:.4f}')
     logging.info("=============================================")
 
 if __name__ == "__main__":

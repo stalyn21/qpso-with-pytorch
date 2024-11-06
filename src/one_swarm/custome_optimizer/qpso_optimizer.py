@@ -24,9 +24,6 @@ class QDPSOptimizer(Optimizer):
 
         self.optimizer = None
         self.best_params = None
-        self.best_val_loss = float('inf')
-
-        self.epoch = 0
 
     def _initialize_optimizer(self):
         self.optimizer = QDPSO(self._fitness_function, self.n_particles, self.dim, self.bounds, self.max_iters, self.g)
@@ -46,6 +43,8 @@ class QDPSOptimizer(Optimizer):
 
     def step(self):
         self._initialize_optimizer()
+        self.best_val_loss = float('inf')
+        self.epoch = 0
         self.optimizer.update(callback=self._log_callback, interval=self.interval_parms_updated)
         self._set_params(self.optimizer.gbest)
 
@@ -64,10 +63,16 @@ class QDPSOptimizer(Optimizer):
         if val_loss.item() < self.best_val_loss:
             self.best_val_loss = val_loss.item()
             self.best_params = s.gbest.clone()
-            logging.info(f'Epoch {self.epoch}, Loss: {s.gbest_value:.4f} - Validation Loss: {self.best_val_loss:.4f}')
+            logging.info(f'Epoch {self.epoch}'
+                         f' - Train Loss: {s.gbest_value:.4f}'
+                         f' - Val Loss: {self.best_val_loss:.4f}'
+                         f' - Best Val Loss: {self.best_val_loss:.4f}')
         else:
-            logging.info(f'Epoch {self.epoch}, Loss: {s.gbest_value:.4f} - Validation Loss: {val_loss.item():.4f}')
-
+            logging.info(f'Epoch {self.epoch}'
+                         f' - Train Loss: {s.gbest_value:.4f}'
+                         f' - Val Loss: {val_loss.item():.4f}'
+                         f' - Best Val Loss: {self.best_val_loss:.4f}')
+            
         self.epoch = self.epoch + 1
 
     def set_training_data(self, X_train, y_train_one_hot, X_val, y_val_one_hot):

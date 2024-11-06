@@ -11,10 +11,6 @@ import logging
 from custome_optimizer.qpso_optimizerO import LayerQDPSOoOptimizer
 from ann.modelO import ExtendedModel
 
-# Configuración de logging
-# logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
-logging.basicConfig(level=logging.INFO, format='%(levelname)s - %(message)s')
-
 # Aseguramos que PyTorch use GPU si está disponible
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -56,21 +52,23 @@ def load_and_preprocess_data(dataset='iris'):
     X = scaler.fit_transform(X)
     return train_test_split(X, y, test_size=0.2, random_state=100)
 
-def save_model(model_state, config, file_path):
+def save_best_model(model, config, best_acc):
     """
     Save the model state and configuration to a file.
 
     Args:
-        model_state (OrderedDict): The state dictionary of the model.
+        model (OrderedDict): The state dictionary of the model.
         config (dict): The configuration dictionary of the model.
-        file_path (str): The path where the model will be saved.
+        best_acc (str): The best model accuracy.
     """
-    save_dict = {
-        'model_state_dict': model_state,
-        'config': config
-    }
-    torch.save(save_dict, file_path)
-    logging.info(f"Model saved to {file_path}")
+    model_path = f"./models/{config['dataset']}_best_model_multi_swarm.pth"
+    torch.save({
+        'model_state_dict': model.state_dict(),
+        'config': config,
+        'best_val_acc': best_acc
+    }, model_path)
+    logging.info(f"Best model saved at: {model_path}")
+
 
 def main():
     """
@@ -84,45 +82,67 @@ def main():
     5. Save the best model
     6. Log the results
     """
+
+    best_acc = 0
+    best_model = None
+
+    # load and preprocess the data accepcting the dataset name: iris, breast_cancer, wine, and circle 
     dataset_name = 'iris'
+
+    # Logging Setup
+    # logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+    # Logging Setup
+    logging.basicConfig(
+        level=logging.INFO,  # Establecer el nivel de registro en INFO
+        format='%(levelname)s - %(message)s',
+        handlers=[
+            logging.FileHandler(f"./output/{dataset_name}_multi_swarm.output"),  # Enviar logs al archivo iris.output
+            logging.StreamHandler()  # También enviar logs a la consola
+        ]
+    )
+
     X_train_val, X_test, y_train_val, y_test = load_and_preprocess_data(dataset_name)
+
     input_shape = X_train_val.shape[1]
     output_shape = len(np.unique(y_train_val))
     n_samples = X_train_val.shape[0]
-
-    X_test_tensor = torch.tensor(X_test, dtype=torch.float32).to(device)
-    y_test_tensor = torch.tensor(y_test, dtype=torch.long).to(device)
 
     config = {
         'dataset': dataset_name,
         'input_dim': input_shape,
         'output_dim': output_shape,
         'n_samples': n_samples,
-        'hidden_layers': [5, 6, 5, 4],
+        'hidden_layers': [input_shape * 2, (input_shape * 3) // 2, input_shape], # (input_shape * 3) // 2, int division
         'n_particles': 20,
-        'max_iters': 60,
-        'g': 1.15,
-        'interval_parms_updated': 10,
+        'g': 1.13,
+        'interval_parms_updated': 1,
         'n_folds': 4,
-        'n_epochs': 4,
+        'n_epochs': 100 # max iterations on logs callback function on the training
     }
 
-    kf = KFold(n_splits=config['n_folds'], shuffle=True, random_state=100)
+    X_test_tensor = torch.tensor(X_test, dtype=torch.float32).to(device)
+    y_test_tensor = torch.tensor(y_test, dtype=torch.long).to(device)
 
     model = ExtendedModel(num_samples=config['n_samples'], input_dim=config['input_dim'], output_dim=config['output_dim'], hidden_layers=config['hidden_layers']).to(device)
     total_params = model.get_flat_params()
+
+    kf = KFold(n_splits=config['n_folds'], shuffle=True, random_state=100)
 
     swarms = []
     logging.info(f"=============================================")
     logging.info(f"Parameter numbers to training {total_params.numel()}")
     for i in range(len(model.layers)):
-        swarm = LayerQDPSOoOptimizer(model, i, total_params, n_particles=config['n_particles'], max_iters=config['max_iters'], g=config['g'], interval_parms_updated=config['interval_parms_updated'])
+        swarm = LayerQDPSOoOptimizer(model, i, total_params, n_particles=config['n_particles'], max_iters=config['n_epochs'], g=config['g'], interval_parms_updated=config['interval_parms_updated'])
         swarms.append(swarm)
         logging.info(f"Layer {i} swarm initialized with {swarm.dim} dimensions for each particle.")
     logging.info(f"=============================================")
-
+    
+    train_results = []
+    val_results = []
     test_results = []
-    training_time_results = []
+
+    swarm_times = np.zeros((config['n_folds'], len(model.layers)))  # Matriz
+    time_results = []
 
     for fold, (train_index, val_index) in enumerate(kf.split(X_train_val), 1):
         logging.info(f"======= Fold {fold} =======")
@@ -136,48 +156,43 @@ def main():
 
         y_train_one_hot = torch.nn.functional.one_hot(y_train, num_classes=config['output_dim']).float().to(device)
         y_val_one_hot = torch.nn.functional.one_hot(y_val, num_classes=config['output_dim']).float().to(device)
-            
-        train_losses = []
-        val_losses = []
-        best_val_loss = float('inf')
-        best_model_state = None
 
         with torch.no_grad():  # Disable gradient tracking
-            for epoch in range(config['n_epochs']):
-                logging.info(f"Starting epoch {epoch + 1} for fold {fold}")
-                for optimizer in reversed(swarms):
-                    optimizer.set_training_data(X_train, y_train_one_hot)
-                    optimizer.print_layer_info()
-                    training_start_time = time.perf_counter()
-                    optimizer.step()
-                    training_end_time = time.perf_counter()
-                    training_elapsed_time = training_end_time - training_start_time
-                    training_time_results.append(training_elapsed_time)
+            #logging.info(f"Starting epoch {epoch + 1} for fold {fold}")
+            training_start_time = time.perf_counter()
+            for layer_idx, optimizer in enumerate(reversed(swarms)):
+                optimizer.set_training_data(X_train, y_train_one_hot, X_val, y_val_one_hot)
+                optimizer.print_layer_info() 
+                layer_start_time = time.perf_counter()   
+                optimizer.step()
+                layer_end_time = time.perf_counter()
+                swarm_times[fold - 1, layer_idx] = layer_end_time - layer_start_time # start matrix idx in 0 and save the time in order, so then u need to ajusted in the print info 
+            training_end_time = time.perf_counter()
+            training_elapsed_time = training_end_time - training_start_time
+            time_results.append(training_elapsed_time)
 
-                output = model(X_train)
-                loss = model.lf.cross_entropy(y_train_one_hot, output)
-                train_losses.append(loss.item())
+            train_pred = model(X_train).argmax(dim=1)
+            train_acc = (train_pred == y_train).float().mean().item()
+            val_pred = model(X_val).argmax(dim=1)
+            val_acc = (val_pred == y_val).float().mean().item()
+            y_pred = model(X_test_tensor).argmax(dim=1)    
+            accuracy = (y_pred == y_test_tensor).float().mean().item()
+            logging.info(f'Fold {fold}, Accuracy on training dataset: {train_acc:.4f}')
+            logging.info(f'Fold {fold}, Accuracy on validation dataset: {val_acc:.4f}')
+            logging.info(f'Fold {fold}, Accuracy on test dataset: {accuracy:.4f}')            
+            logging.info(f"=========================")
 
-                val_output = model(X_val)
-                val_loss = model.lf.cross_entropy(y_val_one_hot, val_output)
-                val_losses.append(val_loss.item())
+            if accuracy > best_acc:
+                best_acc = accuracy
+                best_model = model.state_dict()
 
-                logging.info(f'Fold {fold}, Epoch {epoch + 1}, Loss: {loss.item():.4f} - Validation Loss: {val_loss.item():.4f}')
+            train_results.append(train_acc)
+            val_results.append(val_acc)
+            test_results.append(accuracy)
 
-                if val_loss < best_val_loss:
-                    best_val_loss = val_loss
-                    best_model_state = model.state_dict().copy()
-
-        model.load_state_dict(best_model_state)
-        save_model(best_model_state, config, 'best_model.pth')
-        logging.info(f'Final Validation Loss for fold {fold}: {best_val_loss:.4f}')
-
-        y_pred = model(X_test_tensor).argmax(dim=1)
-        accuracy = (y_pred == y_test_tensor).float().mean().item()
-        logging.info(f'Fold {fold}, Accuracy on test dataset: {accuracy:.4f}')
-        logging.info(f"=========================")
-
-        test_results.append(accuracy)
+    if best_model is not None:
+            model.load_state_dict(best_model)
+            save_best_model(model, config, best_acc)
 
     logging.info("=============================================")
     logging.info("Model Setup:")
@@ -185,13 +200,25 @@ def main():
         logging.info(f"{key}: {value}")
     logging.info(f"Total Parameters: {total_params.numel()}")
     logging.info("=============================================")
+    
+    mean_layer_times = np.mean(swarm_times, axis=0) # Compute the meand by columns (axis=0)
+    std_layer_times = np.std(swarm_times, axis=0)
+    for layer_idx in range(len(model.layers)):
+        correct_layer_idx = len(model.layers) - layer_idx - 1
+        logging.info(f"Mean time per layer {layer_idx}: {mean_layer_times[correct_layer_idx]:.4f} - std: {std_layer_times[correct_layer_idx]:.4f} seconds")
 
-    mean_training_time = np.mean(training_time_results)
+    mean_time = np.mean(time_results)
+    std_time = np.std(time_results)
+    mean_train = np.mean(train_results)
+    std_train = np.std(train_results)
+    mean_val = np.mean(val_results)
+    std_val = np.std(val_results)
     mean_accuracy = np.mean(test_results)
     std_accuracy = np.std(test_results)
-    logging.info(f'Mean training time per epoch and folder: {mean_training_time:.4f} seconds')
-    logging.info(f'Mean accuracy on test dataset: {mean_accuracy:.4f}')
-    logging.info(f'Standard deviation of accuracy on test dataset: {std_accuracy:.4f}')
+    logging.info(f'Mean time per epoch and folder: {mean_time:.4f} - std: {std_time:.4f} seconds')
+    logging.info(f'Mean accuracy on training dataset: {mean_train:.4f} - std: {std_train:.4f}')
+    logging.info(f'Mean accuracy on validation dataset: {mean_val:.4f} - std: {std_val:.4f}')
+    logging.info(f'Mean accuracy on test dataset: {mean_accuracy:.4f} - std: {std_accuracy:.4f}')
     logging.info("=============================================")
 
 if __name__ == "__main__":
