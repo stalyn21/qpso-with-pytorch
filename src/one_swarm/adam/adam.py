@@ -101,7 +101,7 @@ def main():
         y_train_onehot = torch.nn.functional.one_hot(y_train, num_classes=config["outputdim"]).float().to(device)
         y_val_onehot = torch.nn.functional.one_hot(y_val, num_classes=config["outputdim"]).float().to(device)
         
-        best_acc = 0
+        best_acc_fold = float('inf')
         start_time = time.perf_counter()
         for epoch in range(config["n_epochs"]):
             model.train()
@@ -117,10 +117,10 @@ def main():
                 val_output = model(X_val)
                 val_loss = model.lf.crossentropy(y_val_onehot, val_output)
             
-            if val_loss.item() > best_acc:
-                best_acc = val_loss.item()
+            if val_loss.item() < best_acc_fold:
+                best_acc_fold = val_loss.item()
             
-            logging.info(f"Epoch {epoch+1}, Train Loss: {loss.item():.4f} - Val Loss: {val_loss.item():.4f} - Best Val Loss: {best_acc}")
+            logging.info(f"Epoch {epoch+1}, Train Loss: {loss.item():.4f} - Val Loss: {val_loss.item():.4f} - Best Val Loss: {best_acc_fold:.4f}")
         end_time = time.perf_counter()
         elapsed_time = end_time - start_time
         time_results.append(elapsed_time)
