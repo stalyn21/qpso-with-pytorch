@@ -69,7 +69,7 @@ def main():
         "inputdim": input_shape,
         "outputdim": output_shape,
         "nsamples": n_samples,
-        "hiddenlayers": [3 * input_shape],  # 3 times the input dimension, also accepted [4, 6, 4]
+        "hiddenlayers": [input_shape * 2, (input_shape * 3) // 2, input_shape],  # 3 times the input dimension, also accepted [4, 6, 4]
         "lr": 0.001,
         "n_epochs": 100,
         "n_folds": 4,
@@ -101,6 +101,7 @@ def main():
         y_train_onehot = torch.nn.functional.one_hot(y_train, num_classes=config["outputdim"]).float().to(device)
         y_val_onehot = torch.nn.functional.one_hot(y_val, num_classes=config["outputdim"]).float().to(device)
         
+        best_acc = 0
         start_time = time.perf_counter()
         for epoch in range(config["n_epochs"]):
             model.train()
@@ -116,7 +117,10 @@ def main():
                 val_output = model(X_val)
                 val_loss = model.lf.crossentropy(y_val_onehot, val_output)
             
-            logging.info(f"Epoch {epoch+1}, Loss: {loss.item():.4f} - Validation Loss: {val_loss.item():.4f}")
+            if val_loss.item() > best_acc:
+                best_acc = val_loss.item()
+            
+            logging.info(f"Epoch {epoch+1}, Train Loss: {loss.item():.4f} - Val Loss: {val_loss.item():.4f} - Best Val Loss: {best_acc}")
         end_time = time.perf_counter()
         elapsed_time = end_time - start_time
         time_results.append(elapsed_time)
@@ -151,17 +155,20 @@ def main():
     logging.info("Model Setup:")
     for key, value in config.items():
         logging.info(f"{key}: {value}")
+    logging.info(f"Total Parameters: {sum(p.numel() for p in model.parameters())}")
     logging.info("=============================================")
     mean_time = np.mean(time_results)
+    std_time = np.std(time_results)
     mean_train = np.mean(train_results)
+    std_train = np.std(train_results)
     mean_val = np.mean(val_results)
+    std_val = np.std(val_results)
     mean_accuracy = np.mean(test_results)
     std_accuracy = np.std(test_results)
-    logging.info(f"Mean time per epoch and folder: {mean_time:.4f} seconds")
-    logging.info(f"Mean accuracy on training dataset: {mean_train:.4f}")
-    logging.info(f"Mean accuracy on validation dataset: {mean_val:.4f}")
-    logging.info(f"Mean accuracy on test dataset: {mean_accuracy:.4f}")
-    logging.info(f"Standard deviation of accuracy on test dataset: {std_accuracy:.4f}")
+    logging.info(f'Mean time per epoch and folder: {mean_time:.4f} - std:{std_time:.4f} seconds')
+    logging.info(f'Mean accuracy on training dataset: {mean_train:.4f} - std: {std_train:.4f}')
+    logging.info(f'Mean accuracy on validation dataset: {mean_val:.4f} - std: {std_val:.4f}')
+    logging.info(f'Mean accuracy on test dataset: {mean_accuracy:.4f} - std: {std_accuracy:.4f}')
     logging.info("=============================================")
 
 if __name__ == "__main__":
