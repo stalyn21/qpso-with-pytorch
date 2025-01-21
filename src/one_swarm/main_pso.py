@@ -3,42 +3,14 @@ import logging
 import numpy as np
 import time
 
-from sklearn.datasets import load_iris, load_breast_cancer, load_wine, make_circles
-from collections import namedtuple
-from sklearn.preprocessing import StandardScaler
-from sklearn.model_selection import KFold, train_test_split
+from sklearn.model_selection import KFold
 
+from data.benchmarck import load_and_preprocess_data
 from custome_optimizer.pso_optimizer import PSOOptimizer
 from ann.ann_pso import ExtendedModelPSO
 
 # Aseguramos que PyTorch use GPU si está disponible
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
-def load_and_preprocess_data(dataset='iris'):
-    dataset_dict = {
-        'iris': load_iris,
-        'breast_cancer': load_breast_cancer,
-        'wine': load_wine,
-    }
-    if dataset in dataset_dict:
-        data = dataset_dict[dataset]()
-    elif dataset == 'circle':
-        n = 500
-        X, y = make_circles(n_samples=n, factor=0.5, noise=0.05)
-        Dataset = namedtuple('Dataset', ['data', 'target', 'feature_names', 'target_names'])
-        data = Dataset(
-            data=X,
-            target=y,
-            feature_names=['X coordinate', 'Y coordinate'],
-            target_names=['outer circle', 'inner circle']
-        )
-    else:
-        raise ValueError("Unknown dataset")
-
-    X, y = data.data, data.target
-    scaler = StandardScaler()
-    X = scaler.fit_transform(X)
-    return train_test_split(X, y, test_size=0.2, random_state=100)
 
 def save_best_model(model, config, best_acc):
     model_path = f"./models/{config['dataset']}_pso_best_model.pth"
@@ -108,16 +80,17 @@ def main():
             output_dim=config['output_dim'],
             hidden_layers=config['hidden_layers']
         ).to(device)
-
-        min_param_value=-1 # None
-        max_param_value=1 # None
+        
+        # ncomment to Parameters bounds 
+        # min_param_value=-1 
+        # max_param_value=1 
 
         optimizer = PSOOptimizer(
             model=model,
             n_particles=config['n_particles'],
-            max_iters=config['n_epochs'],
-            min_param_value=-min_param_value,
-            max_param_value=max_param_value
+            max_iters=config['n_epochs']# ,
+            # min_param_value=-min_param_value,
+            # max_param_value=max_param_value
         )
 
         start_time = time.perf_counter()

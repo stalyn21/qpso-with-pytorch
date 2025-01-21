@@ -1321,3 +1321,888 @@ INFO - Mean accuracy on training dataset: 0.9250 - std: 0.0337
 INFO - Mean accuracy on validation dataset: 0.9667 - std: 0.0333
 INFO - Mean accuracy on test dataset: 0.9417 - std: 0.0276
 INFO - =============================================
+INFO - ======= Fold 1 =======
+INFO - PSO configurado con límites: [1, 1]
+INFO - Epoch 0 - Train Loss: 0.9586 - Val Loss: 0.9443 - Best Val Loss: 0.9443
+INFO - Epoch 1 - Train Loss: 0.8243 - Val Loss: 0.8965 - Best Val Loss: 0.8965
+INFO - Epoch 2 - Train Loss: 0.8243 - Val Loss: 0.8965 - Best Val Loss: 0.8965
+INFO - Epoch 3 - Train Loss: 0.8243 - Val Loss: 0.8965 - Best Val Loss: 0.8965
+INFO - Epoch 4 - Train Loss: 0.8243 - Val Loss: 0.8965 - Best Val Loss: 0.8965
+INFO - Epoch 5 - Train Loss: 0.8243 - Val Loss: 0.8965 - Best Val Loss: 0.8965
+INFO - Epoch 6 - Train Loss: 0.8243 - Val Loss: 0.8965 - Best Val Loss: 0.8965
+INFO - Epoch 7 - Train Loss: 0.7718 - Val Loss: 0.7515 - Best Val Loss: 0.7515
+INFO - Epoch 8 - Train Loss: 0.7718 - Val Loss: 0.7515 - Best Val Loss: 0.7515
+INFO - Epoch 9 - Train Loss: 0.7718 - Val Loss: 0.7515 - Best Val Loss: 0.7515
+INFO - Epoch 10 - Train Loss: 0.7718 - Val Loss: 0.7515 - Best Val Loss: 0.7515
+INFO - Epoch 11 - Train Loss: 0.7718 - Val Loss: 0.7515 - Best Val Loss: 0.7515
+INFO - Epoch 12 - Train Loss: 0.7718 - Val Loss: 0.7515 - Best Val Loss: 0.7515
+INFO - Epoch 13 - Train Loss: 0.7555 - Val Loss: 0.7855 - Best Val Loss: 0.7515
+INFO - Epoch 14 - Train Loss: 0.7555 - Val Loss: 0.7855 - Best Val Loss: 0.7515
+INFO - Epoch 15 - Train Loss: 0.7555 - Val Loss: 0.7855 - Best Val Loss: 0.7515
+INFO - Epoch 16 - Train Loss: 0.7555 - Val Loss: 0.7855 - Best Val Loss: 0.7515
+INFO - Epoch 17 - Train Loss: 0.7555 - Val Loss: 0.7855 - Best Val Loss: 0.7515
+INFO - Epoch 18 - Train Loss: 0.7555 - Val Loss: 0.7855 - Best Val Loss: 0.7515
+INFO - Epoch 19 - Train Loss: 0.7555 - Val Loss: 0.7855 - Best Val Loss: 0.7515
+INFO - Epoch 20 - Train Loss: 0.7555 - Val Loss: 0.7855 - Best Val Loss: 0.7515
+INFO - Epoch 21 - Train Loss: 0.7308 - Val Loss: 0.7866 - Best Val Loss: 0.7515
+INFO - Epoch 22 - Train Loss: 0.7308 - Val Loss: 0.7866 - Best Val Loss: 0.7515
+INFO - Epoch 23 - Train Loss: 0.7308 - Val Loss: 0.7866 - Best Val Loss: 0.7515
+INFO - Epoch 24 - Train Loss: 0.7308 - Val Loss: 0.7866 - Best Val Loss: 0.7515
+INFO - Epoch 25 - Train Loss: 0.7308 - Val Loss: 0.7866 - Best Val Loss: 0.7515
+INFO - Epoch 26 - Train Loss: 0.7308 - Val Loss: 0.7866 - Best Val Loss: 0.7515
+INFO - Epoch 27 - Train Loss: 0.7300 - Val Loss: 0.7856 - Best Val Loss: 0.7515
+INFO - Epoch 28 - Train Loss: 0.7300 - Val Loss: 0.7856 - Best Val Loss: 0.7515
+INFO - Epoch 29 - Train Loss: 0.7300 - Val Loss: 0.7856 - Best Val Loss: 0.7515
+INFO - Epoch 30 - Train Loss: 0.7300 - Val Loss: 0.7856 - Best Val Loss: 0.7515
+INFO - Epoch 31 - Train Loss: 0.7300 - Val Loss: 0.7856 - Best Val Loss: 0.7515
+INFO - Epoch 32 - Train Loss: 0.7299 - Val Loss: 0.6522 - Best Val Loss: 0.6522
+INFO - Epoch 33 - Train Loss: 0.7299 - Val Loss: 0.6522 - Best Val Loss: 0.6522
+INFO - Epoch 34 - Train Loss: 0.7249 - Val Loss: 0.7525 - Best Val Loss: 0.6522
+INFO - Epoch 35 - Train Loss: 0.7249 - Val Loss: 0.7525 - Best Val Loss: 0.6522
+INFO - Epoch 36 - Train Loss: 0.7249 - Val Loss: 0.7525 - Best Val Loss: 0.6522
+INFO - Epoch 37 - Train Loss: 0.7249 - Val Loss: 0.7525 - Best Val Loss: 0.6522
+INFO - Epoch 38 - Train Loss: 0.7249 - Val Loss: 0.7525 - Best Val Loss: 0.6522
+INFO - Epoch 39 - Train Loss: 0.7249 - Val Loss: 0.7525 - Best Val Loss: 0.6522
+INFO - Epoch 40 - Train Loss: 0.7190 - Val Loss: 0.7190 - Best Val Loss: 0.6522
+INFO - Epoch 41 - Train Loss: 0.7190 - Val Loss: 0.7190 - Best Val Loss: 0.6522
+INFO - Epoch 42 - Train Loss: 0.7079 - Val Loss: 0.7191 - Best Val Loss: 0.6522
+INFO - Epoch 43 - Train Loss: 0.7079 - Val Loss: 0.7191 - Best Val Loss: 0.6522
+INFO - Epoch 44 - Train Loss: 0.7079 - Val Loss: 0.7191 - Best Val Loss: 0.6522
+INFO - Epoch 45 - Train Loss: 0.7078 - Val Loss: 0.6867 - Best Val Loss: 0.6522
+INFO - Epoch 46 - Train Loss: 0.6785 - Val Loss: 0.7192 - Best Val Loss: 0.6522
+INFO - Epoch 47 - Train Loss: 0.6785 - Val Loss: 0.7192 - Best Val Loss: 0.6522
+INFO - Epoch 48 - Train Loss: 0.6785 - Val Loss: 0.7192 - Best Val Loss: 0.6522
+INFO - Epoch 49 - Train Loss: 0.6785 - Val Loss: 0.7192 - Best Val Loss: 0.6522
+INFO - Epoch 50 - Train Loss: 0.6785 - Val Loss: 0.7192 - Best Val Loss: 0.6522
+INFO - Epoch 51 - Train Loss: 0.6785 - Val Loss: 0.7192 - Best Val Loss: 0.6522
+INFO - Epoch 52 - Train Loss: 0.6785 - Val Loss: 0.7192 - Best Val Loss: 0.6522
+INFO - Epoch 53 - Train Loss: 0.6785 - Val Loss: 0.7192 - Best Val Loss: 0.6522
+INFO - Epoch 54 - Train Loss: 0.6785 - Val Loss: 0.7192 - Best Val Loss: 0.6522
+INFO - Epoch 55 - Train Loss: 0.6785 - Val Loss: 0.7192 - Best Val Loss: 0.6522
+INFO - Epoch 56 - Train Loss: 0.6785 - Val Loss: 0.7192 - Best Val Loss: 0.6522
+INFO - Epoch 57 - Train Loss: 0.6785 - Val Loss: 0.7192 - Best Val Loss: 0.6522
+INFO - Epoch 58 - Train Loss: 0.6785 - Val Loss: 0.7192 - Best Val Loss: 0.6522
+INFO - Epoch 59 - Train Loss: 0.6719 - Val Loss: 0.6859 - Best Val Loss: 0.6522
+INFO - Epoch 60 - Train Loss: 0.6719 - Val Loss: 0.6859 - Best Val Loss: 0.6522
+INFO - Epoch 61 - Train Loss: 0.6719 - Val Loss: 0.6859 - Best Val Loss: 0.6522
+INFO - Epoch 62 - Train Loss: 0.6719 - Val Loss: 0.6859 - Best Val Loss: 0.6522
+INFO - Epoch 63 - Train Loss: 0.6719 - Val Loss: 0.6859 - Best Val Loss: 0.6522
+INFO - Epoch 64 - Train Loss: 0.6540 - Val Loss: 0.6868 - Best Val Loss: 0.6522
+INFO - Epoch 65 - Train Loss: 0.6540 - Val Loss: 0.6868 - Best Val Loss: 0.6522
+INFO - Epoch 66 - Train Loss: 0.6540 - Val Loss: 0.6868 - Best Val Loss: 0.6522
+INFO - Epoch 67 - Train Loss: 0.6540 - Val Loss: 0.6868 - Best Val Loss: 0.6522
+INFO - Epoch 68 - Train Loss: 0.6540 - Val Loss: 0.6868 - Best Val Loss: 0.6522
+INFO - Epoch 69 - Train Loss: 0.6540 - Val Loss: 0.6868 - Best Val Loss: 0.6522
+INFO - Epoch 70 - Train Loss: 0.6540 - Val Loss: 0.6868 - Best Val Loss: 0.6522
+INFO - Epoch 71 - Train Loss: 0.6538 - Val Loss: 0.6864 - Best Val Loss: 0.6522
+INFO - Epoch 72 - Train Loss: 0.6538 - Val Loss: 0.6864 - Best Val Loss: 0.6522
+INFO - Epoch 73 - Train Loss: 0.6538 - Val Loss: 0.6864 - Best Val Loss: 0.6522
+INFO - Epoch 74 - Train Loss: 0.6538 - Val Loss: 0.6864 - Best Val Loss: 0.6522
+INFO - Epoch 75 - Train Loss: 0.6538 - Val Loss: 0.6864 - Best Val Loss: 0.6522
+INFO - Epoch 76 - Train Loss: 0.6538 - Val Loss: 0.6866 - Best Val Loss: 0.6522
+INFO - Epoch 77 - Train Loss: 0.6538 - Val Loss: 0.6866 - Best Val Loss: 0.6522
+INFO - Epoch 78 - Train Loss: 0.6538 - Val Loss: 0.6866 - Best Val Loss: 0.6522
+INFO - Epoch 79 - Train Loss: 0.6538 - Val Loss: 0.6866 - Best Val Loss: 0.6522
+INFO - Epoch 80 - Train Loss: 0.6538 - Val Loss: 0.6866 - Best Val Loss: 0.6522
+INFO - Epoch 81 - Train Loss: 0.6538 - Val Loss: 0.6865 - Best Val Loss: 0.6522
+INFO - Epoch 82 - Train Loss: 0.6538 - Val Loss: 0.6865 - Best Val Loss: 0.6522
+INFO - Epoch 83 - Train Loss: 0.6538 - Val Loss: 0.6865 - Best Val Loss: 0.6522
+INFO - Epoch 84 - Train Loss: 0.6537 - Val Loss: 0.6865 - Best Val Loss: 0.6522
+INFO - Epoch 85 - Train Loss: 0.6537 - Val Loss: 0.6866 - Best Val Loss: 0.6522
+INFO - Epoch 86 - Train Loss: 0.6537 - Val Loss: 0.6866 - Best Val Loss: 0.6522
+INFO - Epoch 87 - Train Loss: 0.6537 - Val Loss: 0.6866 - Best Val Loss: 0.6522
+INFO - Epoch 88 - Train Loss: 0.6537 - Val Loss: 0.6866 - Best Val Loss: 0.6522
+INFO - Epoch 89 - Train Loss: 0.6537 - Val Loss: 0.6866 - Best Val Loss: 0.6522
+INFO - Epoch 90 - Train Loss: 0.6537 - Val Loss: 0.6866 - Best Val Loss: 0.6522
+INFO - Epoch 91 - Train Loss: 0.6537 - Val Loss: 0.6866 - Best Val Loss: 0.6522
+INFO - Epoch 92 - Train Loss: 0.6537 - Val Loss: 0.6866 - Best Val Loss: 0.6522
+INFO - Epoch 93 - Train Loss: 0.6537 - Val Loss: 0.6866 - Best Val Loss: 0.6522
+INFO - Epoch 94 - Train Loss: 0.6537 - Val Loss: 0.6866 - Best Val Loss: 0.6522
+INFO - Epoch 95 - Train Loss: 0.6537 - Val Loss: 0.6866 - Best Val Loss: 0.6522
+INFO - Epoch 96 - Train Loss: 0.6537 - Val Loss: 0.6866 - Best Val Loss: 0.6522
+INFO - Epoch 97 - Train Loss: 0.6537 - Val Loss: 0.6866 - Best Val Loss: 0.6522
+INFO - Epoch 98 - Train Loss: 0.6537 - Val Loss: 0.6866 - Best Val Loss: 0.6522
+INFO - Epoch 99 - Train Loss: 0.6537 - Val Loss: 0.6866 - Best Val Loss: 0.6522
+INFO - Fold 1, Training accuracy: 0.8222
+INFO - Fold 1, Validation accuracy: 0.9000
+INFO - Fold 1, Test accuracy: 0.8333
+INFO - =========================
+INFO - ======= Fold 2 =======
+INFO - PSO configurado con límites: [1, 1]
+INFO - Epoch 0 - Train Loss: 0.8735 - Val Loss: 0.8306 - Best Val Loss: 0.8306
+INFO - Epoch 1 - Train Loss: 0.8164 - Val Loss: 0.7728 - Best Val Loss: 0.7728
+INFO - Epoch 2 - Train Loss: 0.8164 - Val Loss: 0.7728 - Best Val Loss: 0.7728
+INFO - Epoch 3 - Train Loss: 0.7955 - Val Loss: 0.7640 - Best Val Loss: 0.7640
+INFO - Epoch 4 - Train Loss: 0.7937 - Val Loss: 0.7031 - Best Val Loss: 0.7031
+INFO - Epoch 5 - Train Loss: 0.7937 - Val Loss: 0.7031 - Best Val Loss: 0.7031
+INFO - Epoch 6 - Train Loss: 0.7757 - Val Loss: 0.7065 - Best Val Loss: 0.7031
+INFO - Epoch 7 - Train Loss: 0.7438 - Val Loss: 0.6823 - Best Val Loss: 0.6823
+INFO - Epoch 8 - Train Loss: 0.7438 - Val Loss: 0.6823 - Best Val Loss: 0.6823
+INFO - Epoch 9 - Train Loss: 0.7438 - Val Loss: 0.6823 - Best Val Loss: 0.6823
+INFO - Epoch 10 - Train Loss: 0.7438 - Val Loss: 0.6823 - Best Val Loss: 0.6823
+INFO - Epoch 11 - Train Loss: 0.7438 - Val Loss: 0.6823 - Best Val Loss: 0.6823
+INFO - Epoch 12 - Train Loss: 0.7438 - Val Loss: 0.6823 - Best Val Loss: 0.6823
+INFO - Epoch 13 - Train Loss: 0.7269 - Val Loss: 0.6759 - Best Val Loss: 0.6759
+INFO - Epoch 14 - Train Loss: 0.7269 - Val Loss: 0.6759 - Best Val Loss: 0.6759
+INFO - Epoch 15 - Train Loss: 0.7269 - Val Loss: 0.6759 - Best Val Loss: 0.6759
+INFO - Epoch 16 - Train Loss: 0.7131 - Val Loss: 0.7149 - Best Val Loss: 0.6759
+INFO - Epoch 17 - Train Loss: 0.7131 - Val Loss: 0.7149 - Best Val Loss: 0.6759
+INFO - Epoch 18 - Train Loss: 0.7131 - Val Loss: 0.7149 - Best Val Loss: 0.6759
+INFO - Epoch 19 - Train Loss: 0.7131 - Val Loss: 0.7149 - Best Val Loss: 0.6759
+INFO - Epoch 20 - Train Loss: 0.7131 - Val Loss: 0.7149 - Best Val Loss: 0.6759
+INFO - Epoch 21 - Train Loss: 0.7131 - Val Loss: 0.7149 - Best Val Loss: 0.6759
+INFO - Epoch 22 - Train Loss: 0.7131 - Val Loss: 0.7149 - Best Val Loss: 0.6759
+INFO - Epoch 23 - Train Loss: 0.7131 - Val Loss: 0.7149 - Best Val Loss: 0.6759
+INFO - Epoch 24 - Train Loss: 0.7131 - Val Loss: 0.7149 - Best Val Loss: 0.6759
+INFO - Epoch 25 - Train Loss: 0.7131 - Val Loss: 0.7149 - Best Val Loss: 0.6759
+INFO - Epoch 26 - Train Loss: 0.7131 - Val Loss: 0.7149 - Best Val Loss: 0.6759
+INFO - Epoch 27 - Train Loss: 0.7131 - Val Loss: 0.7149 - Best Val Loss: 0.6759
+INFO - Epoch 28 - Train Loss: 0.7131 - Val Loss: 0.7149 - Best Val Loss: 0.6759
+INFO - Epoch 29 - Train Loss: 0.7131 - Val Loss: 0.7149 - Best Val Loss: 0.6759
+INFO - Epoch 30 - Train Loss: 0.7131 - Val Loss: 0.7149 - Best Val Loss: 0.6759
+INFO - Epoch 31 - Train Loss: 0.7131 - Val Loss: 0.7149 - Best Val Loss: 0.6759
+INFO - Epoch 32 - Train Loss: 0.7131 - Val Loss: 0.7149 - Best Val Loss: 0.6759
+INFO - Epoch 33 - Train Loss: 0.7131 - Val Loss: 0.7149 - Best Val Loss: 0.6759
+INFO - Epoch 34 - Train Loss: 0.7131 - Val Loss: 0.7149 - Best Val Loss: 0.6759
+INFO - Epoch 35 - Train Loss: 0.7131 - Val Loss: 0.7149 - Best Val Loss: 0.6759
+INFO - Epoch 36 - Train Loss: 0.7131 - Val Loss: 0.7149 - Best Val Loss: 0.6759
+INFO - Epoch 37 - Train Loss: 0.7119 - Val Loss: 0.7101 - Best Val Loss: 0.6759
+INFO - Epoch 38 - Train Loss: 0.7111 - Val Loss: 0.7119 - Best Val Loss: 0.6759
+INFO - Epoch 39 - Train Loss: 0.7111 - Val Loss: 0.7119 - Best Val Loss: 0.6759
+INFO - Epoch 40 - Train Loss: 0.7110 - Val Loss: 0.7096 - Best Val Loss: 0.6759
+INFO - Epoch 41 - Train Loss: 0.7110 - Val Loss: 0.7096 - Best Val Loss: 0.6759
+INFO - Epoch 42 - Train Loss: 0.7110 - Val Loss: 0.7117 - Best Val Loss: 0.6759
+INFO - Epoch 43 - Train Loss: 0.7110 - Val Loss: 0.7117 - Best Val Loss: 0.6759
+INFO - Epoch 44 - Train Loss: 0.7109 - Val Loss: 0.7084 - Best Val Loss: 0.6759
+INFO - Epoch 45 - Train Loss: 0.7109 - Val Loss: 0.7084 - Best Val Loss: 0.6759
+INFO - Epoch 46 - Train Loss: 0.7109 - Val Loss: 0.7084 - Best Val Loss: 0.6759
+INFO - Epoch 47 - Train Loss: 0.7109 - Val Loss: 0.7084 - Best Val Loss: 0.6759
+INFO - Epoch 48 - Train Loss: 0.7109 - Val Loss: 0.7084 - Best Val Loss: 0.6759
+INFO - Epoch 49 - Train Loss: 0.7037 - Val Loss: 0.7240 - Best Val Loss: 0.6759
+INFO - Epoch 50 - Train Loss: 0.7037 - Val Loss: 0.7240 - Best Val Loss: 0.6759
+INFO - Epoch 51 - Train Loss: 0.7037 - Val Loss: 0.7240 - Best Val Loss: 0.6759
+INFO - Epoch 52 - Train Loss: 0.6875 - Val Loss: 0.6403 - Best Val Loss: 0.6403
+INFO - Epoch 53 - Train Loss: 0.6875 - Val Loss: 0.6403 - Best Val Loss: 0.6403
+INFO - Epoch 54 - Train Loss: 0.6875 - Val Loss: 0.6403 - Best Val Loss: 0.6403
+INFO - Epoch 55 - Train Loss: 0.6875 - Val Loss: 0.6403 - Best Val Loss: 0.6403
+INFO - Epoch 56 - Train Loss: 0.6875 - Val Loss: 0.6403 - Best Val Loss: 0.6403
+INFO - Epoch 57 - Train Loss: 0.6875 - Val Loss: 0.6403 - Best Val Loss: 0.6403
+INFO - Epoch 58 - Train Loss: 0.6865 - Val Loss: 0.6276 - Best Val Loss: 0.6276
+INFO - Epoch 59 - Train Loss: 0.6865 - Val Loss: 0.6276 - Best Val Loss: 0.6276
+INFO - Epoch 60 - Train Loss: 0.6865 - Val Loss: 0.6276 - Best Val Loss: 0.6276
+INFO - Epoch 61 - Train Loss: 0.6865 - Val Loss: 0.6276 - Best Val Loss: 0.6276
+INFO - Epoch 62 - Train Loss: 0.6865 - Val Loss: 0.6276 - Best Val Loss: 0.6276
+INFO - Epoch 63 - Train Loss: 0.6865 - Val Loss: 0.6276 - Best Val Loss: 0.6276
+INFO - Epoch 64 - Train Loss: 0.6783 - Val Loss: 0.5996 - Best Val Loss: 0.5996
+INFO - Epoch 65 - Train Loss: 0.6783 - Val Loss: 0.5996 - Best Val Loss: 0.5996
+INFO - Epoch 66 - Train Loss: 0.6783 - Val Loss: 0.5996 - Best Val Loss: 0.5996
+INFO - Epoch 67 - Train Loss: 0.6783 - Val Loss: 0.5996 - Best Val Loss: 0.5996
+INFO - Epoch 68 - Train Loss: 0.6783 - Val Loss: 0.5996 - Best Val Loss: 0.5996
+INFO - Epoch 69 - Train Loss: 0.6783 - Val Loss: 0.5996 - Best Val Loss: 0.5996
+INFO - Epoch 70 - Train Loss: 0.6567 - Val Loss: 0.6000 - Best Val Loss: 0.5996
+INFO - Epoch 71 - Train Loss: 0.6567 - Val Loss: 0.6000 - Best Val Loss: 0.5996
+INFO - Epoch 72 - Train Loss: 0.6567 - Val Loss: 0.6000 - Best Val Loss: 0.5996
+INFO - Epoch 73 - Train Loss: 0.6567 - Val Loss: 0.6000 - Best Val Loss: 0.5996
+INFO - Epoch 74 - Train Loss: 0.6567 - Val Loss: 0.6000 - Best Val Loss: 0.5996
+INFO - Epoch 75 - Train Loss: 0.6567 - Val Loss: 0.6000 - Best Val Loss: 0.5996
+INFO - Epoch 76 - Train Loss: 0.6567 - Val Loss: 0.6000 - Best Val Loss: 0.5996
+INFO - Epoch 77 - Train Loss: 0.6567 - Val Loss: 0.6000 - Best Val Loss: 0.5996
+INFO - Epoch 78 - Train Loss: 0.6567 - Val Loss: 0.6000 - Best Val Loss: 0.5996
+INFO - Epoch 79 - Train Loss: 0.6498 - Val Loss: 0.5940 - Best Val Loss: 0.5940
+INFO - Epoch 80 - Train Loss: 0.6498 - Val Loss: 0.5940 - Best Val Loss: 0.5940
+INFO - Epoch 81 - Train Loss: 0.6498 - Val Loss: 0.5940 - Best Val Loss: 0.5940
+INFO - Epoch 82 - Train Loss: 0.6477 - Val Loss: 0.6011 - Best Val Loss: 0.5940
+INFO - Epoch 83 - Train Loss: 0.6477 - Val Loss: 0.6011 - Best Val Loss: 0.5940
+INFO - Epoch 84 - Train Loss: 0.6477 - Val Loss: 0.6011 - Best Val Loss: 0.5940
+INFO - Epoch 85 - Train Loss: 0.6296 - Val Loss: 0.6393 - Best Val Loss: 0.5940
+INFO - Epoch 86 - Train Loss: 0.6296 - Val Loss: 0.6393 - Best Val Loss: 0.5940
+INFO - Epoch 87 - Train Loss: 0.6296 - Val Loss: 0.6393 - Best Val Loss: 0.5940
+INFO - Epoch 88 - Train Loss: 0.6296 - Val Loss: 0.6393 - Best Val Loss: 0.5940
+INFO - Epoch 89 - Train Loss: 0.6296 - Val Loss: 0.6393 - Best Val Loss: 0.5940
+INFO - Epoch 90 - Train Loss: 0.6296 - Val Loss: 0.6393 - Best Val Loss: 0.5940
+INFO - Epoch 91 - Train Loss: 0.6296 - Val Loss: 0.6393 - Best Val Loss: 0.5940
+INFO - Epoch 92 - Train Loss: 0.6296 - Val Loss: 0.6393 - Best Val Loss: 0.5940
+INFO - Epoch 93 - Train Loss: 0.6296 - Val Loss: 0.6393 - Best Val Loss: 0.5940
+INFO - Epoch 94 - Train Loss: 0.6296 - Val Loss: 0.6393 - Best Val Loss: 0.5940
+INFO - Epoch 95 - Train Loss: 0.6296 - Val Loss: 0.6393 - Best Val Loss: 0.5940
+INFO - Epoch 96 - Train Loss: 0.6296 - Val Loss: 0.6393 - Best Val Loss: 0.5940
+INFO - Epoch 97 - Train Loss: 0.6296 - Val Loss: 0.6393 - Best Val Loss: 0.5940
+INFO - Epoch 98 - Train Loss: 0.6296 - Val Loss: 0.6393 - Best Val Loss: 0.5940
+INFO - Epoch 99 - Train Loss: 0.6296 - Val Loss: 0.6393 - Best Val Loss: 0.5940
+INFO - Fold 2, Training accuracy: 0.8889
+INFO - Fold 2, Validation accuracy: 1.0000
+INFO - Fold 2, Test accuracy: 0.9333
+INFO - =========================
+INFO - ======= Fold 3 =======
+INFO - PSO configurado con límites: [1, 1]
+INFO - Epoch 0 - Train Loss: 0.8698 - Val Loss: 0.9189 - Best Val Loss: 0.9189
+INFO - Epoch 1 - Train Loss: 0.8071 - Val Loss: 0.8506 - Best Val Loss: 0.8506
+INFO - Epoch 2 - Train Loss: 0.7834 - Val Loss: 0.8506 - Best Val Loss: 0.8506
+INFO - Epoch 3 - Train Loss: 0.7397 - Val Loss: 0.8050 - Best Val Loss: 0.8050
+INFO - Epoch 4 - Train Loss: 0.6962 - Val Loss: 0.6993 - Best Val Loss: 0.6993
+INFO - Epoch 5 - Train Loss: 0.6962 - Val Loss: 0.6993 - Best Val Loss: 0.6993
+INFO - Epoch 6 - Train Loss: 0.6962 - Val Loss: 0.6993 - Best Val Loss: 0.6993
+INFO - Epoch 7 - Train Loss: 0.6962 - Val Loss: 0.6993 - Best Val Loss: 0.6993
+INFO - Epoch 8 - Train Loss: 0.6962 - Val Loss: 0.6993 - Best Val Loss: 0.6993
+INFO - Epoch 9 - Train Loss: 0.6962 - Val Loss: 0.6993 - Best Val Loss: 0.6993
+INFO - Epoch 10 - Train Loss: 0.6962 - Val Loss: 0.6993 - Best Val Loss: 0.6993
+INFO - Epoch 11 - Train Loss: 0.6720 - Val Loss: 0.8153 - Best Val Loss: 0.6993
+INFO - Epoch 12 - Train Loss: 0.6720 - Val Loss: 0.8153 - Best Val Loss: 0.6993
+INFO - Epoch 13 - Train Loss: 0.6720 - Val Loss: 0.8153 - Best Val Loss: 0.6993
+INFO - Epoch 14 - Train Loss: 0.6720 - Val Loss: 0.8153 - Best Val Loss: 0.6993
+INFO - Epoch 15 - Train Loss: 0.6720 - Val Loss: 0.8153 - Best Val Loss: 0.6993
+INFO - Epoch 16 - Train Loss: 0.6720 - Val Loss: 0.8153 - Best Val Loss: 0.6993
+INFO - Epoch 17 - Train Loss: 0.6720 - Val Loss: 0.8153 - Best Val Loss: 0.6993
+INFO - Epoch 18 - Train Loss: 0.6720 - Val Loss: 0.8153 - Best Val Loss: 0.6993
+INFO - Epoch 19 - Train Loss: 0.6720 - Val Loss: 0.8153 - Best Val Loss: 0.6993
+INFO - Epoch 20 - Train Loss: 0.6720 - Val Loss: 0.8153 - Best Val Loss: 0.6993
+INFO - Epoch 21 - Train Loss: 0.6720 - Val Loss: 0.8153 - Best Val Loss: 0.6993
+INFO - Epoch 22 - Train Loss: 0.6720 - Val Loss: 0.8153 - Best Val Loss: 0.6993
+INFO - Epoch 23 - Train Loss: 0.6720 - Val Loss: 0.8153 - Best Val Loss: 0.6993
+INFO - Epoch 24 - Train Loss: 0.6720 - Val Loss: 0.8153 - Best Val Loss: 0.6993
+INFO - Epoch 25 - Train Loss: 0.6720 - Val Loss: 0.8153 - Best Val Loss: 0.6993
+INFO - Epoch 26 - Train Loss: 0.6694 - Val Loss: 0.7549 - Best Val Loss: 0.6993
+INFO - Epoch 27 - Train Loss: 0.6694 - Val Loss: 0.7549 - Best Val Loss: 0.6993
+INFO - Epoch 28 - Train Loss: 0.6694 - Val Loss: 0.7549 - Best Val Loss: 0.6993
+INFO - Epoch 29 - Train Loss: 0.6694 - Val Loss: 0.7549 - Best Val Loss: 0.6993
+INFO - Epoch 30 - Train Loss: 0.6694 - Val Loss: 0.7549 - Best Val Loss: 0.6993
+INFO - Epoch 31 - Train Loss: 0.6694 - Val Loss: 0.7549 - Best Val Loss: 0.6993
+INFO - Epoch 32 - Train Loss: 0.6674 - Val Loss: 0.7553 - Best Val Loss: 0.6993
+INFO - Epoch 33 - Train Loss: 0.6674 - Val Loss: 0.7553 - Best Val Loss: 0.6993
+INFO - Epoch 34 - Train Loss: 0.6674 - Val Loss: 0.7553 - Best Val Loss: 0.6993
+INFO - Epoch 35 - Train Loss: 0.6674 - Val Loss: 0.7553 - Best Val Loss: 0.6993
+INFO - Epoch 36 - Train Loss: 0.6359 - Val Loss: 0.6982 - Best Val Loss: 0.6982
+INFO - Epoch 37 - Train Loss: 0.6359 - Val Loss: 0.6982 - Best Val Loss: 0.6982
+INFO - Epoch 38 - Train Loss: 0.6359 - Val Loss: 0.6982 - Best Val Loss: 0.6982
+INFO - Epoch 39 - Train Loss: 0.6359 - Val Loss: 0.6982 - Best Val Loss: 0.6982
+INFO - Epoch 40 - Train Loss: 0.6359 - Val Loss: 0.6982 - Best Val Loss: 0.6982
+INFO - Epoch 41 - Train Loss: 0.6359 - Val Loss: 0.6982 - Best Val Loss: 0.6982
+INFO - Epoch 42 - Train Loss: 0.6359 - Val Loss: 0.6982 - Best Val Loss: 0.6982
+INFO - Epoch 43 - Train Loss: 0.6325 - Val Loss: 0.7360 - Best Val Loss: 0.6982
+INFO - Epoch 44 - Train Loss: 0.6325 - Val Loss: 0.7360 - Best Val Loss: 0.6982
+INFO - Epoch 45 - Train Loss: 0.6325 - Val Loss: 0.7360 - Best Val Loss: 0.6982
+INFO - Epoch 46 - Train Loss: 0.6325 - Val Loss: 0.7360 - Best Val Loss: 0.6982
+INFO - Epoch 47 - Train Loss: 0.6325 - Val Loss: 0.7360 - Best Val Loss: 0.6982
+INFO - Epoch 48 - Train Loss: 0.6233 - Val Loss: 0.7302 - Best Val Loss: 0.6982
+INFO - Epoch 49 - Train Loss: 0.6233 - Val Loss: 0.7302 - Best Val Loss: 0.6982
+INFO - Epoch 50 - Train Loss: 0.6233 - Val Loss: 0.7302 - Best Val Loss: 0.6982
+INFO - Epoch 51 - Train Loss: 0.6233 - Val Loss: 0.7302 - Best Val Loss: 0.6982
+INFO - Epoch 52 - Train Loss: 0.6233 - Val Loss: 0.7302 - Best Val Loss: 0.6982
+INFO - Epoch 53 - Train Loss: 0.6233 - Val Loss: 0.7302 - Best Val Loss: 0.6982
+INFO - Epoch 54 - Train Loss: 0.6233 - Val Loss: 0.7302 - Best Val Loss: 0.6982
+INFO - Epoch 55 - Train Loss: 0.6231 - Val Loss: 0.6914 - Best Val Loss: 0.6914
+INFO - Epoch 56 - Train Loss: 0.6222 - Val Loss: 0.7233 - Best Val Loss: 0.6914
+INFO - Epoch 57 - Train Loss: 0.6222 - Val Loss: 0.7233 - Best Val Loss: 0.6914
+INFO - Epoch 58 - Train Loss: 0.6222 - Val Loss: 0.7233 - Best Val Loss: 0.6914
+INFO - Epoch 59 - Train Loss: 0.6220 - Val Loss: 0.7208 - Best Val Loss: 0.6914
+INFO - Epoch 60 - Train Loss: 0.6220 - Val Loss: 0.7166 - Best Val Loss: 0.6914
+INFO - Epoch 61 - Train Loss: 0.6219 - Val Loss: 0.6992 - Best Val Loss: 0.6914
+INFO - Epoch 62 - Train Loss: 0.6219 - Val Loss: 0.6905 - Best Val Loss: 0.6905
+INFO - Epoch 63 - Train Loss: 0.6219 - Val Loss: 0.6889 - Best Val Loss: 0.6889
+INFO - Epoch 64 - Train Loss: 0.6219 - Val Loss: 0.6885 - Best Val Loss: 0.6885
+INFO - Epoch 65 - Train Loss: 0.6219 - Val Loss: 0.6884 - Best Val Loss: 0.6884
+INFO - Epoch 66 - Train Loss: 0.6219 - Val Loss: 0.6883 - Best Val Loss: 0.6883
+INFO - Epoch 67 - Train Loss: 0.6219 - Val Loss: 0.6883 - Best Val Loss: 0.6883
+INFO - Epoch 68 - Train Loss: 0.6219 - Val Loss: 0.6883 - Best Val Loss: 0.6883
+INFO - Epoch 69 - Train Loss: 0.6219 - Val Loss: 0.6883 - Best Val Loss: 0.6883
+INFO - Epoch 70 - Train Loss: 0.6219 - Val Loss: 0.6883 - Best Val Loss: 0.6883
+INFO - Epoch 71 - Train Loss: 0.6219 - Val Loss: 0.6883 - Best Val Loss: 0.6883
+INFO - Epoch 72 - Train Loss: 0.6219 - Val Loss: 0.6883 - Best Val Loss: 0.6883
+INFO - Epoch 73 - Train Loss: 0.6219 - Val Loss: 0.6883 - Best Val Loss: 0.6883
+INFO - Epoch 74 - Train Loss: 0.6219 - Val Loss: 0.6883 - Best Val Loss: 0.6883
+INFO - Epoch 75 - Train Loss: 0.6219 - Val Loss: 0.6883 - Best Val Loss: 0.6883
+INFO - Epoch 76 - Train Loss: 0.6219 - Val Loss: 0.6883 - Best Val Loss: 0.6883
+INFO - Epoch 77 - Train Loss: 0.6219 - Val Loss: 0.6883 - Best Val Loss: 0.6883
+INFO - Epoch 78 - Train Loss: 0.6219 - Val Loss: 0.6883 - Best Val Loss: 0.6883
+INFO - Epoch 79 - Train Loss: 0.6219 - Val Loss: 0.6883 - Best Val Loss: 0.6883
+INFO - Epoch 80 - Train Loss: 0.6219 - Val Loss: 0.6883 - Best Val Loss: 0.6883
+INFO - Epoch 81 - Train Loss: 0.6219 - Val Loss: 0.6883 - Best Val Loss: 0.6883
+INFO - Epoch 82 - Train Loss: 0.6219 - Val Loss: 0.6883 - Best Val Loss: 0.6883
+INFO - Epoch 83 - Train Loss: 0.6219 - Val Loss: 0.6883 - Best Val Loss: 0.6883
+INFO - Epoch 84 - Train Loss: 0.6219 - Val Loss: 0.6883 - Best Val Loss: 0.6883
+INFO - Epoch 85 - Train Loss: 0.6219 - Val Loss: 0.6883 - Best Val Loss: 0.6883
+INFO - Epoch 86 - Train Loss: 0.6219 - Val Loss: 0.6883 - Best Val Loss: 0.6883
+INFO - Epoch 87 - Train Loss: 0.6219 - Val Loss: 0.6883 - Best Val Loss: 0.6883
+INFO - Epoch 88 - Train Loss: 0.6219 - Val Loss: 0.6883 - Best Val Loss: 0.6883
+INFO - Epoch 89 - Train Loss: 0.6219 - Val Loss: 0.6883 - Best Val Loss: 0.6883
+INFO - Epoch 90 - Train Loss: 0.6219 - Val Loss: 0.6883 - Best Val Loss: 0.6883
+INFO - Epoch 91 - Train Loss: 0.6219 - Val Loss: 0.6883 - Best Val Loss: 0.6883
+INFO - Epoch 92 - Train Loss: 0.6219 - Val Loss: 0.6883 - Best Val Loss: 0.6883
+INFO - Epoch 93 - Train Loss: 0.6219 - Val Loss: 0.6883 - Best Val Loss: 0.6883
+INFO - Epoch 94 - Train Loss: 0.6219 - Val Loss: 0.6883 - Best Val Loss: 0.6883
+INFO - Epoch 95 - Train Loss: 0.6219 - Val Loss: 0.6883 - Best Val Loss: 0.6883
+INFO - Epoch 96 - Train Loss: 0.6219 - Val Loss: 0.6883 - Best Val Loss: 0.6883
+INFO - Epoch 97 - Train Loss: 0.6219 - Val Loss: 0.6883 - Best Val Loss: 0.6883
+INFO - Epoch 98 - Train Loss: 0.6219 - Val Loss: 0.6883 - Best Val Loss: 0.6883
+INFO - Epoch 99 - Train Loss: 0.6219 - Val Loss: 0.6883 - Best Val Loss: 0.6883
+INFO - Fold 3, Training accuracy: 0.9333
+INFO - Fold 3, Validation accuracy: 0.8667
+INFO - Fold 3, Test accuracy: 0.9333
+INFO - =========================
+INFO - ======= Fold 4 =======
+INFO - PSO configurado con límites: [1, 1]
+INFO - Epoch 0 - Train Loss: 0.9138 - Val Loss: 0.8493 - Best Val Loss: 0.8493
+INFO - Epoch 1 - Train Loss: 0.8871 - Val Loss: 0.8244 - Best Val Loss: 0.8244
+INFO - Epoch 2 - Train Loss: 0.8372 - Val Loss: 0.9464 - Best Val Loss: 0.8244
+INFO - Epoch 3 - Train Loss: 0.8372 - Val Loss: 0.9464 - Best Val Loss: 0.8244
+INFO - Epoch 4 - Train Loss: 0.8370 - Val Loss: 0.9761 - Best Val Loss: 0.8244
+INFO - Epoch 5 - Train Loss: 0.8041 - Val Loss: 0.9002 - Best Val Loss: 0.8244
+INFO - Epoch 6 - Train Loss: 0.7738 - Val Loss: 0.9228 - Best Val Loss: 0.8244
+INFO - Epoch 7 - Train Loss: 0.7738 - Val Loss: 0.9228 - Best Val Loss: 0.8244
+INFO - Epoch 8 - Train Loss: 0.7316 - Val Loss: 0.8439 - Best Val Loss: 0.8244
+INFO - Epoch 9 - Train Loss: 0.7269 - Val Loss: 0.8226 - Best Val Loss: 0.8226
+INFO - Epoch 10 - Train Loss: 0.7269 - Val Loss: 0.8226 - Best Val Loss: 0.8226
+INFO - Epoch 11 - Train Loss: 0.7269 - Val Loss: 0.8226 - Best Val Loss: 0.8226
+INFO - Epoch 12 - Train Loss: 0.7269 - Val Loss: 0.8226 - Best Val Loss: 0.8226
+INFO - Epoch 13 - Train Loss: 0.7269 - Val Loss: 0.8226 - Best Val Loss: 0.8226
+INFO - Epoch 14 - Train Loss: 0.7269 - Val Loss: 0.8226 - Best Val Loss: 0.8226
+INFO - Epoch 15 - Train Loss: 0.7269 - Val Loss: 0.8226 - Best Val Loss: 0.8226
+INFO - Epoch 16 - Train Loss: 0.7269 - Val Loss: 0.8226 - Best Val Loss: 0.8226
+INFO - Epoch 17 - Train Loss: 0.7269 - Val Loss: 0.8226 - Best Val Loss: 0.8226
+INFO - Epoch 18 - Train Loss: 0.7079 - Val Loss: 0.7887 - Best Val Loss: 0.7887
+INFO - Epoch 19 - Train Loss: 0.7079 - Val Loss: 0.7887 - Best Val Loss: 0.7887
+INFO - Epoch 20 - Train Loss: 0.7079 - Val Loss: 0.7887 - Best Val Loss: 0.7887
+INFO - Epoch 21 - Train Loss: 0.6531 - Val Loss: 0.7861 - Best Val Loss: 0.7861
+INFO - Epoch 22 - Train Loss: 0.6531 - Val Loss: 0.7861 - Best Val Loss: 0.7861
+INFO - Epoch 23 - Train Loss: 0.6531 - Val Loss: 0.7861 - Best Val Loss: 0.7861
+INFO - Epoch 24 - Train Loss: 0.6531 - Val Loss: 0.7861 - Best Val Loss: 0.7861
+INFO - Epoch 25 - Train Loss: 0.6531 - Val Loss: 0.7861 - Best Val Loss: 0.7861
+INFO - Epoch 26 - Train Loss: 0.6531 - Val Loss: 0.7861 - Best Val Loss: 0.7861
+INFO - Epoch 27 - Train Loss: 0.6531 - Val Loss: 0.7861 - Best Val Loss: 0.7861
+INFO - Epoch 28 - Train Loss: 0.6531 - Val Loss: 0.7861 - Best Val Loss: 0.7861
+INFO - Epoch 29 - Train Loss: 0.6531 - Val Loss: 0.7861 - Best Val Loss: 0.7861
+INFO - Epoch 30 - Train Loss: 0.6531 - Val Loss: 0.7861 - Best Val Loss: 0.7861
+INFO - Epoch 31 - Train Loss: 0.6531 - Val Loss: 0.7861 - Best Val Loss: 0.7861
+INFO - Epoch 32 - Train Loss: 0.6329 - Val Loss: 0.7864 - Best Val Loss: 0.7861
+INFO - Epoch 33 - Train Loss: 0.6329 - Val Loss: 0.7864 - Best Val Loss: 0.7861
+INFO - Epoch 34 - Train Loss: 0.6329 - Val Loss: 0.7864 - Best Val Loss: 0.7861
+INFO - Epoch 35 - Train Loss: 0.6329 - Val Loss: 0.7864 - Best Val Loss: 0.7861
+INFO - Epoch 36 - Train Loss: 0.6329 - Val Loss: 0.7864 - Best Val Loss: 0.7861
+INFO - Epoch 37 - Train Loss: 0.6329 - Val Loss: 0.7864 - Best Val Loss: 0.7861
+INFO - Epoch 38 - Train Loss: 0.6329 - Val Loss: 0.7864 - Best Val Loss: 0.7861
+INFO - Epoch 39 - Train Loss: 0.6329 - Val Loss: 0.7864 - Best Val Loss: 0.7861
+INFO - Epoch 40 - Train Loss: 0.6329 - Val Loss: 0.7864 - Best Val Loss: 0.7861
+INFO - Epoch 41 - Train Loss: 0.6329 - Val Loss: 0.7864 - Best Val Loss: 0.7861
+INFO - Epoch 42 - Train Loss: 0.6329 - Val Loss: 0.7864 - Best Val Loss: 0.7861
+INFO - Epoch 43 - Train Loss: 0.6329 - Val Loss: 0.7864 - Best Val Loss: 0.7861
+INFO - Epoch 44 - Train Loss: 0.6329 - Val Loss: 0.7864 - Best Val Loss: 0.7861
+INFO - Epoch 45 - Train Loss: 0.6329 - Val Loss: 0.7864 - Best Val Loss: 0.7861
+INFO - Epoch 46 - Train Loss: 0.6329 - Val Loss: 0.7864 - Best Val Loss: 0.7861
+INFO - Epoch 47 - Train Loss: 0.6329 - Val Loss: 0.7864 - Best Val Loss: 0.7861
+INFO - Epoch 48 - Train Loss: 0.6329 - Val Loss: 0.7864 - Best Val Loss: 0.7861
+INFO - Epoch 49 - Train Loss: 0.6318 - Val Loss: 0.7863 - Best Val Loss: 0.7861
+INFO - Epoch 50 - Train Loss: 0.6314 - Val Loss: 0.7862 - Best Val Loss: 0.7861
+INFO - Epoch 51 - Train Loss: 0.6313 - Val Loss: 0.7862 - Best Val Loss: 0.7861
+INFO - Epoch 52 - Train Loss: 0.6313 - Val Loss: 0.7862 - Best Val Loss: 0.7861
+INFO - Epoch 53 - Train Loss: 0.6313 - Val Loss: 0.7862 - Best Val Loss: 0.7861
+INFO - Epoch 54 - Train Loss: 0.6312 - Val Loss: 0.7862 - Best Val Loss: 0.7861
+INFO - Epoch 55 - Train Loss: 0.6312 - Val Loss: 0.7862 - Best Val Loss: 0.7861
+INFO - Epoch 56 - Train Loss: 0.6312 - Val Loss: 0.7862 - Best Val Loss: 0.7861
+INFO - Epoch 57 - Train Loss: 0.6312 - Val Loss: 0.7862 - Best Val Loss: 0.7861
+INFO - Epoch 58 - Train Loss: 0.6312 - Val Loss: 0.7862 - Best Val Loss: 0.7861
+INFO - Epoch 59 - Train Loss: 0.6312 - Val Loss: 0.7862 - Best Val Loss: 0.7861
+INFO - Epoch 60 - Train Loss: 0.6312 - Val Loss: 0.7862 - Best Val Loss: 0.7861
+INFO - Epoch 61 - Train Loss: 0.6312 - Val Loss: 0.7862 - Best Val Loss: 0.7861
+INFO - Epoch 62 - Train Loss: 0.6312 - Val Loss: 0.7862 - Best Val Loss: 0.7861
+INFO - Epoch 63 - Train Loss: 0.6312 - Val Loss: 0.7862 - Best Val Loss: 0.7861
+INFO - Epoch 64 - Train Loss: 0.6312 - Val Loss: 0.7862 - Best Val Loss: 0.7861
+INFO - Epoch 65 - Train Loss: 0.6312 - Val Loss: 0.7862 - Best Val Loss: 0.7861
+INFO - Epoch 66 - Train Loss: 0.6312 - Val Loss: 0.7862 - Best Val Loss: 0.7861
+INFO - Epoch 67 - Train Loss: 0.6312 - Val Loss: 0.7862 - Best Val Loss: 0.7861
+INFO - Epoch 68 - Train Loss: 0.6312 - Val Loss: 0.7862 - Best Val Loss: 0.7861
+INFO - Epoch 69 - Train Loss: 0.6312 - Val Loss: 0.7862 - Best Val Loss: 0.7861
+INFO - Epoch 70 - Train Loss: 0.6312 - Val Loss: 0.7862 - Best Val Loss: 0.7861
+INFO - Epoch 71 - Train Loss: 0.6312 - Val Loss: 0.7862 - Best Val Loss: 0.7861
+INFO - Epoch 72 - Train Loss: 0.6312 - Val Loss: 0.7862 - Best Val Loss: 0.7861
+INFO - Epoch 73 - Train Loss: 0.6312 - Val Loss: 0.7862 - Best Val Loss: 0.7861
+INFO - Epoch 74 - Train Loss: 0.6312 - Val Loss: 0.7862 - Best Val Loss: 0.7861
+INFO - Epoch 75 - Train Loss: 0.6312 - Val Loss: 0.7862 - Best Val Loss: 0.7861
+INFO - Epoch 76 - Train Loss: 0.6312 - Val Loss: 0.7862 - Best Val Loss: 0.7861
+INFO - Epoch 77 - Train Loss: 0.6312 - Val Loss: 0.7862 - Best Val Loss: 0.7861
+INFO - Epoch 78 - Train Loss: 0.6312 - Val Loss: 0.7862 - Best Val Loss: 0.7861
+INFO - Epoch 79 - Train Loss: 0.6312 - Val Loss: 0.7862 - Best Val Loss: 0.7861
+INFO - Epoch 80 - Train Loss: 0.6312 - Val Loss: 0.7862 - Best Val Loss: 0.7861
+INFO - Epoch 81 - Train Loss: 0.6241 - Val Loss: 0.7536 - Best Val Loss: 0.7536
+INFO - Epoch 82 - Train Loss: 0.6241 - Val Loss: 0.7536 - Best Val Loss: 0.7536
+INFO - Epoch 83 - Train Loss: 0.6241 - Val Loss: 0.7536 - Best Val Loss: 0.7536
+INFO - Epoch 84 - Train Loss: 0.6208 - Val Loss: 0.6542 - Best Val Loss: 0.6542
+INFO - Epoch 85 - Train Loss: 0.5934 - Val Loss: 0.6614 - Best Val Loss: 0.6542
+INFO - Epoch 86 - Train Loss: 0.5934 - Val Loss: 0.6614 - Best Val Loss: 0.6542
+INFO - Epoch 87 - Train Loss: 0.5934 - Val Loss: 0.6614 - Best Val Loss: 0.6542
+INFO - Epoch 88 - Train Loss: 0.5781 - Val Loss: 0.6556 - Best Val Loss: 0.6542
+INFO - Epoch 89 - Train Loss: 0.5781 - Val Loss: 0.6556 - Best Val Loss: 0.6542
+INFO - Epoch 90 - Train Loss: 0.5770 - Val Loss: 0.6878 - Best Val Loss: 0.6542
+INFO - Epoch 91 - Train Loss: 0.5770 - Val Loss: 0.6878 - Best Val Loss: 0.6542
+INFO - Epoch 92 - Train Loss: 0.5770 - Val Loss: 0.6878 - Best Val Loss: 0.6542
+INFO - Epoch 93 - Train Loss: 0.5770 - Val Loss: 0.6878 - Best Val Loss: 0.6542
+INFO - Epoch 94 - Train Loss: 0.5770 - Val Loss: 0.6878 - Best Val Loss: 0.6542
+INFO - Epoch 95 - Train Loss: 0.5770 - Val Loss: 0.6878 - Best Val Loss: 0.6542
+INFO - Epoch 96 - Train Loss: 0.5770 - Val Loss: 0.6878 - Best Val Loss: 0.6542
+INFO - Epoch 97 - Train Loss: 0.5769 - Val Loss: 0.6877 - Best Val Loss: 0.6542
+INFO - Epoch 98 - Train Loss: 0.5769 - Val Loss: 0.6877 - Best Val Loss: 0.6542
+INFO - Epoch 99 - Train Loss: 0.5769 - Val Loss: 0.6877 - Best Val Loss: 0.6542
+INFO - Fold 4, Training accuracy: 0.9333
+INFO - Fold 4, Validation accuracy: 0.9000
+INFO - Fold 4, Test accuracy: 0.9667
+INFO - =========================
+INFO - Best model saved at: ./models/iris_pso_best_model.pth
+INFO - =============================================
+INFO - Model Setup:
+INFO - dataset: iris
+INFO - input_dim: 4
+INFO - output_dim: 3
+INFO - n_samples: 120
+INFO - hidden_layers: [8, 6, 4]
+INFO - n_particles: 20
+INFO - n_folds: 4
+INFO - n_epochs: 100
+INFO - Total Parameters: 137
+INFO - =============================================
+INFO - Mean time per epoch and folder: 2.9937 - std:0.2419 seconds
+INFO - Mean accuracy on training dataset: 0.8944 - std: 0.0455
+INFO - Mean accuracy on validation dataset: 0.9167 - std: 0.0500
+INFO - Mean accuracy on test dataset: 0.9167 - std: 0.0500
+INFO - =============================================
+INFO - ======= Fold 1 =======
+INFO - ======= Fold 1 =======
+INFO - PSO configurado sin límites de parámetros
+INFO - Epoch 0 - Train Loss: 1.0427 - Val Loss: 1.0205 - Best Val Loss: 1.0205
+INFO - Epoch 1 - Train Loss: 0.8828 - Val Loss: 0.9075 - Best Val Loss: 0.9075
+INFO - Epoch 2 - Train Loss: 0.7579 - Val Loss: 0.8579 - Best Val Loss: 0.8579
+INFO - Epoch 3 - Train Loss: 0.7376 - Val Loss: 0.7932 - Best Val Loss: 0.7932
+INFO - Epoch 4 - Train Loss: 0.7376 - Val Loss: 0.7932 - Best Val Loss: 0.7932
+INFO - Epoch 5 - Train Loss: 0.7376 - Val Loss: 0.7932 - Best Val Loss: 0.7932
+INFO - Epoch 6 - Train Loss: 0.7376 - Val Loss: 0.7932 - Best Val Loss: 0.7932
+INFO - Epoch 7 - Train Loss: 0.7376 - Val Loss: 0.7932 - Best Val Loss: 0.7932
+INFO - Epoch 8 - Train Loss: 0.7376 - Val Loss: 0.7932 - Best Val Loss: 0.7932
+INFO - Epoch 9 - Train Loss: 0.7376 - Val Loss: 0.7932 - Best Val Loss: 0.7932
+INFO - Epoch 10 - Train Loss: 0.7376 - Val Loss: 0.7932 - Best Val Loss: 0.7932
+INFO - Epoch 11 - Train Loss: 0.7270 - Val Loss: 0.7603 - Best Val Loss: 0.7603
+INFO - Epoch 12 - Train Loss: 0.7159 - Val Loss: 0.7604 - Best Val Loss: 0.7603
+INFO - Epoch 13 - Train Loss: 0.7159 - Val Loss: 0.7604 - Best Val Loss: 0.7603
+INFO - Epoch 14 - Train Loss: 0.7158 - Val Loss: 0.7603 - Best Val Loss: 0.7603
+INFO - Epoch 15 - Train Loss: 0.7158 - Val Loss: 0.7602 - Best Val Loss: 0.7602
+INFO - Epoch 16 - Train Loss: 0.7158 - Val Loss: 0.7602 - Best Val Loss: 0.7602
+INFO - Epoch 17 - Train Loss: 0.7045 - Val Loss: 0.7601 - Best Val Loss: 0.7601
+INFO - Epoch 18 - Train Loss: 0.7045 - Val Loss: 0.7601 - Best Val Loss: 0.7601
+INFO - Epoch 19 - Train Loss: 0.7045 - Val Loss: 0.7601 - Best Val Loss: 0.7601
+INFO - Epoch 20 - Train Loss: 0.7045 - Val Loss: 0.7601 - Best Val Loss: 0.7601
+INFO - Epoch 21 - Train Loss: 0.6933 - Val Loss: 0.7933 - Best Val Loss: 0.7601
+INFO - Epoch 22 - Train Loss: 0.6933 - Val Loss: 0.7933 - Best Val Loss: 0.7601
+INFO - Epoch 23 - Train Loss: 0.6933 - Val Loss: 0.7933 - Best Val Loss: 0.7601
+INFO - Epoch 24 - Train Loss: 0.6933 - Val Loss: 0.7933 - Best Val Loss: 0.7601
+INFO - Epoch 25 - Train Loss: 0.6933 - Val Loss: 0.7933 - Best Val Loss: 0.7601
+INFO - Epoch 26 - Train Loss: 0.6933 - Val Loss: 0.7933 - Best Val Loss: 0.7601
+INFO - Epoch 27 - Train Loss: 0.6822 - Val Loss: 0.7267 - Best Val Loss: 0.7267
+INFO - Epoch 28 - Train Loss: 0.6822 - Val Loss: 0.7267 - Best Val Loss: 0.7267
+INFO - Epoch 29 - Train Loss: 0.6822 - Val Loss: 0.7267 - Best Val Loss: 0.7267
+INFO - Epoch 30 - Train Loss: 0.6821 - Val Loss: 0.7266 - Best Val Loss: 0.7266
+INFO - Epoch 31 - Train Loss: 0.6821 - Val Loss: 0.7266 - Best Val Loss: 0.7266
+INFO - Epoch 32 - Train Loss: 0.6821 - Val Loss: 0.7266 - Best Val Loss: 0.7266
+INFO - Epoch 33 - Train Loss: 0.6821 - Val Loss: 0.7266 - Best Val Loss: 0.7266
+INFO - Epoch 34 - Train Loss: 0.6820 - Val Loss: 0.7265 - Best Val Loss: 0.7265
+INFO - Epoch 35 - Train Loss: 0.6729 - Val Loss: 0.6951 - Best Val Loss: 0.6951
+INFO - Epoch 36 - Train Loss: 0.6729 - Val Loss: 0.6951 - Best Val Loss: 0.6951
+INFO - Epoch 37 - Train Loss: 0.6729 - Val Loss: 0.6951 - Best Val Loss: 0.6951
+INFO - Epoch 38 - Train Loss: 0.6729 - Val Loss: 0.6951 - Best Val Loss: 0.6951
+INFO - Epoch 39 - Train Loss: 0.6729 - Val Loss: 0.6951 - Best Val Loss: 0.6951
+INFO - Epoch 40 - Train Loss: 0.6729 - Val Loss: 0.6951 - Best Val Loss: 0.6951
+INFO - Epoch 41 - Train Loss: 0.6729 - Val Loss: 0.6951 - Best Val Loss: 0.6951
+INFO - Epoch 42 - Train Loss: 0.6729 - Val Loss: 0.6951 - Best Val Loss: 0.6951
+INFO - Epoch 43 - Train Loss: 0.6518 - Val Loss: 0.6962 - Best Val Loss: 0.6951
+INFO - Epoch 44 - Train Loss: 0.6518 - Val Loss: 0.6962 - Best Val Loss: 0.6951
+INFO - Epoch 45 - Train Loss: 0.6518 - Val Loss: 0.6962 - Best Val Loss: 0.6951
+INFO - Epoch 46 - Train Loss: 0.6518 - Val Loss: 0.6962 - Best Val Loss: 0.6951
+INFO - Epoch 47 - Train Loss: 0.6518 - Val Loss: 0.6962 - Best Val Loss: 0.6951
+INFO - Epoch 48 - Train Loss: 0.6518 - Val Loss: 0.6962 - Best Val Loss: 0.6951
+INFO - Epoch 49 - Train Loss: 0.6515 - Val Loss: 0.6959 - Best Val Loss: 0.6951
+INFO - Epoch 50 - Train Loss: 0.6515 - Val Loss: 0.6959 - Best Val Loss: 0.6951
+INFO - Epoch 51 - Train Loss: 0.6515 - Val Loss: 0.6959 - Best Val Loss: 0.6951
+INFO - Epoch 52 - Train Loss: 0.6515 - Val Loss: 0.6959 - Best Val Loss: 0.6951
+INFO - Epoch 53 - Train Loss: 0.6515 - Val Loss: 0.6959 - Best Val Loss: 0.6951
+INFO - Epoch 54 - Train Loss: 0.6513 - Val Loss: 0.6957 - Best Val Loss: 0.6951
+INFO - Epoch 55 - Train Loss: 0.6511 - Val Loss: 0.6956 - Best Val Loss: 0.6951
+INFO - Epoch 56 - Train Loss: 0.6511 - Val Loss: 0.6956 - Best Val Loss: 0.6951
+INFO - Epoch 57 - Train Loss: 0.6511 - Val Loss: 0.6956 - Best Val Loss: 0.6951
+INFO - Epoch 58 - Train Loss: 0.6511 - Val Loss: 0.6955 - Best Val Loss: 0.6951
+INFO - Epoch 59 - Train Loss: 0.6511 - Val Loss: 0.6955 - Best Val Loss: 0.6951
+INFO - Epoch 60 - Train Loss: 0.6511 - Val Loss: 0.6955 - Best Val Loss: 0.6951
+INFO - Epoch 61 - Train Loss: 0.6511 - Val Loss: 0.6955 - Best Val Loss: 0.6951
+INFO - Epoch 62 - Train Loss: 0.6511 - Val Loss: 0.6955 - Best Val Loss: 0.6951
+INFO - Epoch 63 - Train Loss: 0.6511 - Val Loss: 0.6955 - Best Val Loss: 0.6951
+INFO - Epoch 64 - Train Loss: 0.6511 - Val Loss: 0.6955 - Best Val Loss: 0.6951
+INFO - Epoch 65 - Train Loss: 0.6511 - Val Loss: 0.6955 - Best Val Loss: 0.6951
+INFO - Epoch 66 - Train Loss: 0.6511 - Val Loss: 0.6955 - Best Val Loss: 0.6951
+INFO - Epoch 67 - Train Loss: 0.6511 - Val Loss: 0.6955 - Best Val Loss: 0.6951
+INFO - Epoch 68 - Train Loss: 0.6511 - Val Loss: 0.6955 - Best Val Loss: 0.6951
+INFO - Epoch 69 - Train Loss: 0.6511 - Val Loss: 0.6955 - Best Val Loss: 0.6951
+INFO - Epoch 70 - Train Loss: 0.6511 - Val Loss: 0.6955 - Best Val Loss: 0.6951
+INFO - Epoch 71 - Train Loss: 0.6511 - Val Loss: 0.6955 - Best Val Loss: 0.6951
+INFO - Epoch 72 - Train Loss: 0.6511 - Val Loss: 0.6955 - Best Val Loss: 0.6951
+INFO - Epoch 73 - Train Loss: 0.6511 - Val Loss: 0.6955 - Best Val Loss: 0.6951
+INFO - Epoch 74 - Train Loss: 0.6511 - Val Loss: 0.6955 - Best Val Loss: 0.6951
+INFO - Epoch 75 - Train Loss: 0.6511 - Val Loss: 0.6955 - Best Val Loss: 0.6951
+INFO - Epoch 76 - Train Loss: 0.6511 - Val Loss: 0.6955 - Best Val Loss: 0.6951
+INFO - Epoch 77 - Train Loss: 0.6511 - Val Loss: 0.6955 - Best Val Loss: 0.6951
+INFO - Epoch 78 - Train Loss: 0.6511 - Val Loss: 0.6955 - Best Val Loss: 0.6951
+INFO - Epoch 79 - Train Loss: 0.6510 - Val Loss: 0.6955 - Best Val Loss: 0.6951
+INFO - Epoch 80 - Train Loss: 0.6510 - Val Loss: 0.6954 - Best Val Loss: 0.6951
+INFO - Epoch 81 - Train Loss: 0.6509 - Val Loss: 0.6954 - Best Val Loss: 0.6951
+INFO - Epoch 82 - Train Loss: 0.6509 - Val Loss: 0.6954 - Best Val Loss: 0.6951
+INFO - Epoch 83 - Train Loss: 0.6509 - Val Loss: 0.6954 - Best Val Loss: 0.6951
+INFO - Epoch 84 - Train Loss: 0.6509 - Val Loss: 0.6954 - Best Val Loss: 0.6951
+INFO - Epoch 85 - Train Loss: 0.6509 - Val Loss: 0.6954 - Best Val Loss: 0.6951
+INFO - Epoch 86 - Train Loss: 0.6509 - Val Loss: 0.6954 - Best Val Loss: 0.6951
+INFO - Epoch 87 - Train Loss: 0.6509 - Val Loss: 0.6954 - Best Val Loss: 0.6951
+INFO - Epoch 88 - Train Loss: 0.6509 - Val Loss: 0.6954 - Best Val Loss: 0.6951
+INFO - Epoch 89 - Train Loss: 0.6509 - Val Loss: 0.6953 - Best Val Loss: 0.6951
+INFO - Epoch 90 - Train Loss: 0.6509 - Val Loss: 0.6953 - Best Val Loss: 0.6951
+INFO - Epoch 91 - Train Loss: 0.6509 - Val Loss: 0.6953 - Best Val Loss: 0.6951
+INFO - Epoch 92 - Train Loss: 0.6509 - Val Loss: 0.6953 - Best Val Loss: 0.6951
+INFO - Epoch 93 - Train Loss: 0.6509 - Val Loss: 0.6953 - Best Val Loss: 0.6951
+INFO - Epoch 94 - Train Loss: 0.6509 - Val Loss: 0.6953 - Best Val Loss: 0.6951
+INFO - Epoch 95 - Train Loss: 0.6509 - Val Loss: 0.6953 - Best Val Loss: 0.6951
+INFO - Epoch 96 - Train Loss: 0.6509 - Val Loss: 0.6953 - Best Val Loss: 0.6951
+INFO - Epoch 97 - Train Loss: 0.6506 - Val Loss: 0.6951 - Best Val Loss: 0.6951
+INFO - Epoch 98 - Train Loss: 0.6506 - Val Loss: 0.6951 - Best Val Loss: 0.6951
+INFO - Epoch 99 - Train Loss: 0.6506 - Val Loss: 0.6951 - Best Val Loss: 0.6951
+INFO - Fold 1, Training accuracy: 0.9111
+INFO - Fold 1, Validation accuracy: 0.8667
+INFO - Fold 1, Test accuracy: 0.9667
+INFO - =========================
+INFO - ======= Fold 2 =======
+INFO - PSO configurado sin límites de parámetros
+INFO - Epoch 0 - Train Loss: 0.9205 - Val Loss: 0.8205 - Best Val Loss: 0.8205
+INFO - Epoch 1 - Train Loss: 0.9021 - Val Loss: 0.9342 - Best Val Loss: 0.8205
+INFO - Epoch 2 - Train Loss: 0.8556 - Val Loss: 0.8556 - Best Val Loss: 0.8205
+INFO - Epoch 3 - Train Loss: 0.7221 - Val Loss: 0.7554 - Best Val Loss: 0.7554
+INFO - Epoch 4 - Train Loss: 0.7221 - Val Loss: 0.7554 - Best Val Loss: 0.7554
+INFO - Epoch 5 - Train Loss: 0.7221 - Val Loss: 0.7554 - Best Val Loss: 0.7554
+INFO - Epoch 6 - Train Loss: 0.7221 - Val Loss: 0.7554 - Best Val Loss: 0.7554
+INFO - Epoch 7 - Train Loss: 0.7221 - Val Loss: 0.7554 - Best Val Loss: 0.7554
+INFO - Epoch 8 - Train Loss: 0.7221 - Val Loss: 0.7554 - Best Val Loss: 0.7554
+INFO - Epoch 9 - Train Loss: 0.7221 - Val Loss: 0.7554 - Best Val Loss: 0.7554
+INFO - Epoch 10 - Train Loss: 0.7221 - Val Loss: 0.7554 - Best Val Loss: 0.7554
+INFO - Epoch 11 - Train Loss: 0.7221 - Val Loss: 0.7554 - Best Val Loss: 0.7554
+INFO - Epoch 12 - Train Loss: 0.7221 - Val Loss: 0.7554 - Best Val Loss: 0.7554
+INFO - Epoch 13 - Train Loss: 0.7221 - Val Loss: 0.7554 - Best Val Loss: 0.7554
+INFO - Epoch 14 - Train Loss: 0.7221 - Val Loss: 0.7554 - Best Val Loss: 0.7554
+INFO - Epoch 15 - Train Loss: 0.7221 - Val Loss: 0.7554 - Best Val Loss: 0.7554
+INFO - Epoch 16 - Train Loss: 0.7110 - Val Loss: 0.7221 - Best Val Loss: 0.7221
+INFO - Epoch 17 - Train Loss: 0.7110 - Val Loss: 0.7221 - Best Val Loss: 0.7221
+INFO - Epoch 18 - Train Loss: 0.7110 - Val Loss: 0.7221 - Best Val Loss: 0.7221
+INFO - Epoch 19 - Train Loss: 0.7110 - Val Loss: 0.7221 - Best Val Loss: 0.7221
+INFO - Epoch 20 - Train Loss: 0.7110 - Val Loss: 0.7221 - Best Val Loss: 0.7221
+INFO - Epoch 21 - Train Loss: 0.7110 - Val Loss: 0.7221 - Best Val Loss: 0.7221
+INFO - Epoch 22 - Train Loss: 0.7110 - Val Loss: 0.7221 - Best Val Loss: 0.7221
+INFO - Epoch 23 - Train Loss: 0.7110 - Val Loss: 0.7221 - Best Val Loss: 0.7221
+INFO - Epoch 24 - Train Loss: 0.7110 - Val Loss: 0.7221 - Best Val Loss: 0.7221
+INFO - Epoch 25 - Train Loss: 0.7110 - Val Loss: 0.7221 - Best Val Loss: 0.7221
+INFO - Epoch 26 - Train Loss: 0.7110 - Val Loss: 0.7221 - Best Val Loss: 0.7221
+INFO - Epoch 27 - Train Loss: 0.7110 - Val Loss: 0.7221 - Best Val Loss: 0.7221
+INFO - Epoch 28 - Train Loss: 0.7015 - Val Loss: 0.6903 - Best Val Loss: 0.6903
+INFO - Epoch 29 - Train Loss: 0.7015 - Val Loss: 0.6903 - Best Val Loss: 0.6903
+INFO - Epoch 30 - Train Loss: 0.7015 - Val Loss: 0.6903 - Best Val Loss: 0.6903
+INFO - Epoch 31 - Train Loss: 0.7015 - Val Loss: 0.6903 - Best Val Loss: 0.6903
+INFO - Epoch 32 - Train Loss: 0.7015 - Val Loss: 0.6903 - Best Val Loss: 0.6903
+INFO - Epoch 33 - Train Loss: 0.7015 - Val Loss: 0.6903 - Best Val Loss: 0.6903
+INFO - Epoch 34 - Train Loss: 0.6802 - Val Loss: 0.6579 - Best Val Loss: 0.6579
+INFO - Epoch 35 - Train Loss: 0.6802 - Val Loss: 0.6579 - Best Val Loss: 0.6579
+INFO - Epoch 36 - Train Loss: 0.6802 - Val Loss: 0.6579 - Best Val Loss: 0.6579
+INFO - Epoch 37 - Train Loss: 0.6802 - Val Loss: 0.6579 - Best Val Loss: 0.6579
+INFO - Epoch 38 - Train Loss: 0.6802 - Val Loss: 0.6579 - Best Val Loss: 0.6579
+INFO - Epoch 39 - Train Loss: 0.6802 - Val Loss: 0.6579 - Best Val Loss: 0.6579
+INFO - Epoch 40 - Train Loss: 0.6802 - Val Loss: 0.6579 - Best Val Loss: 0.6579
+INFO - Epoch 41 - Train Loss: 0.6802 - Val Loss: 0.6579 - Best Val Loss: 0.6579
+INFO - Epoch 42 - Train Loss: 0.6802 - Val Loss: 0.6579 - Best Val Loss: 0.6579
+INFO - Epoch 43 - Train Loss: 0.6688 - Val Loss: 0.5910 - Best Val Loss: 0.5910
+INFO - Epoch 44 - Train Loss: 0.6688 - Val Loss: 0.5910 - Best Val Loss: 0.5910
+INFO - Epoch 45 - Train Loss: 0.6688 - Val Loss: 0.5910 - Best Val Loss: 0.5910
+INFO - Epoch 46 - Train Loss: 0.6688 - Val Loss: 0.5910 - Best Val Loss: 0.5910
+INFO - Epoch 47 - Train Loss: 0.6466 - Val Loss: 0.6577 - Best Val Loss: 0.5910
+INFO - Epoch 48 - Train Loss: 0.6466 - Val Loss: 0.6577 - Best Val Loss: 0.5910
+INFO - Epoch 49 - Train Loss: 0.6464 - Val Loss: 0.6575 - Best Val Loss: 0.5910
+INFO - Epoch 50 - Train Loss: 0.6464 - Val Loss: 0.6575 - Best Val Loss: 0.5910
+INFO - Epoch 51 - Train Loss: 0.6464 - Val Loss: 0.6575 - Best Val Loss: 0.5910
+INFO - Epoch 52 - Train Loss: 0.6464 - Val Loss: 0.6575 - Best Val Loss: 0.5910
+INFO - Epoch 53 - Train Loss: 0.6464 - Val Loss: 0.6242 - Best Val Loss: 0.5910
+INFO - Epoch 54 - Train Loss: 0.6464 - Val Loss: 0.6242 - Best Val Loss: 0.5910
+INFO - Epoch 55 - Train Loss: 0.6464 - Val Loss: 0.6242 - Best Val Loss: 0.5910
+INFO - Epoch 56 - Train Loss: 0.6464 - Val Loss: 0.6575 - Best Val Loss: 0.5910
+INFO - Epoch 57 - Train Loss: 0.6464 - Val Loss: 0.6575 - Best Val Loss: 0.5910
+INFO - Epoch 58 - Train Loss: 0.6464 - Val Loss: 0.6242 - Best Val Loss: 0.5910
+INFO - Epoch 59 - Train Loss: 0.6464 - Val Loss: 0.6242 - Best Val Loss: 0.5910
+INFO - Epoch 60 - Train Loss: 0.6464 - Val Loss: 0.6242 - Best Val Loss: 0.5910
+INFO - Epoch 61 - Train Loss: 0.6464 - Val Loss: 0.6242 - Best Val Loss: 0.5910
+INFO - Epoch 62 - Train Loss: 0.6464 - Val Loss: 0.6242 - Best Val Loss: 0.5910
+INFO - Epoch 63 - Train Loss: 0.6464 - Val Loss: 0.6242 - Best Val Loss: 0.5910
+INFO - Epoch 64 - Train Loss: 0.6464 - Val Loss: 0.6242 - Best Val Loss: 0.5910
+INFO - Epoch 65 - Train Loss: 0.6464 - Val Loss: 0.6242 - Best Val Loss: 0.5910
+INFO - Epoch 66 - Train Loss: 0.6464 - Val Loss: 0.6241 - Best Val Loss: 0.5910
+INFO - Epoch 67 - Train Loss: 0.6464 - Val Loss: 0.6241 - Best Val Loss: 0.5910
+INFO - Epoch 68 - Train Loss: 0.6464 - Val Loss: 0.6575 - Best Val Loss: 0.5910
+INFO - Epoch 69 - Train Loss: 0.6463 - Val Loss: 0.6575 - Best Val Loss: 0.5910
+INFO - Epoch 70 - Train Loss: 0.6463 - Val Loss: 0.6575 - Best Val Loss: 0.5910
+INFO - Epoch 71 - Train Loss: 0.6463 - Val Loss: 0.6575 - Best Val Loss: 0.5910
+INFO - Epoch 72 - Train Loss: 0.6463 - Val Loss: 0.6575 - Best Val Loss: 0.5910
+INFO - Epoch 73 - Train Loss: 0.6463 - Val Loss: 0.6575 - Best Val Loss: 0.5910
+INFO - Epoch 74 - Train Loss: 0.6463 - Val Loss: 0.6575 - Best Val Loss: 0.5910
+INFO - Epoch 75 - Train Loss: 0.6463 - Val Loss: 0.6575 - Best Val Loss: 0.5910
+INFO - Epoch 76 - Train Loss: 0.6463 - Val Loss: 0.6575 - Best Val Loss: 0.5910
+INFO - Epoch 77 - Train Loss: 0.6463 - Val Loss: 0.6575 - Best Val Loss: 0.5910
+INFO - Epoch 78 - Train Loss: 0.6463 - Val Loss: 0.6575 - Best Val Loss: 0.5910
+INFO - Epoch 79 - Train Loss: 0.6463 - Val Loss: 0.6575 - Best Val Loss: 0.5910
+INFO - Epoch 80 - Train Loss: 0.6463 - Val Loss: 0.6575 - Best Val Loss: 0.5910
+INFO - Epoch 81 - Train Loss: 0.6463 - Val Loss: 0.6575 - Best Val Loss: 0.5910
+INFO - Epoch 82 - Train Loss: 0.6463 - Val Loss: 0.6575 - Best Val Loss: 0.5910
+INFO - Epoch 83 - Train Loss: 0.6463 - Val Loss: 0.6575 - Best Val Loss: 0.5910
+INFO - Epoch 84 - Train Loss: 0.6463 - Val Loss: 0.6575 - Best Val Loss: 0.5910
+INFO - Epoch 85 - Train Loss: 0.6463 - Val Loss: 0.6575 - Best Val Loss: 0.5910
+INFO - Epoch 86 - Train Loss: 0.6463 - Val Loss: 0.6575 - Best Val Loss: 0.5910
+INFO - Epoch 87 - Train Loss: 0.6463 - Val Loss: 0.6575 - Best Val Loss: 0.5910
+INFO - Epoch 88 - Train Loss: 0.6463 - Val Loss: 0.6575 - Best Val Loss: 0.5910
+INFO - Epoch 89 - Train Loss: 0.6463 - Val Loss: 0.6575 - Best Val Loss: 0.5910
+INFO - Epoch 90 - Train Loss: 0.6463 - Val Loss: 0.6575 - Best Val Loss: 0.5910
+INFO - Epoch 91 - Train Loss: 0.6463 - Val Loss: 0.6575 - Best Val Loss: 0.5910
+INFO - Epoch 92 - Train Loss: 0.6463 - Val Loss: 0.6575 - Best Val Loss: 0.5910
+INFO - Epoch 93 - Train Loss: 0.6463 - Val Loss: 0.6575 - Best Val Loss: 0.5910
+INFO - Epoch 94 - Train Loss: 0.6463 - Val Loss: 0.6575 - Best Val Loss: 0.5910
+INFO - Epoch 95 - Train Loss: 0.6463 - Val Loss: 0.6575 - Best Val Loss: 0.5910
+INFO - Epoch 96 - Train Loss: 0.6463 - Val Loss: 0.6575 - Best Val Loss: 0.5910
+INFO - Epoch 97 - Train Loss: 0.6463 - Val Loss: 0.6575 - Best Val Loss: 0.5910
+INFO - Epoch 98 - Train Loss: 0.6463 - Val Loss: 0.6575 - Best Val Loss: 0.5910
+INFO - Epoch 99 - Train Loss: 0.6463 - Val Loss: 0.6575 - Best Val Loss: 0.5910
+INFO - Fold 2, Training accuracy: 0.8889
+INFO - Fold 2, Validation accuracy: 0.9667
+INFO - Fold 2, Test accuracy: 0.9333
+INFO - =========================
+INFO - ======= Fold 3 =======
+INFO - PSO configurado sin límites de parámetros
+INFO - Epoch 0 - Train Loss: 0.7140 - Val Loss: 0.7863 - Best Val Loss: 0.7863
+INFO - Epoch 1 - Train Loss: 0.6984 - Val Loss: 0.7539 - Best Val Loss: 0.7539
+INFO - Epoch 2 - Train Loss: 0.6984 - Val Loss: 0.7539 - Best Val Loss: 0.7539
+INFO - Epoch 3 - Train Loss: 0.6984 - Val Loss: 0.7539 - Best Val Loss: 0.7539
+INFO - Epoch 4 - Train Loss: 0.6984 - Val Loss: 0.7539 - Best Val Loss: 0.7539
+INFO - Epoch 5 - Train Loss: 0.6984 - Val Loss: 0.7539 - Best Val Loss: 0.7539
+INFO - Epoch 6 - Train Loss: 0.6984 - Val Loss: 0.7539 - Best Val Loss: 0.7539
+INFO - Epoch 7 - Train Loss: 0.6984 - Val Loss: 0.7539 - Best Val Loss: 0.7539
+INFO - Epoch 8 - Train Loss: 0.6984 - Val Loss: 0.7539 - Best Val Loss: 0.7539
+INFO - Epoch 9 - Train Loss: 0.6984 - Val Loss: 0.7539 - Best Val Loss: 0.7539
+INFO - Epoch 10 - Train Loss: 0.6984 - Val Loss: 0.7539 - Best Val Loss: 0.7539
+INFO - Epoch 11 - Train Loss: 0.6984 - Val Loss: 0.7539 - Best Val Loss: 0.7539
+INFO - Epoch 12 - Train Loss: 0.6650 - Val Loss: 0.7206 - Best Val Loss: 0.7206
+INFO - Epoch 13 - Train Loss: 0.6650 - Val Loss: 0.7206 - Best Val Loss: 0.7206
+INFO - Epoch 14 - Train Loss: 0.6650 - Val Loss: 0.7206 - Best Val Loss: 0.7206
+INFO - Epoch 15 - Train Loss: 0.6650 - Val Loss: 0.7206 - Best Val Loss: 0.7206
+INFO - Epoch 16 - Train Loss: 0.6650 - Val Loss: 0.7206 - Best Val Loss: 0.7206
+INFO - Epoch 17 - Train Loss: 0.6650 - Val Loss: 0.7206 - Best Val Loss: 0.7206
+INFO - Epoch 18 - Train Loss: 0.6650 - Val Loss: 0.7206 - Best Val Loss: 0.7206
+INFO - Epoch 19 - Train Loss: 0.6650 - Val Loss: 0.7206 - Best Val Loss: 0.7206
+INFO - Epoch 20 - Train Loss: 0.6650 - Val Loss: 0.7206 - Best Val Loss: 0.7206
+INFO - Epoch 21 - Train Loss: 0.6650 - Val Loss: 0.7206 - Best Val Loss: 0.7206
+INFO - Epoch 22 - Train Loss: 0.6650 - Val Loss: 0.7206 - Best Val Loss: 0.7206
+INFO - Epoch 23 - Train Loss: 0.6650 - Val Loss: 0.7206 - Best Val Loss: 0.7206
+INFO - Epoch 24 - Train Loss: 0.6650 - Val Loss: 0.7206 - Best Val Loss: 0.7206
+INFO - Epoch 25 - Train Loss: 0.6650 - Val Loss: 0.7206 - Best Val Loss: 0.7206
+INFO - Epoch 26 - Train Loss: 0.6650 - Val Loss: 0.7206 - Best Val Loss: 0.7206
+INFO - Epoch 27 - Train Loss: 0.6650 - Val Loss: 0.7206 - Best Val Loss: 0.7206
+INFO - Epoch 28 - Train Loss: 0.6650 - Val Loss: 0.7206 - Best Val Loss: 0.7206
+INFO - Epoch 29 - Train Loss: 0.6650 - Val Loss: 0.7206 - Best Val Loss: 0.7206
+INFO - Epoch 30 - Train Loss: 0.6650 - Val Loss: 0.7206 - Best Val Loss: 0.7206
+INFO - Epoch 31 - Train Loss: 0.6650 - Val Loss: 0.7206 - Best Val Loss: 0.7206
+INFO - Epoch 32 - Train Loss: 0.6650 - Val Loss: 0.7206 - Best Val Loss: 0.7206
+INFO - Epoch 33 - Train Loss: 0.6650 - Val Loss: 0.7206 - Best Val Loss: 0.7206
+INFO - Epoch 34 - Train Loss: 0.6650 - Val Loss: 0.7206 - Best Val Loss: 0.7206
+INFO - Epoch 35 - Train Loss: 0.6482 - Val Loss: 0.6919 - Best Val Loss: 0.6919
+INFO - Epoch 36 - Train Loss: 0.6482 - Val Loss: 0.6919 - Best Val Loss: 0.6919
+INFO - Epoch 37 - Train Loss: 0.6482 - Val Loss: 0.6919 - Best Val Loss: 0.6919
+INFO - Epoch 38 - Train Loss: 0.6482 - Val Loss: 0.6919 - Best Val Loss: 0.6919
+INFO - Epoch 39 - Train Loss: 0.6482 - Val Loss: 0.6919 - Best Val Loss: 0.6919
+INFO - Epoch 40 - Train Loss: 0.6451 - Val Loss: 0.6894 - Best Val Loss: 0.6894
+INFO - Epoch 41 - Train Loss: 0.6451 - Val Loss: 0.6894 - Best Val Loss: 0.6894
+INFO - Epoch 42 - Train Loss: 0.6451 - Val Loss: 0.6894 - Best Val Loss: 0.6894
+INFO - Epoch 43 - Train Loss: 0.6451 - Val Loss: 0.6894 - Best Val Loss: 0.6894
+INFO - Epoch 44 - Train Loss: 0.6451 - Val Loss: 0.6894 - Best Val Loss: 0.6894
+INFO - Epoch 45 - Train Loss: 0.6451 - Val Loss: 0.6894 - Best Val Loss: 0.6894
+INFO - Epoch 46 - Train Loss: 0.6451 - Val Loss: 0.6894 - Best Val Loss: 0.6894
+INFO - Epoch 47 - Train Loss: 0.6451 - Val Loss: 0.6894 - Best Val Loss: 0.6894
+INFO - Epoch 48 - Train Loss: 0.6451 - Val Loss: 0.6894 - Best Val Loss: 0.6894
+INFO - Epoch 49 - Train Loss: 0.6451 - Val Loss: 0.6894 - Best Val Loss: 0.6894
+INFO - Epoch 50 - Train Loss: 0.6451 - Val Loss: 0.6894 - Best Val Loss: 0.6894
+INFO - Epoch 51 - Train Loss: 0.6444 - Val Loss: 0.6889 - Best Val Loss: 0.6889
+INFO - Epoch 52 - Train Loss: 0.6444 - Val Loss: 0.6889 - Best Val Loss: 0.6889
+INFO - Epoch 53 - Train Loss: 0.6444 - Val Loss: 0.6889 - Best Val Loss: 0.6889
+INFO - Epoch 54 - Train Loss: 0.6444 - Val Loss: 0.6889 - Best Val Loss: 0.6889
+INFO - Epoch 55 - Train Loss: 0.6444 - Val Loss: 0.6889 - Best Val Loss: 0.6889
+INFO - Epoch 56 - Train Loss: 0.6444 - Val Loss: 0.6889 - Best Val Loss: 0.6889
+INFO - Epoch 57 - Train Loss: 0.6444 - Val Loss: 0.6889 - Best Val Loss: 0.6889
+INFO - Epoch 58 - Train Loss: 0.6444 - Val Loss: 0.6888 - Best Val Loss: 0.6888
+INFO - Epoch 59 - Train Loss: 0.6444 - Val Loss: 0.6888 - Best Val Loss: 0.6888
+INFO - Epoch 60 - Train Loss: 0.6444 - Val Loss: 0.6888 - Best Val Loss: 0.6888
+INFO - Epoch 61 - Train Loss: 0.6444 - Val Loss: 0.6888 - Best Val Loss: 0.6888
+INFO - Epoch 62 - Train Loss: 0.6444 - Val Loss: 0.6888 - Best Val Loss: 0.6888
+INFO - Epoch 63 - Train Loss: 0.6443 - Val Loss: 0.6888 - Best Val Loss: 0.6888
+INFO - Epoch 64 - Train Loss: 0.6443 - Val Loss: 0.6888 - Best Val Loss: 0.6888
+INFO - Epoch 65 - Train Loss: 0.6443 - Val Loss: 0.6888 - Best Val Loss: 0.6888
+INFO - Epoch 66 - Train Loss: 0.6443 - Val Loss: 0.6887 - Best Val Loss: 0.6887
+INFO - Epoch 67 - Train Loss: 0.6443 - Val Loss: 0.6887 - Best Val Loss: 0.6887
+INFO - Epoch 68 - Train Loss: 0.6443 - Val Loss: 0.6887 - Best Val Loss: 0.6887
+INFO - Epoch 69 - Train Loss: 0.6443 - Val Loss: 0.6887 - Best Val Loss: 0.6887
+INFO - Epoch 70 - Train Loss: 0.6443 - Val Loss: 0.6887 - Best Val Loss: 0.6887
+INFO - Epoch 71 - Train Loss: 0.6443 - Val Loss: 0.6887 - Best Val Loss: 0.6887
+INFO - Epoch 72 - Train Loss: 0.6443 - Val Loss: 0.6887 - Best Val Loss: 0.6887
+INFO - Epoch 73 - Train Loss: 0.6443 - Val Loss: 0.6887 - Best Val Loss: 0.6887
+INFO - Epoch 74 - Train Loss: 0.6443 - Val Loss: 0.6887 - Best Val Loss: 0.6887
+INFO - Epoch 75 - Train Loss: 0.6329 - Val Loss: 0.7215 - Best Val Loss: 0.6887
+INFO - Epoch 76 - Train Loss: 0.6253 - Val Loss: 0.7234 - Best Val Loss: 0.6887
+INFO - Epoch 77 - Train Loss: 0.6253 - Val Loss: 0.7234 - Best Val Loss: 0.6887
+INFO - Epoch 78 - Train Loss: 0.6253 - Val Loss: 0.7234 - Best Val Loss: 0.6887
+INFO - Epoch 79 - Train Loss: 0.6253 - Val Loss: 0.7234 - Best Val Loss: 0.6887
+INFO - Epoch 80 - Train Loss: 0.6253 - Val Loss: 0.7234 - Best Val Loss: 0.6887
+INFO - Epoch 81 - Train Loss: 0.6253 - Val Loss: 0.7234 - Best Val Loss: 0.6887
+INFO - Epoch 82 - Train Loss: 0.6253 - Val Loss: 0.7234 - Best Val Loss: 0.6887
+INFO - Epoch 83 - Train Loss: 0.6253 - Val Loss: 0.7234 - Best Val Loss: 0.6887
+INFO - Epoch 84 - Train Loss: 0.6252 - Val Loss: 0.7218 - Best Val Loss: 0.6887
+INFO - Epoch 85 - Train Loss: 0.6252 - Val Loss: 0.7218 - Best Val Loss: 0.6887
+INFO - Epoch 86 - Train Loss: 0.6246 - Val Loss: 0.7221 - Best Val Loss: 0.6887
+INFO - Epoch 87 - Train Loss: 0.6246 - Val Loss: 0.7221 - Best Val Loss: 0.6887
+INFO - Epoch 88 - Train Loss: 0.6240 - Val Loss: 0.7218 - Best Val Loss: 0.6887
+INFO - Epoch 89 - Train Loss: 0.6216 - Val Loss: 0.6882 - Best Val Loss: 0.6882
+INFO - Epoch 90 - Train Loss: 0.6216 - Val Loss: 0.6883 - Best Val Loss: 0.6882
+INFO - Epoch 91 - Train Loss: 0.6216 - Val Loss: 0.6883 - Best Val Loss: 0.6882
+INFO - Epoch 92 - Train Loss: 0.6216 - Val Loss: 0.6883 - Best Val Loss: 0.6882
+INFO - Epoch 93 - Train Loss: 0.6216 - Val Loss: 0.6882 - Best Val Loss: 0.6882
+INFO - Epoch 94 - Train Loss: 0.6216 - Val Loss: 0.6882 - Best Val Loss: 0.6882
+INFO - Epoch 95 - Train Loss: 0.6216 - Val Loss: 0.6882 - Best Val Loss: 0.6882
+INFO - Epoch 96 - Train Loss: 0.6216 - Val Loss: 0.6882 - Best Val Loss: 0.6882
+INFO - Epoch 97 - Train Loss: 0.6216 - Val Loss: 0.6882 - Best Val Loss: 0.6882
+INFO - Epoch 98 - Train Loss: 0.6216 - Val Loss: 0.6882 - Best Val Loss: 0.6882
+INFO - Epoch 99 - Train Loss: 0.6216 - Val Loss: 0.6882 - Best Val Loss: 0.6882
+INFO - Fold 3, Training accuracy: 0.9333
+INFO - Fold 3, Validation accuracy: 0.8667
+INFO - Fold 3, Test accuracy: 0.8333
+INFO - =========================
+INFO - ======= Fold 4 =======
+INFO - PSO configurado sin límites de parámetros
+INFO - Epoch 0 - Train Loss: 0.9697 - Val Loss: 0.9438 - Best Val Loss: 0.9438
+INFO - Epoch 1 - Train Loss: 0.8983 - Val Loss: 0.7538 - Best Val Loss: 0.7538
+INFO - Epoch 2 - Train Loss: 0.8565 - Val Loss: 0.9208 - Best Val Loss: 0.7538
+INFO - Epoch 3 - Train Loss: 0.8097 - Val Loss: 0.7542 - Best Val Loss: 0.7538
+INFO - Epoch 4 - Train Loss: 0.8097 - Val Loss: 0.7542 - Best Val Loss: 0.7538
+INFO - Epoch 5 - Train Loss: 0.8097 - Val Loss: 0.7542 - Best Val Loss: 0.7538
+INFO - Epoch 6 - Train Loss: 0.8097 - Val Loss: 0.7542 - Best Val Loss: 0.7538
+INFO - Epoch 7 - Train Loss: 0.8097 - Val Loss: 0.7542 - Best Val Loss: 0.7538
+INFO - Epoch 8 - Train Loss: 0.8097 - Val Loss: 0.7542 - Best Val Loss: 0.7538
+INFO - Epoch 9 - Train Loss: 0.8097 - Val Loss: 0.7542 - Best Val Loss: 0.7538
+INFO - Epoch 10 - Train Loss: 0.7997 - Val Loss: 0.8886 - Best Val Loss: 0.7538
+INFO - Epoch 11 - Train Loss: 0.7997 - Val Loss: 0.8886 - Best Val Loss: 0.7538
+INFO - Epoch 12 - Train Loss: 0.7997 - Val Loss: 0.8886 - Best Val Loss: 0.7538
+INFO - Epoch 13 - Train Loss: 0.7997 - Val Loss: 0.8886 - Best Val Loss: 0.7538
+INFO - Epoch 14 - Train Loss: 0.7997 - Val Loss: 0.8886 - Best Val Loss: 0.7538
+INFO - Epoch 15 - Train Loss: 0.7997 - Val Loss: 0.8886 - Best Val Loss: 0.7538
+INFO - Epoch 16 - Train Loss: 0.7997 - Val Loss: 0.8886 - Best Val Loss: 0.7538
+INFO - Epoch 17 - Train Loss: 0.7997 - Val Loss: 0.8886 - Best Val Loss: 0.7538
+INFO - Epoch 18 - Train Loss: 0.7997 - Val Loss: 0.8886 - Best Val Loss: 0.7538
+INFO - Epoch 19 - Train Loss: 0.7554 - Val Loss: 0.8554 - Best Val Loss: 0.7538
+INFO - Epoch 20 - Train Loss: 0.7554 - Val Loss: 0.8554 - Best Val Loss: 0.7538
+INFO - Epoch 21 - Train Loss: 0.7554 - Val Loss: 0.8554 - Best Val Loss: 0.7538
+INFO - Epoch 22 - Train Loss: 0.7554 - Val Loss: 0.8554 - Best Val Loss: 0.7538
+INFO - Epoch 23 - Train Loss: 0.7554 - Val Loss: 0.8554 - Best Val Loss: 0.7538
+INFO - Epoch 24 - Train Loss: 0.7554 - Val Loss: 0.8554 - Best Val Loss: 0.7538
+INFO - Epoch 25 - Train Loss: 0.7554 - Val Loss: 0.8554 - Best Val Loss: 0.7538
+INFO - Epoch 26 - Train Loss: 0.7554 - Val Loss: 0.8554 - Best Val Loss: 0.7538
+INFO - Epoch 27 - Train Loss: 0.7554 - Val Loss: 0.8554 - Best Val Loss: 0.7538
+INFO - Epoch 28 - Train Loss: 0.7554 - Val Loss: 0.8554 - Best Val Loss: 0.7538
+INFO - Epoch 29 - Train Loss: 0.7554 - Val Loss: 0.8554 - Best Val Loss: 0.7538
+INFO - Epoch 30 - Train Loss: 0.7384 - Val Loss: 0.8902 - Best Val Loss: 0.7538
+INFO - Epoch 31 - Train Loss: 0.7384 - Val Loss: 0.8902 - Best Val Loss: 0.7538
+INFO - Epoch 32 - Train Loss: 0.7384 - Val Loss: 0.8902 - Best Val Loss: 0.7538
+INFO - Epoch 33 - Train Loss: 0.7384 - Val Loss: 0.8902 - Best Val Loss: 0.7538
+INFO - Epoch 34 - Train Loss: 0.7384 - Val Loss: 0.8902 - Best Val Loss: 0.7538
+INFO - Epoch 35 - Train Loss: 0.7363 - Val Loss: 0.8585 - Best Val Loss: 0.7538
+INFO - Epoch 36 - Train Loss: 0.7261 - Val Loss: 0.8261 - Best Val Loss: 0.7538
+INFO - Epoch 37 - Train Loss: 0.7261 - Val Loss: 0.8261 - Best Val Loss: 0.7538
+INFO - Epoch 38 - Train Loss: 0.7261 - Val Loss: 0.8261 - Best Val Loss: 0.7538
+INFO - Epoch 39 - Train Loss: 0.7261 - Val Loss: 0.8261 - Best Val Loss: 0.7538
+INFO - Epoch 40 - Train Loss: 0.7255 - Val Loss: 0.8255 - Best Val Loss: 0.7538
+INFO - Epoch 41 - Train Loss: 0.7255 - Val Loss: 0.8255 - Best Val Loss: 0.7538
+INFO - Epoch 42 - Train Loss: 0.7255 - Val Loss: 0.8255 - Best Val Loss: 0.7538
+INFO - Epoch 43 - Train Loss: 0.7255 - Val Loss: 0.8255 - Best Val Loss: 0.7538
+INFO - Epoch 44 - Train Loss: 0.7255 - Val Loss: 0.8255 - Best Val Loss: 0.7538
+INFO - Epoch 45 - Train Loss: 0.7255 - Val Loss: 0.8255 - Best Val Loss: 0.7538
+INFO - Epoch 46 - Train Loss: 0.7255 - Val Loss: 0.8255 - Best Val Loss: 0.7538
+INFO - Epoch 47 - Train Loss: 0.7255 - Val Loss: 0.8255 - Best Val Loss: 0.7538
+INFO - Epoch 48 - Train Loss: 0.7253 - Val Loss: 0.7920 - Best Val Loss: 0.7538
+INFO - Epoch 49 - Train Loss: 0.7249 - Val Loss: 0.8249 - Best Val Loss: 0.7538
+INFO - Epoch 50 - Train Loss: 0.7249 - Val Loss: 0.8249 - Best Val Loss: 0.7538
+INFO - Epoch 51 - Train Loss: 0.7249 - Val Loss: 0.8249 - Best Val Loss: 0.7538
+INFO - Epoch 52 - Train Loss: 0.6953 - Val Loss: 0.8286 - Best Val Loss: 0.7538
+INFO - Epoch 53 - Train Loss: 0.6953 - Val Loss: 0.8286 - Best Val Loss: 0.7538
+INFO - Epoch 54 - Train Loss: 0.6953 - Val Loss: 0.8286 - Best Val Loss: 0.7538
+INFO - Epoch 55 - Train Loss: 0.6953 - Val Loss: 0.8286 - Best Val Loss: 0.7538
+INFO - Epoch 56 - Train Loss: 0.6953 - Val Loss: 0.8286 - Best Val Loss: 0.7538
+INFO - Epoch 57 - Train Loss: 0.6953 - Val Loss: 0.8286 - Best Val Loss: 0.7538
+INFO - Epoch 58 - Train Loss: 0.6953 - Val Loss: 0.8286 - Best Val Loss: 0.7538
+INFO - Epoch 59 - Train Loss: 0.6953 - Val Loss: 0.8286 - Best Val Loss: 0.7538
+INFO - Epoch 60 - Train Loss: 0.6953 - Val Loss: 0.8286 - Best Val Loss: 0.7538
+INFO - Epoch 61 - Train Loss: 0.6953 - Val Loss: 0.8286 - Best Val Loss: 0.7538
+INFO - Epoch 62 - Train Loss: 0.6953 - Val Loss: 0.8286 - Best Val Loss: 0.7538
+INFO - Epoch 63 - Train Loss: 0.6953 - Val Loss: 0.8286 - Best Val Loss: 0.7538
+INFO - Epoch 64 - Train Loss: 0.6953 - Val Loss: 0.8286 - Best Val Loss: 0.7538
+INFO - Epoch 65 - Train Loss: 0.6953 - Val Loss: 0.8286 - Best Val Loss: 0.7538
+INFO - Epoch 66 - Train Loss: 0.6837 - Val Loss: 0.6948 - Best Val Loss: 0.6948
+INFO - Epoch 67 - Train Loss: 0.6837 - Val Loss: 0.6948 - Best Val Loss: 0.6948
+INFO - Epoch 68 - Train Loss: 0.6837 - Val Loss: 0.6948 - Best Val Loss: 0.6948
+INFO - Epoch 69 - Train Loss: 0.6837 - Val Loss: 0.6948 - Best Val Loss: 0.6948
+INFO - Epoch 70 - Train Loss: 0.6837 - Val Loss: 0.6948 - Best Val Loss: 0.6948
+INFO - Epoch 71 - Train Loss: 0.6837 - Val Loss: 0.6948 - Best Val Loss: 0.6948
+INFO - Epoch 72 - Train Loss: 0.6730 - Val Loss: 0.6952 - Best Val Loss: 0.6948
+INFO - Epoch 73 - Train Loss: 0.6730 - Val Loss: 0.6952 - Best Val Loss: 0.6948
+INFO - Epoch 74 - Train Loss: 0.6730 - Val Loss: 0.6952 - Best Val Loss: 0.6948
+INFO - Epoch 75 - Train Loss: 0.6730 - Val Loss: 0.6952 - Best Val Loss: 0.6948
+INFO - Epoch 76 - Train Loss: 0.6730 - Val Loss: 0.6952 - Best Val Loss: 0.6948
+INFO - Epoch 77 - Train Loss: 0.6730 - Val Loss: 0.6952 - Best Val Loss: 0.6948
+INFO - Epoch 78 - Train Loss: 0.6730 - Val Loss: 0.6952 - Best Val Loss: 0.6948
+INFO - Epoch 79 - Train Loss: 0.6728 - Val Loss: 0.6950 - Best Val Loss: 0.6948
+INFO - Epoch 80 - Train Loss: 0.6728 - Val Loss: 0.6950 - Best Val Loss: 0.6948
+INFO - Epoch 81 - Train Loss: 0.6728 - Val Loss: 0.6950 - Best Val Loss: 0.6948
+INFO - Epoch 82 - Train Loss: 0.6728 - Val Loss: 0.6950 - Best Val Loss: 0.6948
+INFO - Epoch 83 - Train Loss: 0.6728 - Val Loss: 0.6950 - Best Val Loss: 0.6948
+INFO - Epoch 84 - Train Loss: 0.6727 - Val Loss: 0.6949 - Best Val Loss: 0.6948
+INFO - Epoch 85 - Train Loss: 0.6727 - Val Loss: 0.6949 - Best Val Loss: 0.6948
+INFO - Epoch 86 - Train Loss: 0.6727 - Val Loss: 0.6949 - Best Val Loss: 0.6948
+INFO - Epoch 87 - Train Loss: 0.6727 - Val Loss: 0.6949 - Best Val Loss: 0.6948
+INFO - Epoch 88 - Train Loss: 0.6727 - Val Loss: 0.6949 - Best Val Loss: 0.6948
+INFO - Epoch 89 - Train Loss: 0.6726 - Val Loss: 0.6948 - Best Val Loss: 0.6948
+INFO - Epoch 90 - Train Loss: 0.6726 - Val Loss: 0.6948 - Best Val Loss: 0.6948
+INFO - Epoch 91 - Train Loss: 0.6726 - Val Loss: 0.6948 - Best Val Loss: 0.6948
+INFO - Epoch 92 - Train Loss: 0.6726 - Val Loss: 0.6948 - Best Val Loss: 0.6948
+INFO - Epoch 93 - Train Loss: 0.6726 - Val Loss: 0.6948 - Best Val Loss: 0.6948
+INFO - Epoch 94 - Train Loss: 0.6726 - Val Loss: 0.6948 - Best Val Loss: 0.6948
+INFO - Epoch 95 - Train Loss: 0.6726 - Val Loss: 0.6948 - Best Val Loss: 0.6948
+INFO - Epoch 96 - Train Loss: 0.6726 - Val Loss: 0.6948 - Best Val Loss: 0.6948
+INFO - Epoch 97 - Train Loss: 0.6726 - Val Loss: 0.6948 - Best Val Loss: 0.6948
+INFO - Epoch 98 - Train Loss: 0.6726 - Val Loss: 0.6948 - Best Val Loss: 0.6948
+INFO - Epoch 99 - Train Loss: 0.6726 - Val Loss: 0.6948 - Best Val Loss: 0.6948
+INFO - Fold 4, Training accuracy: 0.8778
+INFO - Fold 4, Validation accuracy: 0.8667
+INFO - Fold 4, Test accuracy: 0.9667
+INFO - =========================
+INFO - Best model saved at: ./models/iris_pso_best_model.pth
+INFO - =============================================
+INFO - Model Setup:
+INFO - dataset: iris
+INFO - input_dim: 4
+INFO - output_dim: 3
+INFO - n_samples: 120
+INFO - hidden_layers: [8, 6, 4]
+INFO - n_particles: 20
+INFO - n_folds: 4
+INFO - n_epochs: 100
+INFO - Total Parameters: 137
+INFO - =============================================
+INFO - Mean time per epoch and folder: 2.8919 - std:0.0214 seconds
+INFO - Mean accuracy on training dataset: 0.9028 - std: 0.0213
+INFO - Mean accuracy on validation dataset: 0.8917 - std: 0.0433
+INFO - Mean accuracy on test dataset: 0.9250 - std: 0.0546
+INFO - =============================================
