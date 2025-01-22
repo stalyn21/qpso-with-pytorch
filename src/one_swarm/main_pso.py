@@ -6,12 +6,13 @@ import time
 from sklearn.model_selection import KFold
 
 from data.benchmarck import load_and_preprocess_data
+from metrics.plotting import plot_cross_validation_losses
 from custome_optimizer.pso_optimizer import PSOOptimizer
 from ann.ann_pso import ExtendedModelPSO
 
 # Aseguramos que PyTorch use GPU si está disponible
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
+   
 def save_best_model(model, config, best_acc):
     model_path = f"./models/{config['dataset']}_pso_best_model.pth"
     torch.save({
@@ -63,6 +64,8 @@ def main():
     test_results = []
     time_results = []
 
+    all_losses = []
+
     for fold, (train_index, val_index) in enumerate(kf.split(X_train_val), 1):
         logging.info(f"======= Fold {fold} =======")
 
@@ -96,9 +99,14 @@ def main():
         start_time = time.perf_counter()
         optimizer.step(X_train, y_train, X_val, y_val)
         end_time = time.perf_counter()
-
         elapsed_time = end_time - start_time
         time_results.append(elapsed_time)
+
+        # Guardar las pérdidas del fold actual
+        all_losses.append({
+            'train': optimizer.train_losses,
+            'val': optimizer.val_losses
+        })
 
         with torch.no_grad():
             train_pred = model(X_train).argmax(dim=1)
@@ -122,6 +130,9 @@ def main():
             train_results.append(train_acc)
             val_results.append(val_acc)
             test_results.append(test_acc)
+    
+    # Graficar las pérdidas
+    plot_cross_validation_losses(all_losses, dataset_name, "pso")
 
     if best_model is not None:
         model.load_state_dict(best_model)

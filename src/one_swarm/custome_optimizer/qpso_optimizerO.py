@@ -22,8 +22,12 @@ class QDPSOoOptimizer(Optimizer):
         self.model = model
         self.params = list(model.parameters())
         self.dim = sum(p.numel() for p in self.params)
+
         self.optimizer = None
         self.best_params = None
+
+        self.train_losses = []
+        self.val_losses = []
 
     def _initialize_optimizer(self):
         self.optimizer = QDPSO(self._fitness_function, self.n_particles, self.dim, self.bounds, self.max_iters, self.g)
@@ -45,6 +49,9 @@ class QDPSOoOptimizer(Optimizer):
             offset += numel
 
     def step(self):
+        # Reiniciar las listas de pérdidas al inicio del step
+        self.train_losses = []
+        self.val_losses = []
         self._initialize_optimizer()
         self.best_val_loss = float('inf')
         self.epoch = 0
@@ -75,6 +82,11 @@ class QDPSOoOptimizer(Optimizer):
                          f' - Train Loss: {s.gbest_value:.4f}'
                          f' - Val Loss: {val_loss.item():.4f}'
                          f' - Best Val Loss: {self.best_val_loss:.4f}')
+            
+        # Guardar las pérdidas solo si no hemos superado max_iters
+        if self.epoch < self.max_iters:
+            self.train_losses.append(s.gbest_value)
+            self.val_losses.append(val_loss.item())
 
         self.epoch = self.epoch + 1
 

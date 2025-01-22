@@ -7,8 +7,9 @@ from sklearn.model_selection import KFold
 
 # custome data, optimizer and model
 from data.benchmarck import load_and_preprocess_data
+from metrics.plotting import plot_cross_validation_losses
 from custome_optimizer.qpso_optimizer import QDPSOptimizer
-from ann.ann import ExtendedModel
+from ann.ann_qpso import ExtendedModel
 
 # Aseguramos que PyTorch use GPU si está disponible
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -27,7 +28,7 @@ def main():
     best_model = None
 
     # load and preprocess the data accepcting the dataset name: iris, breast_cancer, wine, and circle 
-    dataset_name = 'breast_cancer'
+    dataset_name = 'circle'
 
     # Logging Setup
     logging.basicConfig(
@@ -73,8 +74,9 @@ def main():
     train_results = []
     val_results = []
     test_results = []
-
     time_results = []
+
+    all_losses = []
 
     for fold, (train_index, val_index) in enumerate(kf.split(X_train_val)):
         logging.info(f"======= Fold {fold + 1} =======")
@@ -97,6 +99,12 @@ def main():
             elapsed_time = end_time - start_time
             time_results.append(elapsed_time)
 
+            # Guardar las pérdidas del fold actual
+            all_losses.append({
+                'train': optimizer.train_losses,
+                'val': optimizer.val_losses
+            })
+
             # Evaluación final en el conjunto de validación
             model._set_params(optimizer.best_params)
             train_pred = model(X_train).argmax(dim=1)
@@ -117,6 +125,9 @@ def main():
             train_results.append(train_acc)
             val_results.append(val_acc)
             test_results.append(accuracy)
+
+    # Graficar las pérdidas
+    plot_cross_validation_losses(all_losses, dataset_name, "qpso")
 
     if best_model is not None:
         model.load_state_dict(best_model)
@@ -141,6 +152,11 @@ def main():
     logging.info(f'Mean accuracy on validation dataset: {mean_val:.4f} - std: {std_val:.4f}')
     logging.info(f'Mean accuracy on test dataset: {mean_accuracy:.4f} - std: {std_accuracy:.4f}')
     logging.info("=============================================")
+
+    # Liberar memoria CUDA si se está usando
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
+
 
 if __name__ == "__main__":
     main()

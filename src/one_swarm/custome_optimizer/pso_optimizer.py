@@ -32,12 +32,18 @@ class PSOOptimizer:
         self.best_params = None
         self.best_val_loss = float('inf')
 
+        self.train_losses = []
+        self.val_losses = []
+
     def _evaluate(self, X, y):
         outputs = self.model(X)
         return self.model.lf.cross_entropy(y, outputs)
 
     def step(self, X_train, y_train, X_val, y_val, callback_interval=1):
         self.epoch = 0
+
+        self.train_losses = []
+        self.val_losses = []
 
         for epoch in range(self.max_iters):
             def closure():
@@ -50,6 +56,10 @@ class PSOOptimizer:
             # Evaluación en conjunto de validación
             with torch.no_grad():
                 val_loss = self._evaluate(X_val, y_val)
+
+            # Guardar las pérdidas
+            self.train_losses.append(train_loss.item())
+            self.val_losses.append(val_loss.item())
 
             # Actualizar mejores parámetros si mejora la pérdida de validación
             if val_loss < self.best_val_loss:
