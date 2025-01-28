@@ -6,7 +6,7 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 class PSOOptimizer:
     def __init__(self, model, n_particles, max_iters, inertial_weight=0.5,
-                 cognitive_coefficient=2.0, social_coefficient=2.0, min_param_value=None, max_param_value=None):
+                 cognitive_coefficient=0.3, social_coefficient=0.9, min_param_value=None, max_param_value=None):
         self.model = model
         self.n_particles = n_particles
         self.max_iters = max_iters

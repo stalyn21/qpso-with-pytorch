@@ -2,7 +2,7 @@ import torch
 import logging
 
 from torch.optim import Optimizer
-from tensor_qpso.qpso import QDPSO
+from one_swarm.tensor_qpso.qpso import QDPSO
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -69,12 +69,12 @@ class QDPSOptimizer(Optimizer):
         if val_loss.item() < self.best_val_loss:
             self.best_val_loss = val_loss.item()
             self.best_params = s.gbest.clone()
-            logging.info(f'Epoch {self.epoch}'
+            logging.info(f'Epoch {self.epoch * self.interval_parms_updated}'
                          f' - Train Loss: {s.gbest_value:.4f}'
                          f' - Val Loss: {self.best_val_loss:.4f}'
                          f' - Best Val Loss: {self.best_val_loss:.4f}')
         else:
-            logging.info(f'Epoch {self.epoch}'
+            logging.info(f'Epoch {self.epoch * self.interval_parms_updated}'
                          f' - Train Loss: {s.gbest_value:.4f}'
                          f' - Val Loss: {val_loss.item():.4f}'
                          f' - Best Val Loss: {self.best_val_loss:.4f}')

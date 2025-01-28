@@ -1,0 +1,125 @@
+INFO - ======= Fold 1 =======
+INFO - Epoch 0 - Train Loss: 0.6623 - Val Loss: 0.6861 - Best Val Loss: 0.6861
+INFO - Epoch 10 - Train Loss: 0.6190 - Val Loss: 0.6323 - Best Val Loss: 0.6323
+INFO - Epoch 20 - Train Loss: 0.5705 - Val Loss: 0.5600 - Best Val Loss: 0.5600
+INFO - Epoch 30 - Train Loss: 0.4856 - Val Loss: 0.5004 - Best Val Loss: 0.5004
+INFO - Epoch 40 - Train Loss: 0.4787 - Val Loss: 0.4812 - Best Val Loss: 0.4812
+INFO - Epoch 50 - Train Loss: 0.4002 - Val Loss: 0.4099 - Best Val Loss: 0.4099
+INFO - Epoch 60 - Train Loss: 0.3223 - Val Loss: 0.3409 - Best Val Loss: 0.3409
+INFO - Epoch 70 - Train Loss: 0.3136 - Val Loss: 0.3137 - Best Val Loss: 0.3137
+INFO - Epoch 80 - Train Loss: 0.3133 - Val Loss: 0.3134 - Best Val Loss: 0.3134
+INFO - Epoch 90 - Train Loss: 0.3133 - Val Loss: 0.3134 - Best Val Loss: 0.3134
+INFO - Epoch 100 - Train Loss: 0.3133 - Val Loss: 0.3133 - Best Val Loss: 0.3133
+INFO - Fold 1, Accuracy on training dataset: 1.0000
+INFO - Fold 1, Accuracy on validation dataset: 1.0000
+INFO - Fold 1, Accuracy on test dataset: 1.0000
+INFO - =========================
+INFO - ======= Fold 2 =======
+INFO - Epoch 0 - Train Loss: 0.6471 - Val Loss: 0.6480 - Best Val Loss: 0.6480
+INFO - Epoch 10 - Train Loss: 0.6319 - Val Loss: 0.6527 - Best Val Loss: 0.6480
+INFO - Epoch 20 - Train Loss: 0.4367 - Val Loss: 0.4794 - Best Val Loss: 0.4794
+INFO - Epoch 30 - Train Loss: 0.4234 - Val Loss: 0.4734 - Best Val Loss: 0.4734
+INFO - Epoch 40 - Train Loss: 0.3943 - Val Loss: 0.4234 - Best Val Loss: 0.4234
+INFO - Epoch 50 - Train Loss: 0.3859 - Val Loss: 0.4143 - Best Val Loss: 0.4143
+INFO - Epoch 60 - Train Loss: 0.3739 - Val Loss: 0.4139 - Best Val Loss: 0.4139
+INFO - Epoch 70 - Train Loss: 0.3629 - Val Loss: 0.4033 - Best Val Loss: 0.4033
+INFO - Epoch 80 - Train Loss: 0.3534 - Val Loss: 0.3922 - Best Val Loss: 0.3922
+INFO - Epoch 90 - Train Loss: 0.3534 - Val Loss: 0.3821 - Best Val Loss: 0.3821
+INFO - Epoch 100 - Train Loss: 0.3533 - Val Loss: 0.3768 - Best Val Loss: 0.3768
+INFO - Fold 2, Accuracy on training dataset: 0.9600
+INFO - Fold 2, Accuracy on validation dataset: 0.9400
+INFO - Fold 2, Accuracy on test dataset: 0.9500
+INFO - =========================
+INFO - ======= Fold 3 =======
+INFO - Epoch 0 - Train Loss: 0.6530 - Val Loss: 0.6704 - Best Val Loss: 0.6704
+INFO - Epoch 10 - Train Loss: 0.6027 - Val Loss: 0.6636 - Best Val Loss: 0.6636
+INFO - Epoch 20 - Train Loss: 0.5544 - Val Loss: 0.5687 - Best Val Loss: 0.5687
+INFO - Epoch 30 - Train Loss: 0.5166 - Val Loss: 0.5295 - Best Val Loss: 0.5295
+INFO - Epoch 40 - Train Loss: 0.5166 - Val Loss: 0.5295 - Best Val Loss: 0.5295
+INFO - Epoch 50 - Train Loss: 0.4439 - Val Loss: 0.4498 - Best Val Loss: 0.4498
+INFO - Epoch 60 - Train Loss: 0.4056 - Val Loss: 0.4177 - Best Val Loss: 0.4177
+INFO - Epoch 70 - Train Loss: 0.3891 - Val Loss: 0.3958 - Best Val Loss: 0.3958
+INFO - Epoch 80 - Train Loss: 0.3297 - Val Loss: 0.3437 - Best Val Loss: 0.3437
+INFO - Epoch 90 - Train Loss: 0.3249 - Val Loss: 0.3374 - Best Val Loss: 0.3374
+INFO - Epoch 100 - Train Loss: 0.3172 - Val Loss: 0.3222 - Best Val Loss: 0.3222
+INFO - Fold 3, Accuracy on training dataset: 1.0000
+INFO - Fold 3, Accuracy on validation dataset: 0.9900
+INFO - Fold 3, Accuracy on test dataset: 1.0000
+INFO - =========================
+INFO - ======= Fold 4 =======
+INFO - Epoch 0 - Train Loss: 0.6772 - Val Loss: 0.7241 - Best Val Loss: 0.7241
+INFO - Epoch 10 - Train Loss: 0.6120 - Val Loss: 0.5751 - Best Val Loss: 0.5751
+INFO - Epoch 20 - Train Loss: 0.5456 - Val Loss: 0.5839 - Best Val Loss: 0.5751
+INFO - Epoch 30 - Train Loss: 0.5139 - Val Loss: 0.5113 - Best Val Loss: 0.5113
+INFO - Epoch 40 - Train Loss: 0.4852 - Val Loss: 0.4783 - Best Val Loss: 0.4783
+INFO - Epoch 50 - Train Loss: 0.4768 - Val Loss: 0.4823 - Best Val Loss: 0.4783
+INFO - Epoch 60 - Train Loss: 0.4495 - Val Loss: 0.4676 - Best Val Loss: 0.4676
+INFO - Epoch 70 - Train Loss: 0.4478 - Val Loss: 0.4360 - Best Val Loss: 0.4360
+INFO - Epoch 80 - Train Loss: 0.4317 - Val Loss: 0.4402 - Best Val Loss: 0.4360
+INFO - Epoch 90 - Train Loss: 0.4087 - Val Loss: 0.4016 - Best Val Loss: 0.4016
+INFO - Epoch 100 - Train Loss: 0.4017 - Val Loss: 0.3696 - Best Val Loss: 0.3696
+INFO - Fold 4, Accuracy on training dataset: 0.9100
+INFO - Fold 4, Accuracy on validation dataset: 0.9500
+INFO - Fold 4, Accuracy on test dataset: 0.9200
+INFO - =========================
+INFO - Train plotting shape: (4, 11)
+INFO - Val plotting shape: (4, 11)
+INFO - Best model saved at: ./models/QPSOo/circle_QPSOo_best_model.pth
+INFO - 
+============= BEST MODEL METRICS =============
+INFO - 
+Best Model Metrics on Training Set:
+INFO - 
+Métricas para circle_best_train:
+INFO - Accuracy: 1.0000
+INFO - Precision (macro): 1.0000
+INFO - Precision (weighted): 1.0000
+INFO - Recall (macro): 1.0000
+INFO - Recall (weighted): 1.0000
+INFO - F1 (macro): 1.0000
+INFO - F1 (weighted): 1.0000
+INFO - Confusion Matrix:
+INFO - 
+[[195   0]
+ [  0 205]]
+INFO - 
+Best Model Metrics on Test Set:
+INFO - 
+Métricas para circle_best_test:
+INFO - Accuracy: 1.0000
+INFO - Precision (macro): 1.0000
+INFO - Precision (weighted): 1.0000
+INFO - Recall (macro): 1.0000
+INFO - Recall (weighted): 1.0000
+INFO - F1 (macro): 1.0000
+INFO - F1 (weighted): 1.0000
+INFO - Confusion Matrix:
+INFO - 
+[[55  0]
+ [ 0 45]]
+INFO - 
+ROC-AUC Scores for Best Model:
+INFO - ROC-AUC Score: 1.0000
+INFO - Micro-average: 1.0000
+INFO - Macro-average: 1.0000
+INFO - =============================================
+INFO - =============================================
+INFO - Model Setup:
+INFO - optimizer: QPSOo
+INFO - dataset: circle
+INFO - input_dim: 2
+INFO - output_dim: 2
+INFO - n_samples: 400
+INFO - hidden_layers: [6, 4, 2]
+INFO - n_particles: 20
+INFO - g: 1.13
+INFO - interval_parms_updated: 10
+INFO - n_folds: 4
+INFO - n_epochs: 100
+INFO - Total Parameters: 62
+INFO - =============================================
+INFO - Mean time per epoch and folder: 1.2735 - std:0.0400 seconds
+INFO - Mean accuracy on training dataset: 0.9675 - std: 0.0370
+INFO - Mean accuracy on validation dataset: 0.9700 - std: 0.0255
+INFO - Mean accuracy on test dataset: 0.9675 - std: 0.0342
+INFO - =============================================
