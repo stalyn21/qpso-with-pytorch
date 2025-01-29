@@ -1,12 +1,11 @@
 import torch
 import logging
 from torch.optim import Optimizer
-from tensor_qpso.qpsoO import QDPSO
+from one_swarm.tensor_qpso.qpsoO import QDPSO
 
 # Aseguramos que PyTorch use GPU si está disponible
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-# Custom QDPSOo Swarms Optimizer Class for the ExtendedModel class
 class LayerQDPSOoOptimizer(Optimizer):
     """
     Custom Quantum-behaved Particle Swarm Optimization (QPSO) Optimizer for individual layers of the ExtendedModel.
@@ -36,7 +35,12 @@ class LayerQDPSOoOptimizer(Optimizer):
         self.dim = len(self.layer_params)
 
         self.optimizer = None
-        self.best_params = None 
+        self.best_params = None
+
+        # Listas para almacenar las pérdidas
+        self.train_losses = []
+        self.val_losses = []
+        self.best_train_loss = float('inf')
 
     def _initialize_optimizer(self):
         """Initialize the QDPSO optimizer."""
@@ -51,10 +55,9 @@ class LayerQDPSOoOptimizer(Optimizer):
 
         Returns:
             torch.Tensor: Tensor of loss values for each parameter set.
-        """        
+        """
         losses = torch.empty(len(flat_params_batch), device=device)
         for i, flat_params in enumerate(flat_params_batch):
-            #self.model._set_params(flat_params)
             self.model.set_flat_params_layer(self.layer_idx, flat_params)
             output = self.model(self.X_train)
             loss = self.model.lf.cross_entropy(self.y_train_one_hot, output)
@@ -63,11 +66,15 @@ class LayerQDPSOoOptimizer(Optimizer):
 
     def step(self):
         """Perform one step of optimization."""
+        # Reiniciar las listas de pérdidas al inicio del step
+        self.train_losses = []
+        self.val_losses = []
+        self.best_val_loss = float('inf')
+        self.best_train_loss = float('inf')
+
         self._initialize_optimizer()
-        self.best_val_loss = float('inf')  
-        self.epoch = 0 
+        self.epoch = 0
         self.optimizer.update(callback=self._log_callback, interval=self.interval_parms_updated)
-        #self._set_params(self.optimizer.gbest)
         self.model.set_flat_params_layer(self.layer_idx, self.optimizer.gbest)
 
     def _log_callback(self, s):
@@ -77,30 +84,35 @@ class LayerQDPSOoOptimizer(Optimizer):
         Args:
             s (QDPSO): The QDPSO optimizer instance.
         """
-
         if self.epoch > self.max_iters:
             self.epoch = 0
 
         self.model.set_flat_params_layer(self.layer_idx, s.gbest)
-        
+
         # Evaluate the model on both training and validation sets
         with torch.no_grad():
             train_output = self.model(self.X_train)
             train_loss = self.model.lf.cross_entropy(self.y_train_one_hot, train_output)
-            
+
             val_output = self.model(self.X_val)
             val_loss = self.model.lf.cross_entropy(self.y_val_one_hot, val_output)
-        
+
+        # Guardar las pérdidas
+        if self.epoch < self.max_iters:
+            self.train_losses.append(train_loss.item())
+            self.val_losses.append(val_loss.item())
+
         # Update the best parameters if the validation loss improves
         if val_loss.item() < self.best_val_loss:
             self.best_val_loss = val_loss.item()
+            self.best_train_loss = train_loss.item()
             self.best_params = s.gbest.clone()
-            logging.info(f'Layer {self.layer_idx} - Epoch {self.epoch}'
+            logging.info(f'Layer {self.layer_idx} - Epoch {self.epoch * self.interval_parms_updated}'
                         f' - Train Loss: {train_loss.item():.4f}'
                         f' - Val Loss: {self.best_val_loss:.4f}'
                         f' - Best Val Loss: {self.best_val_loss:.4f}')
         else:
-            logging.info(f'Layer {self.layer_idx} - Epoch {self.epoch}'
+            logging.info(f'Layer {self.layer_idx} - Epoch {self.epoch * self.interval_parms_updated}'
                         f' - Train Loss: {train_loss.item():.4f}'
                         f' - Val Loss: {val_loss.item():.4f}'
                         f' - Best Val Loss: {self.best_val_loss:.4f}')
@@ -122,8 +134,25 @@ class LayerQDPSOoOptimizer(Optimizer):
         self.X_val = X_val.to(device)
         self.y_val_one_hot = y_val_one_hot.to(device)
 
-
     def print_layer_info(self):
         """Print information about the current layer being optimized."""
         logging.info(f"Training layer {self.layer_idx} with particle dimension: {self.dim}")
         # logging.info(f"Current parameters: {self.layer_params}")
+
+    def get_best_losses(self):
+        """
+        Returns the best training and validation losses achieved.
+
+        Returns:
+            tuple: (best_train_loss, best_val_loss)
+        """
+        return self.best_train_loss, self.best_val_loss
+
+    def get_loss_history(self):
+        """
+        Returns the history of training and validation losses.
+
+        Returns:
+            tuple: (train_losses, val_losses)
+        """
+        return self.train_losses, self.val_losses

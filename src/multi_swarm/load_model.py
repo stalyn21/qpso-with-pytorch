@@ -1,7 +1,7 @@
 import torch
 from sklearn.datasets import load_iris, load_breast_cancer, load_wine, make_circles
 from collections import namedtuple
-from ann.modelO import ExtendedModel
+from multi_swarm.ann.model_qpsoO import ExtendedModel
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
 

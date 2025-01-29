@@ -1,0 +1,327 @@
+INFO - =============================================
+INFO - Parameter numbers to train: 215
+INFO - Layer 0 swarm initialized with 60 dimensions for each particle.
+INFO - Layer 1 swarm initialized with 104 dimensions for each particle.
+INFO - Layer 2 swarm initialized with 36 dimensions for each particle.
+INFO - Layer 3 swarm initialized with 15 dimensions for each particle.
+INFO - =============================================
+INFO - ======= Fold 1 =======
+INFO - Training layer 3 with particle dimension: 15
+INFO - ======= Fold 1 =======
+INFO - =============================================
+INFO - Parameter numbers to train: 215
+INFO - Layer 0 swarm initialized with 60 dimensions for each particle.
+INFO - Layer 1 swarm initialized with 104 dimensions for each particle.
+INFO - Layer 2 swarm initialized with 36 dimensions for each particle.
+INFO - Layer 3 swarm initialized with 15 dimensions for each particle.
+INFO - =============================================
+INFO - Training layer 0 with particle dimension: 60
+INFO - Layer 0 - Epoch 0 - Train Loss: 1.1024 - Val Loss: 1.0982 - Best Val Loss: 1.0982
+INFO - Training layer 1 with particle dimension: 104
+INFO - Layer 1 - Epoch 0 - Train Loss: 1.0698 - Val Loss: 1.0655 - Best Val Loss: 1.0655
+INFO - Training layer 2 with particle dimension: 36
+INFO - Layer 2 - Epoch 0 - Train Loss: 1.0273 - Val Loss: 1.0348 - Best Val Loss: 1.0348
+INFO - Training layer 3 with particle dimension: 15
+INFO - Layer 3 - Epoch 0 - Train Loss: 1.0687 - Val Loss: 1.0918 - Best Val Loss: 1.0918
+INFO - Fold 1, Training accuracy: 0.1889
+INFO - Fold 1, Validation accuracy: 0.1667
+INFO - Fold 1, Test accuracy: 0.2333
+INFO - =========================
+INFO - ======= Fold 2 =======
+INFO - =============================================
+INFO - Parameter numbers to train: 215
+INFO - Layer 0 swarm initialized with 60 dimensions for each particle.
+INFO - Layer 1 swarm initialized with 104 dimensions for each particle.
+INFO - Layer 2 swarm initialized with 36 dimensions for each particle.
+INFO - Layer 3 swarm initialized with 15 dimensions for each particle.
+INFO - =============================================
+INFO - Training layer 0 with particle dimension: 60
+INFO - Layer 0 - Epoch 0 - Train Loss: 1.1319 - Val Loss: 1.1624 - Best Val Loss: 1.1624
+INFO - Training layer 1 with particle dimension: 104
+INFO - Layer 1 - Epoch 0 - Train Loss: 1.1229 - Val Loss: 1.1546 - Best Val Loss: 1.1546
+INFO - Training layer 2 with particle dimension: 36
+INFO - Layer 2 - Epoch 0 - Train Loss: 1.0764 - Val Loss: 1.0909 - Best Val Loss: 1.0909
+INFO - Training layer 3 with particle dimension: 15
+INFO - Layer 3 - Epoch 0 - Train Loss: 0.9992 - Val Loss: 0.9800 - Best Val Loss: 0.9800
+INFO - Fold 2, Training accuracy: 0.0667
+INFO - Fold 2, Validation accuracy: 0.0333
+INFO - Fold 2, Test accuracy: 0.0333
+INFO - =========================
+INFO - ======= Fold 3 =======
+INFO - =============================================
+INFO - Parameter numbers to train: 215
+INFO - Layer 0 swarm initialized with 60 dimensions for each particle.
+INFO - Layer 1 swarm initialized with 104 dimensions for each particle.
+INFO - Layer 2 swarm initialized with 36 dimensions for each particle.
+INFO - Layer 3 swarm initialized with 15 dimensions for each particle.
+INFO - =============================================
+INFO - Training layer 0 with particle dimension: 60
+INFO - Layer 0 - Epoch 0 - Train Loss: 1.0965 - Val Loss: 1.0874 - Best Val Loss: 1.0874
+INFO - Training layer 1 with particle dimension: 104
+INFO - Layer 1 - Epoch 0 - Train Loss: 1.1020 - Val Loss: 1.0948 - Best Val Loss: 1.0948
+INFO - Training layer 2 with particle dimension: 36
+INFO - Layer 2 - Epoch 0 - Train Loss: 1.0813 - Val Loss: 1.0677 - Best Val Loss: 1.0677
+INFO - Training layer 3 with particle dimension: 15
+INFO - Layer 3 - Epoch 0 - Train Loss: 1.0779 - Val Loss: 1.0800 - Best Val Loss: 1.0800
+INFO - Fold 3, Training accuracy: 0.3111
+INFO - Fold 3, Validation accuracy: 0.3000
+INFO - Fold 3, Test accuracy: 0.1333
+INFO - =========================
+INFO - ======= Fold 4 =======
+INFO - =============================================
+INFO - Parameter numbers to train: 215
+INFO - Layer 0 swarm initialized with 60 dimensions for each particle.
+INFO - Layer 1 swarm initialized with 104 dimensions for each particle.
+INFO - Layer 2 swarm initialized with 36 dimensions for each particle.
+INFO - Layer 3 swarm initialized with 15 dimensions for each particle.
+INFO - =============================================
+INFO - Training layer 0 with particle dimension: 60
+INFO - Layer 0 - Epoch 0 - Train Loss: 1.1012 - Val Loss: 1.0900 - Best Val Loss: 1.0900
+INFO - Training layer 1 with particle dimension: 104
+INFO - Layer 1 - Epoch 0 - Train Loss: 1.0984 - Val Loss: 1.0860 - Best Val Loss: 1.0860
+INFO - Training layer 2 with particle dimension: 36
+INFO - Layer 2 - Epoch 0 - Train Loss: 1.1018 - Val Loss: 1.0928 - Best Val Loss: 1.0928
+INFO - Training layer 3 with particle dimension: 15
+INFO - Layer 3 - Epoch 0 - Train Loss: 1.1133 - Val Loss: 1.1010 - Best Val Loss: 1.1010
+INFO - Fold 4, Training accuracy: 0.2556
+INFO - Fold 4, Validation accuracy: 0.4333
+INFO - Fold 4, Test accuracy: 0.3667
+INFO - =========================
+INFO - Layer 0 - Train plotting shape: (4, 100)
+INFO - Layer 0 - Val plotting shape: (4, 100)
+INFO - Layer 1 - Train plotting shape: (4, 100)
+INFO - Layer 1 - Val plotting shape: (4, 100)
+INFO - Layer 2 - Train plotting shape: (4, 100)
+INFO - Layer 2 - Val plotting shape: (4, 100)
+INFO - Layer 3 - Train plotting shape: (4, 100)
+INFO - Layer 3 - Val plotting shape: (4, 100)
+INFO - Best model saved at: ./models/multi_PSO/iris_multi_PSO_best_model.pth
+INFO - 
+============= BEST MODEL METRICS =============
+INFO - 
+Best Model Metrics on Training Set:
+INFO - 
+Métricas para iris_best_train:
+INFO - Accuracy: 0.3000
+INFO - Precision (macro): 0.3495
+INFO - Precision (weighted): 0.3388
+INFO - Recall (macro): 0.3009
+INFO - Recall (weighted): 0.3000
+INFO - F1 (macro): 0.3142
+INFO - F1 (weighted): 0.3087
+INFO - Confusion Matrix:
+INFO - 
+[[ 1 38  0]
+ [22 16  6]
+ [10  8 19]]
+INFO - 
+Best Model Metrics on Test Set:
+INFO - 
+Métricas para iris_best_test:
+INFO - Accuracy: 0.3667
+INFO - Precision (macro): 0.3657
+INFO - Precision (weighted): 0.4236
+INFO - Recall (macro): 0.4017
+INFO - Recall (weighted): 0.3667
+INFO - F1 (macro): 0.3333
+INFO - F1 (weighted): 0.3556
+INFO - Confusion Matrix:
+INFO - 
+[[ 0 10  1]
+ [ 2  4  0]
+ [ 2  4  7]]
+INFO - 
+ROC-AUC Scores for Best Model:
+INFO - Class 0: 0.1770
+INFO - Class 1: 0.4375
+INFO - Class 2: 0.6878
+INFO - Micro-average: 0.4411
+INFO - Macro-average: 0.4574
+INFO - =============================================
+INFO - =============================================
+INFO - Model Setup:
+INFO - optimizer: multi_PSO
+INFO - dataset: iris
+INFO - input_dim: 4
+INFO - output_dim: 3
+INFO - n_samples: 120
+INFO - hidden_layers: [12, 8, 4]
+INFO - n_particles: 20
+INFO - n_folds: 4
+INFO - n_epochs: 100
+INFO - inertial_weight: 0.5
+INFO - cognitive_coefficient: 0.3
+INFO - social_coefficient: 0.9
+INFO - min_param_value: -1
+INFO - max_param_value: 1
+INFO - interval_parms_updated: 10
+INFO - Total Parameters: 215
+INFO - =============================================
+INFO - Mean time per layer 0: 1.3456 - std: 0.0502 seconds
+INFO - Mean time per layer 1: 1.3456 - std: 0.0502 seconds
+INFO - Mean time per layer 2: 1.3456 - std: 0.0502 seconds
+INFO - Mean time per layer 3: 1.3456 - std: 0.0502 seconds
+INFO - Mean time per epoch and folder: 5.3049 - std: 0.0528 seconds
+INFO - Mean accuracy on training dataset: 0.2056 - std: 0.0911
+INFO - Mean accuracy on validation dataset: 0.2333 - std: 0.1491
+INFO - Mean accuracy on test dataset: 0.1917 - std: 0.1233
+INFO - =============================================
+INFO - ======= Fold 1 =======
+INFO - =============================================
+INFO - Parameter numbers to train: 215
+INFO - Layer 0 swarm initialized with 60 dimensions for each particle.
+INFO - Layer 1 swarm initialized with 104 dimensions for each particle.
+INFO - Layer 2 swarm initialized with 36 dimensions for each particle.
+INFO - Layer 3 swarm initialized with 15 dimensions for each particle.
+INFO - =============================================
+INFO - Training layer 0 with particle dimension: 60
+INFO - Layer 0 - Epoch 0 - Train Loss: 1.1293 - Val Loss: 1.1336 - Best Val Loss: 1.1336
+INFO - Training layer 1 with particle dimension: 104
+INFO - Layer 1 - Epoch 0 - Train Loss: 1.0747 - Val Loss: 1.0755 - Best Val Loss: 1.0755
+INFO - Training layer 2 with particle dimension: 36
+INFO - Layer 2 - Epoch 0 - Train Loss: 1.1384 - Val Loss: 1.1457 - Best Val Loss: 1.1457
+INFO - Training layer 3 with particle dimension: 15
+INFO - Layer 3 - Epoch 0 - Train Loss: 1.0629 - Val Loss: 1.0734 - Best Val Loss: 1.0734
+INFO - Fold 1, Training accuracy: 0.3444
+INFO - Fold 1, Validation accuracy: 0.3000
+INFO - Fold 1, Test accuracy: 0.2000
+INFO - =========================
+INFO - ======= Fold 2 =======
+INFO - =============================================
+INFO - Parameter numbers to train: 215
+INFO - Layer 0 swarm initialized with 60 dimensions for each particle.
+INFO - Layer 1 swarm initialized with 104 dimensions for each particle.
+INFO - Layer 2 swarm initialized with 36 dimensions for each particle.
+INFO - Layer 3 swarm initialized with 15 dimensions for each particle.
+INFO - =============================================
+INFO - Training layer 0 with particle dimension: 60
+INFO - Layer 0 - Epoch 0 - Train Loss: 1.0996 - Val Loss: 1.1073 - Best Val Loss: 1.1073
+INFO - Training layer 1 with particle dimension: 104
+INFO - Layer 1 - Epoch 0 - Train Loss: 1.0949 - Val Loss: 1.0975 - Best Val Loss: 1.0975
+INFO - Training layer 2 with particle dimension: 36
+INFO - Layer 2 - Epoch 0 - Train Loss: 1.0797 - Val Loss: 1.0846 - Best Val Loss: 1.0846
+INFO - Training layer 3 with particle dimension: 15
+INFO - Layer 3 - Epoch 0 - Train Loss: 1.1670 - Val Loss: 1.1619 - Best Val Loss: 1.1619
+INFO - Fold 2, Training accuracy: 0.1778
+INFO - Fold 2, Validation accuracy: 0.2333
+INFO - Fold 2, Test accuracy: 0.4000
+INFO - =========================
+INFO - ======= Fold 3 =======
+INFO - =============================================
+INFO - Parameter numbers to train: 215
+INFO - Layer 0 swarm initialized with 60 dimensions for each particle.
+INFO - Layer 1 swarm initialized with 104 dimensions for each particle.
+INFO - Layer 2 swarm initialized with 36 dimensions for each particle.
+INFO - Layer 3 swarm initialized with 15 dimensions for each particle.
+INFO - =============================================
+INFO - Training layer 0 with particle dimension: 60
+INFO - Layer 0 - Epoch 0 - Train Loss: 1.0917 - Val Loss: 1.0930 - Best Val Loss: 1.0930
+INFO - Training layer 1 with particle dimension: 104
+INFO - Layer 1 - Epoch 0 - Train Loss: 1.0941 - Val Loss: 1.0906 - Best Val Loss: 1.0906
+INFO - Training layer 2 with particle dimension: 36
+INFO - Layer 2 - Epoch 0 - Train Loss: 1.0774 - Val Loss: 1.0797 - Best Val Loss: 1.0797
+INFO - Training layer 3 with particle dimension: 15
+INFO - Layer 3 - Epoch 0 - Train Loss: 1.0475 - Val Loss: 1.0552 - Best Val Loss: 1.0552
+INFO - Fold 3, Training accuracy: 0.3000
+INFO - Fold 3, Validation accuracy: 0.3333
+INFO - Fold 3, Test accuracy: 0.4333
+INFO - =========================
+INFO - ======= Fold 4 =======
+INFO - =============================================
+INFO - Parameter numbers to train: 215
+INFO - Layer 0 swarm initialized with 60 dimensions for each particle.
+INFO - Layer 1 swarm initialized with 104 dimensions for each particle.
+INFO - Layer 2 swarm initialized with 36 dimensions for each particle.
+INFO - Layer 3 swarm initialized with 15 dimensions for each particle.
+INFO - =============================================
+INFO - Training layer 0 with particle dimension: 60
+INFO - Layer 0 - Epoch 0 - Train Loss: 1.0845 - Val Loss: 1.0877 - Best Val Loss: 1.0877
+INFO - Training layer 1 with particle dimension: 104
+INFO - Layer 1 - Epoch 0 - Train Loss: 1.1250 - Val Loss: 1.1331 - Best Val Loss: 1.1331
+INFO - Training layer 2 with particle dimension: 36
+INFO - Layer 2 - Epoch 0 - Train Loss: 1.1077 - Val Loss: 1.1220 - Best Val Loss: 1.1220
+INFO - Training layer 3 with particle dimension: 15
+INFO - Layer 3 - Epoch 0 - Train Loss: 1.0162 - Val Loss: 1.0068 - Best Val Loss: 1.0068
+INFO - Fold 4, Training accuracy: 0.5889
+INFO - Fold 4, Validation accuracy: 0.6333
+INFO - Fold 4, Test accuracy: 0.8000
+INFO - =========================
+INFO - Layer 0 - Train plotting shape: (4, 100)
+INFO - Layer 0 - Val plotting shape: (4, 100)
+INFO - Layer 1 - Train plotting shape: (4, 100)
+INFO - Layer 1 - Val plotting shape: (4, 100)
+INFO - Layer 2 - Train plotting shape: (4, 100)
+INFO - Layer 2 - Val plotting shape: (4, 100)
+INFO - Layer 3 - Train plotting shape: (4, 100)
+INFO - Layer 3 - Val plotting shape: (4, 100)
+INFO - Best model saved at: ./models/multi_PSO/iris_multi_PSO_best_model.pth
+INFO - 
+============= BEST MODEL METRICS =============
+INFO - 
+Best Model Metrics on Training Set:
+INFO - 
+Métricas para iris_best_train:
+INFO - Accuracy: 0.6000
+INFO - Precision (macro): 0.4322
+INFO - Precision (weighted): 0.4079
+INFO - Recall (macro): 0.6311
+INFO - Recall (weighted): 0.6000
+INFO - F1 (macro): 0.5034
+INFO - F1 (weighted): 0.4765
+INFO - Confusion Matrix:
+INFO - 
+[[38  0  1]
+ [37  0  7]
+ [ 3  0 34]]
+INFO - 
+Best Model Metrics on Test Set:
+INFO - 
+Métricas para iris_best_test:
+INFO - Accuracy: 0.8000
+INFO - Precision (macro): 0.5387
+INFO - Precision (weighted): 0.6545
+INFO - Recall (macro): 0.6667
+INFO - Recall (weighted): 0.8000
+INFO - F1 (macro): 0.5926
+INFO - F1 (weighted): 0.7160
+INFO - Confusion Matrix:
+INFO - 
+[[11  0  0]
+ [ 5  0  1]
+ [ 0  0 13]]
+INFO - 
+ROC-AUC Scores for Best Model:
+INFO - Class 0: 0.7895
+INFO - Class 1: 0.2222
+INFO - Class 2: 0.9910
+INFO - Micro-average: 0.7628
+INFO - Macro-average: 0.7439
+INFO - =============================================
+INFO - =============================================
+INFO - Model Setup:
+INFO - optimizer: multi_PSO
+INFO - dataset: iris
+INFO - input_dim: 4
+INFO - output_dim: 3
+INFO - n_samples: 120
+INFO - hidden_layers: [12, 8, 4]
+INFO - n_particles: 20
+INFO - n_folds: 4
+INFO - n_epochs: 100
+INFO - inertial_weight: 0.5
+INFO - cognitive_coefficient: 0.3
+INFO - social_coefficient: 0.9
+INFO - min_param_value: -1
+INFO - max_param_value: 1
+INFO - interval_parms_updated: 10
+INFO - Total Parameters: 215
+INFO - =============================================
+INFO - Mean time per layer 0: 1.3137 - std: 0.0045 seconds
+INFO - Mean time per layer 1: 1.3137 - std: 0.0045 seconds
+INFO - Mean time per layer 2: 1.3137 - std: 0.0045 seconds
+INFO - Mean time per layer 3: 1.3137 - std: 0.0045 seconds
+INFO - Mean time per epoch and folder: 5.2714 - std: 0.0191 seconds
+INFO - Mean accuracy on training dataset: 0.3528 - std: 0.1494
+INFO - Mean accuracy on validation dataset: 0.3750 - std: 0.1534
+INFO - Mean accuracy on test dataset: 0.4583 - std: 0.2165
+INFO - =============================================
