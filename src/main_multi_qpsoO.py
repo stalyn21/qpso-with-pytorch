@@ -50,7 +50,7 @@ def main():
     metrics_calculator = MulticlassMetrics()
 
     # Load and preprocess the data (dataset options: iris, breast_cancer, wine, circle)
-    dataset_name = 'iris'
+    dataset_name = 'circle'
 
     X_train_val, X_test, y_train_val, y_test = load_and_preprocess_data(dataset_name)
 

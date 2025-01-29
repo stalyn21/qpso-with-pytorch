@@ -1,0 +1,294 @@
+INFO - =============================================
+INFO - Parameter numbers to train: 1979
+INFO - Layer 0 swarm initialized with 546 dimensions for each particle.
+INFO - Layer 1 swarm initialized with 1040 dimensions for each particle.
+INFO - Layer 2 swarm initialized with 351 dimensions for each particle.
+INFO - Layer 3 swarm initialized with 42 dimensions for each particle.
+INFO - =============================================
+INFO - ======= Fold 1 =======
+INFO - Training layer 3 with particle dimension: 42
+INFO - Layer 3 - Epoch 0 - Train Loss: 1.0365 - Val Loss: 1.0281 - Best Val Loss: 1.0281
+INFO - Layer 3 - Epoch 10 - Train Loss: 0.7705 - Val Loss: 0.7115 - Best Val Loss: 0.7115
+INFO - Layer 3 - Epoch 20 - Train Loss: 0.6790 - Val Loss: 0.6434 - Best Val Loss: 0.6434
+INFO - Layer 3 - Epoch 30 - Train Loss: 0.6539 - Val Loss: 0.6278 - Best Val Loss: 0.6278
+INFO - Layer 3 - Epoch 40 - Train Loss: 0.6215 - Val Loss: 0.5967 - Best Val Loss: 0.5967
+INFO - Layer 3 - Epoch 50 - Train Loss: 0.6117 - Val Loss: 0.5988 - Best Val Loss: 0.5967
+INFO - Layer 3 - Epoch 60 - Train Loss: 0.5949 - Val Loss: 0.5978 - Best Val Loss: 0.5967
+INFO - Layer 3 - Epoch 70 - Train Loss: 0.5896 - Val Loss: 0.5937 - Best Val Loss: 0.5937
+INFO - Layer 3 - Epoch 80 - Train Loss: 0.5869 - Val Loss: 0.5976 - Best Val Loss: 0.5937
+INFO - Layer 3 - Epoch 90 - Train Loss: 0.5843 - Val Loss: 0.5973 - Best Val Loss: 0.5937
+INFO - Layer 3 - Epoch 100 - Train Loss: 0.5803 - Val Loss: 0.5910 - Best Val Loss: 0.5910
+INFO - Training layer 2 with particle dimension: 351
+INFO - Layer 2 - Epoch 0 - Train Loss: 0.8654 - Val Loss: 0.9105 - Best Val Loss: 0.9105
+INFO - Layer 2 - Epoch 10 - Train Loss: 0.6220 - Val Loss: 0.6934 - Best Val Loss: 0.6934
+INFO - Layer 2 - Epoch 20 - Train Loss: 0.5731 - Val Loss: 0.6347 - Best Val Loss: 0.6347
+INFO - Layer 2 - Epoch 30 - Train Loss: 0.5631 - Val Loss: 0.6329 - Best Val Loss: 0.6329
+INFO - Layer 2 - Epoch 40 - Train Loss: 0.5614 - Val Loss: 0.6484 - Best Val Loss: 0.6329
+INFO - Layer 2 - Epoch 50 - Train Loss: 0.5613 - Val Loss: 0.6305 - Best Val Loss: 0.6305
+INFO - Layer 2 - Epoch 60 - Train Loss: 0.5613 - Val Loss: 0.6079 - Best Val Loss: 0.6079
+INFO - Layer 2 - Epoch 70 - Train Loss: 0.5612 - Val Loss: 0.6061 - Best Val Loss: 0.6061
+INFO - Layer 2 - Epoch 80 - Train Loss: 0.5548 - Val Loss: 0.6367 - Best Val Loss: 0.6061
+INFO - Layer 2 - Epoch 90 - Train Loss: 0.5535 - Val Loss: 0.6603 - Best Val Loss: 0.6061
+INFO - Layer 2 - Epoch 100 - Train Loss: 0.5519 - Val Loss: 0.6506 - Best Val Loss: 0.6061
+INFO - Training layer 1 with particle dimension: 1040
+INFO - Layer 1 - Epoch 0 - Train Loss: 0.7739 - Val Loss: 0.7416 - Best Val Loss: 0.7416
+INFO - Layer 1 - Epoch 10 - Train Loss: 0.6638 - Val Loss: 0.6632 - Best Val Loss: 0.6632
+INFO - Layer 1 - Epoch 20 - Train Loss: 0.6109 - Val Loss: 0.7168 - Best Val Loss: 0.6632
+INFO - Layer 1 - Epoch 30 - Train Loss: 0.6109 - Val Loss: 0.7168 - Best Val Loss: 0.6632
+INFO - Layer 1 - Epoch 40 - Train Loss: 0.5752 - Val Loss: 0.7250 - Best Val Loss: 0.6632
+INFO - Layer 1 - Epoch 50 - Train Loss: 0.5752 - Val Loss: 0.7250 - Best Val Loss: 0.6632
+INFO - Layer 1 - Epoch 60 - Train Loss: 0.5747 - Val Loss: 0.6708 - Best Val Loss: 0.6632
+INFO - Layer 1 - Epoch 70 - Train Loss: 0.5666 - Val Loss: 0.6885 - Best Val Loss: 0.6632
+INFO - Layer 1 - Epoch 80 - Train Loss: 0.5656 - Val Loss: 0.6737 - Best Val Loss: 0.6632
+INFO - Layer 1 - Epoch 90 - Train Loss: 0.5560 - Val Loss: 0.6926 - Best Val Loss: 0.6632
+INFO - Layer 1 - Epoch 100 - Train Loss: 0.5543 - Val Loss: 0.7161 - Best Val Loss: 0.6632
+INFO - Training layer 0 with particle dimension: 546
+INFO - Layer 0 - Epoch 0 - Train Loss: 0.7404 - Val Loss: 0.8181 - Best Val Loss: 0.8181
+INFO - Layer 0 - Epoch 10 - Train Loss: 0.6593 - Val Loss: 0.6922 - Best Val Loss: 0.6922
+INFO - Layer 0 - Epoch 20 - Train Loss: 0.6113 - Val Loss: 0.7714 - Best Val Loss: 0.6922
+INFO - Layer 0 - Epoch 30 - Train Loss: 0.6024 - Val Loss: 0.6263 - Best Val Loss: 0.6263
+INFO - Layer 0 - Epoch 40 - Train Loss: 0.5933 - Val Loss: 0.6303 - Best Val Loss: 0.6263
+INFO - Layer 0 - Epoch 50 - Train Loss: 0.5873 - Val Loss: 0.6373 - Best Val Loss: 0.6263
+INFO - Layer 0 - Epoch 60 - Train Loss: 0.5767 - Val Loss: 0.6922 - Best Val Loss: 0.6263
+INFO - Layer 0 - Epoch 70 - Train Loss: 0.5702 - Val Loss: 0.6921 - Best Val Loss: 0.6263
+INFO - Layer 0 - Epoch 80 - Train Loss: 0.5634 - Val Loss: 0.6900 - Best Val Loss: 0.6263
+INFO - Layer 0 - Epoch 90 - Train Loss: 0.5629 - Val Loss: 0.6920 - Best Val Loss: 0.6263
+INFO - Layer 0 - Epoch 100 - Train Loss: 0.5628 - Val Loss: 0.6919 - Best Val Loss: 0.6263
+INFO - Fold 1, Accuracy on training dataset: 0.9906
+INFO - Fold 1, Accuracy on validation dataset: 0.8611
+INFO - Fold 1, Accuracy on test dataset: 0.6944
+INFO - =========================
+INFO - ======= Fold 2 =======
+INFO - Training layer 3 with particle dimension: 42
+INFO - Layer 3 - Epoch 0 - Train Loss: 0.9400 - Val Loss: 0.9125 - Best Val Loss: 0.9125
+INFO - Layer 3 - Epoch 10 - Train Loss: 0.6892 - Val Loss: 0.8558 - Best Val Loss: 0.8558
+INFO - Layer 3 - Epoch 20 - Train Loss: 0.6461 - Val Loss: 0.7376 - Best Val Loss: 0.7376
+INFO - Layer 3 - Epoch 30 - Train Loss: 0.6339 - Val Loss: 0.6950 - Best Val Loss: 0.6950
+INFO - Layer 3 - Epoch 40 - Train Loss: 0.6009 - Val Loss: 0.5807 - Best Val Loss: 0.5807
+INFO - Layer 3 - Epoch 50 - Train Loss: 0.5820 - Val Loss: 0.5547 - Best Val Loss: 0.5547
+INFO - Layer 3 - Epoch 60 - Train Loss: 0.5815 - Val Loss: 0.5550 - Best Val Loss: 0.5547
+INFO - Layer 3 - Epoch 70 - Train Loss: 0.5814 - Val Loss: 0.5548 - Best Val Loss: 0.5547
+INFO - Layer 3 - Epoch 80 - Train Loss: 0.5813 - Val Loss: 0.5556 - Best Val Loss: 0.5547
+INFO - Layer 3 - Epoch 90 - Train Loss: 0.5810 - Val Loss: 0.5818 - Best Val Loss: 0.5547
+INFO - Layer 3 - Epoch 100 - Train Loss: 0.5808 - Val Loss: 0.5810 - Best Val Loss: 0.5547
+INFO - Training layer 2 with particle dimension: 351
+INFO - Layer 2 - Epoch 0 - Train Loss: 0.8637 - Val Loss: 0.8554 - Best Val Loss: 0.8554
+INFO - Layer 2 - Epoch 10 - Train Loss: 0.6479 - Val Loss: 0.8009 - Best Val Loss: 0.8009
+INFO - Layer 2 - Epoch 20 - Train Loss: 0.6479 - Val Loss: 0.8009 - Best Val Loss: 0.8009
+INFO - Layer 2 - Epoch 30 - Train Loss: 0.6403 - Val Loss: 0.8026 - Best Val Loss: 0.8009
+INFO - Layer 2 - Epoch 40 - Train Loss: 0.6113 - Val Loss: 0.6852 - Best Val Loss: 0.6852
+INFO - Layer 2 - Epoch 50 - Train Loss: 0.5771 - Val Loss: 0.5820 - Best Val Loss: 0.5820
+INFO - Layer 2 - Epoch 60 - Train Loss: 0.5733 - Val Loss: 0.6116 - Best Val Loss: 0.5820
+INFO - Layer 2 - Epoch 70 - Train Loss: 0.5730 - Val Loss: 0.6062 - Best Val Loss: 0.5820
+INFO - Layer 2 - Epoch 80 - Train Loss: 0.5634 - Val Loss: 0.6845 - Best Val Loss: 0.5820
+INFO - Layer 2 - Epoch 90 - Train Loss: 0.5631 - Val Loss: 0.6523 - Best Val Loss: 0.5820
+INFO - Layer 2 - Epoch 100 - Train Loss: 0.5629 - Val Loss: 0.6111 - Best Val Loss: 0.5820
+INFO - Training layer 1 with particle dimension: 1040
+INFO - Layer 1 - Epoch 0 - Train Loss: 0.7643 - Val Loss: 0.8580 - Best Val Loss: 0.8580
+INFO - Layer 1 - Epoch 10 - Train Loss: 0.6161 - Val Loss: 0.7493 - Best Val Loss: 0.7493
+INFO - Layer 1 - Epoch 20 - Train Loss: 0.6161 - Val Loss: 0.7493 - Best Val Loss: 0.7493
+INFO - Layer 1 - Epoch 30 - Train Loss: 0.5939 - Val Loss: 0.6671 - Best Val Loss: 0.6671
+INFO - Layer 1 - Epoch 40 - Train Loss: 0.5860 - Val Loss: 0.6666 - Best Val Loss: 0.6666
+INFO - Layer 1 - Epoch 50 - Train Loss: 0.5860 - Val Loss: 0.6665 - Best Val Loss: 0.6665
+INFO - Layer 1 - Epoch 60 - Train Loss: 0.5860 - Val Loss: 0.6665 - Best Val Loss: 0.6665
+INFO - Layer 1 - Epoch 70 - Train Loss: 0.5844 - Val Loss: 0.6932 - Best Val Loss: 0.6665
+INFO - Layer 1 - Epoch 80 - Train Loss: 0.5773 - Val Loss: 0.6409 - Best Val Loss: 0.6409
+INFO - Layer 1 - Epoch 90 - Train Loss: 0.5771 - Val Loss: 0.6662 - Best Val Loss: 0.6409
+INFO - Layer 1 - Epoch 100 - Train Loss: 0.5771 - Val Loss: 0.6662 - Best Val Loss: 0.6409
+INFO - Training layer 0 with particle dimension: 546
+INFO - Layer 0 - Epoch 0 - Train Loss: 0.8440 - Val Loss: 0.8659 - Best Val Loss: 0.8659
+INFO - Layer 0 - Epoch 10 - Train Loss: 0.6410 - Val Loss: 0.7545 - Best Val Loss: 0.7545
+INFO - Layer 0 - Epoch 20 - Train Loss: 0.6233 - Val Loss: 0.7826 - Best Val Loss: 0.7545
+INFO - Layer 0 - Epoch 30 - Train Loss: 0.5950 - Val Loss: 0.7518 - Best Val Loss: 0.7518
+INFO - Layer 0 - Epoch 40 - Train Loss: 0.5778 - Val Loss: 0.7517 - Best Val Loss: 0.7517
+INFO - Layer 0 - Epoch 50 - Train Loss: 0.5769 - Val Loss: 0.7517 - Best Val Loss: 0.7517
+INFO - Layer 0 - Epoch 60 - Train Loss: 0.5766 - Val Loss: 0.7550 - Best Val Loss: 0.7517
+INFO - Layer 0 - Epoch 70 - Train Loss: 0.5761 - Val Loss: 0.7577 - Best Val Loss: 0.7517
+INFO - Layer 0 - Epoch 80 - Train Loss: 0.5761 - Val Loss: 0.7594 - Best Val Loss: 0.7517
+INFO - Layer 0 - Epoch 90 - Train Loss: 0.5761 - Val Loss: 0.7548 - Best Val Loss: 0.7517
+INFO - Layer 0 - Epoch 100 - Train Loss: 0.5760 - Val Loss: 0.6975 - Best Val Loss: 0.6975
+INFO - Fold 2, Accuracy on training dataset: 0.9811
+INFO - Fold 2, Accuracy on validation dataset: 0.8611
+INFO - Fold 2, Accuracy on test dataset: 0.8889
+INFO - =========================
+INFO - ======= Fold 3 =======
+INFO - Training layer 3 with particle dimension: 42
+INFO - Layer 3 - Epoch 0 - Train Loss: 0.9158 - Val Loss: 0.9619 - Best Val Loss: 0.9619
+INFO - Layer 3 - Epoch 10 - Train Loss: 0.6354 - Val Loss: 0.5843 - Best Val Loss: 0.5843
+INFO - Layer 3 - Epoch 20 - Train Loss: 0.6187 - Val Loss: 0.6111 - Best Val Loss: 0.5843
+INFO - Layer 3 - Epoch 30 - Train Loss: 0.6064 - Val Loss: 0.6172 - Best Val Loss: 0.5843
+INFO - Layer 3 - Epoch 40 - Train Loss: 0.5991 - Val Loss: 0.5855 - Best Val Loss: 0.5843
+INFO - Layer 3 - Epoch 50 - Train Loss: 0.5921 - Val Loss: 0.6007 - Best Val Loss: 0.5843
+INFO - Layer 3 - Epoch 60 - Train Loss: 0.5897 - Val Loss: 0.5999 - Best Val Loss: 0.5843
+INFO - Layer 3 - Epoch 70 - Train Loss: 0.5884 - Val Loss: 0.6014 - Best Val Loss: 0.5843
+INFO - Layer 3 - Epoch 80 - Train Loss: 0.5859 - Val Loss: 0.6014 - Best Val Loss: 0.5843
+INFO - Layer 3 - Epoch 90 - Train Loss: 0.5824 - Val Loss: 0.6071 - Best Val Loss: 0.5843
+INFO - Layer 3 - Epoch 100 - Train Loss: 0.5817 - Val Loss: 0.6171 - Best Val Loss: 0.5843
+INFO - Training layer 2 with particle dimension: 351
+INFO - Layer 2 - Epoch 0 - Train Loss: 0.8959 - Val Loss: 0.9963 - Best Val Loss: 0.9963
+INFO - Layer 2 - Epoch 10 - Train Loss: 0.6844 - Val Loss: 0.7149 - Best Val Loss: 0.7149
+INFO - Layer 2 - Epoch 20 - Train Loss: 0.6757 - Val Loss: 0.8151 - Best Val Loss: 0.7149
+INFO - Layer 2 - Epoch 30 - Train Loss: 0.6398 - Val Loss: 0.7252 - Best Val Loss: 0.7149
+INFO - Layer 2 - Epoch 40 - Train Loss: 0.6224 - Val Loss: 0.7186 - Best Val Loss: 0.7149
+INFO - Layer 2 - Epoch 50 - Train Loss: 0.6032 - Val Loss: 0.6682 - Best Val Loss: 0.6682
+INFO - Layer 2 - Epoch 60 - Train Loss: 0.5943 - Val Loss: 0.6929 - Best Val Loss: 0.6682
+INFO - Layer 2 - Epoch 70 - Train Loss: 0.5904 - Val Loss: 0.7420 - Best Val Loss: 0.6682
+INFO - Layer 2 - Epoch 80 - Train Loss: 0.5863 - Val Loss: 0.7212 - Best Val Loss: 0.6682
+INFO - Layer 2 - Epoch 90 - Train Loss: 0.5807 - Val Loss: 0.7188 - Best Val Loss: 0.6682
+INFO - Layer 2 - Epoch 100 - Train Loss: 0.5785 - Val Loss: 0.7277 - Best Val Loss: 0.6682
+INFO - Training layer 1 with particle dimension: 1040
+INFO - Layer 1 - Epoch 0 - Train Loss: 0.7533 - Val Loss: 0.8665 - Best Val Loss: 0.8665
+INFO - Layer 1 - Epoch 10 - Train Loss: 0.6324 - Val Loss: 0.7716 - Best Val Loss: 0.7716
+INFO - Layer 1 - Epoch 20 - Train Loss: 0.6056 - Val Loss: 0.6663 - Best Val Loss: 0.6663
+INFO - Layer 1 - Epoch 30 - Train Loss: 0.5975 - Val Loss: 0.6611 - Best Val Loss: 0.6611
+INFO - Layer 1 - Epoch 40 - Train Loss: 0.5870 - Val Loss: 0.6970 - Best Val Loss: 0.6611
+INFO - Layer 1 - Epoch 50 - Train Loss: 0.5815 - Val Loss: 0.6524 - Best Val Loss: 0.6524
+INFO - Layer 1 - Epoch 60 - Train Loss: 0.5815 - Val Loss: 0.6524 - Best Val Loss: 0.6524
+INFO - Layer 1 - Epoch 70 - Train Loss: 0.5815 - Val Loss: 0.6524 - Best Val Loss: 0.6524
+INFO - Layer 1 - Epoch 80 - Train Loss: 0.5784 - Val Loss: 0.6480 - Best Val Loss: 0.6480
+INFO - Layer 1 - Epoch 90 - Train Loss: 0.5748 - Val Loss: 0.6018 - Best Val Loss: 0.6018
+INFO - Layer 1 - Epoch 100 - Train Loss: 0.5743 - Val Loss: 0.6314 - Best Val Loss: 0.6018
+INFO - Training layer 0 with particle dimension: 546
+INFO - Layer 0 - Epoch 0 - Train Loss: 0.8809 - Val Loss: 0.8702 - Best Val Loss: 0.8702
+INFO - Layer 0 - Epoch 10 - Train Loss: 0.6450 - Val Loss: 0.7206 - Best Val Loss: 0.7206
+INFO - Layer 0 - Epoch 20 - Train Loss: 0.6250 - Val Loss: 0.7976 - Best Val Loss: 0.7206
+INFO - Layer 0 - Epoch 30 - Train Loss: 0.6135 - Val Loss: 0.8549 - Best Val Loss: 0.7206
+INFO - Layer 0 - Epoch 40 - Train Loss: 0.5948 - Val Loss: 0.6747 - Best Val Loss: 0.6747
+INFO - Layer 0 - Epoch 50 - Train Loss: 0.5866 - Val Loss: 0.6024 - Best Val Loss: 0.6024
+INFO - Layer 0 - Epoch 60 - Train Loss: 0.5866 - Val Loss: 0.6024 - Best Val Loss: 0.6024
+INFO - Layer 0 - Epoch 70 - Train Loss: 0.5753 - Val Loss: 0.7388 - Best Val Loss: 0.6024
+INFO - Layer 0 - Epoch 80 - Train Loss: 0.5753 - Val Loss: 0.7388 - Best Val Loss: 0.6024
+INFO - Layer 0 - Epoch 90 - Train Loss: 0.5753 - Val Loss: 0.7388 - Best Val Loss: 0.6024
+INFO - Layer 0 - Epoch 100 - Train Loss: 0.5703 - Val Loss: 0.6899 - Best Val Loss: 0.6024
+INFO - Fold 3, Accuracy on training dataset: 0.9813
+INFO - Fold 3, Accuracy on validation dataset: 0.8571
+INFO - Fold 3, Accuracy on test dataset: 0.8611
+INFO - =========================
+INFO - ======= Fold 4 =======
+INFO - Training layer 3 with particle dimension: 42
+INFO - Layer 3 - Epoch 0 - Train Loss: 0.8048 - Val Loss: 0.7908 - Best Val Loss: 0.7908
+INFO - Layer 3 - Epoch 10 - Train Loss: 0.6130 - Val Loss: 0.6334 - Best Val Loss: 0.6334
+INFO - Layer 3 - Epoch 20 - Train Loss: 0.5773 - Val Loss: 0.6165 - Best Val Loss: 0.6165
+INFO - Layer 3 - Epoch 30 - Train Loss: 0.5694 - Val Loss: 0.6178 - Best Val Loss: 0.6165
+INFO - Layer 3 - Epoch 40 - Train Loss: 0.5677 - Val Loss: 0.6019 - Best Val Loss: 0.6019
+INFO - Layer 3 - Epoch 50 - Train Loss: 0.5667 - Val Loss: 0.6019 - Best Val Loss: 0.6019
+INFO - Layer 3 - Epoch 60 - Train Loss: 0.5660 - Val Loss: 0.6057 - Best Val Loss: 0.6019
+INFO - Layer 3 - Epoch 70 - Train Loss: 0.5657 - Val Loss: 0.6057 - Best Val Loss: 0.6019
+INFO - Layer 3 - Epoch 80 - Train Loss: 0.5655 - Val Loss: 0.6065 - Best Val Loss: 0.6019
+INFO - Layer 3 - Epoch 90 - Train Loss: 0.5649 - Val Loss: 0.6004 - Best Val Loss: 0.6004
+INFO - Layer 3 - Epoch 100 - Train Loss: 0.5648 - Val Loss: 0.6014 - Best Val Loss: 0.6004
+INFO - Training layer 2 with particle dimension: 351
+INFO - Layer 2 - Epoch 0 - Train Loss: 0.7158 - Val Loss: 0.8296 - Best Val Loss: 0.8296
+INFO - Layer 2 - Epoch 10 - Train Loss: 0.6264 - Val Loss: 0.7077 - Best Val Loss: 0.7077
+INFO - Layer 2 - Epoch 20 - Train Loss: 0.5878 - Val Loss: 0.6454 - Best Val Loss: 0.6454
+INFO - Layer 2 - Epoch 30 - Train Loss: 0.5647 - Val Loss: 0.6679 - Best Val Loss: 0.6454
+INFO - Layer 2 - Epoch 40 - Train Loss: 0.5578 - Val Loss: 0.6426 - Best Val Loss: 0.6426
+INFO - Layer 2 - Epoch 50 - Train Loss: 0.5559 - Val Loss: 0.6358 - Best Val Loss: 0.6358
+INFO - Layer 2 - Epoch 60 - Train Loss: 0.5556 - Val Loss: 0.6397 - Best Val Loss: 0.6358
+INFO - Layer 2 - Epoch 70 - Train Loss: 0.5550 - Val Loss: 0.6119 - Best Val Loss: 0.6119
+INFO - Layer 2 - Epoch 80 - Train Loss: 0.5542 - Val Loss: 0.6234 - Best Val Loss: 0.6119
+INFO - Layer 2 - Epoch 90 - Train Loss: 0.5542 - Val Loss: 0.6211 - Best Val Loss: 0.6119
+INFO - Layer 2 - Epoch 100 - Train Loss: 0.5541 - Val Loss: 0.6135 - Best Val Loss: 0.6119
+INFO - Training layer 1 with particle dimension: 1040
+INFO - Layer 1 - Epoch 0 - Train Loss: 0.9559 - Val Loss: 0.8495 - Best Val Loss: 0.8495
+INFO - Layer 1 - Epoch 10 - Train Loss: 0.6713 - Val Loss: 0.7297 - Best Val Loss: 0.7297
+INFO - Layer 1 - Epoch 20 - Train Loss: 0.6105 - Val Loss: 0.6287 - Best Val Loss: 0.6287
+INFO - Layer 1 - Epoch 30 - Train Loss: 0.5903 - Val Loss: 0.5990 - Best Val Loss: 0.5990
+INFO - Layer 1 - Epoch 40 - Train Loss: 0.5736 - Val Loss: 0.5890 - Best Val Loss: 0.5890
+INFO - Layer 1 - Epoch 50 - Train Loss: 0.5669 - Val Loss: 0.5821 - Best Val Loss: 0.5821
+INFO - Layer 1 - Epoch 60 - Train Loss: 0.5650 - Val Loss: 0.5998 - Best Val Loss: 0.5821
+INFO - Layer 1 - Epoch 70 - Train Loss: 0.5647 - Val Loss: 0.5978 - Best Val Loss: 0.5821
+INFO - Layer 1 - Epoch 80 - Train Loss: 0.5647 - Val Loss: 0.5976 - Best Val Loss: 0.5821
+INFO - Layer 1 - Epoch 90 - Train Loss: 0.5646 - Val Loss: 0.5977 - Best Val Loss: 0.5821
+INFO - Layer 1 - Epoch 100 - Train Loss: 0.5634 - Val Loss: 0.5948 - Best Val Loss: 0.5821
+INFO - Training layer 0 with particle dimension: 546
+INFO - Layer 0 - Epoch 0 - Train Loss: 0.8922 - Val Loss: 0.7789 - Best Val Loss: 0.7789
+INFO - Layer 0 - Epoch 10 - Train Loss: 0.7032 - Val Loss: 0.8094 - Best Val Loss: 0.7789
+INFO - Layer 0 - Epoch 20 - Train Loss: 0.6164 - Val Loss: 0.6841 - Best Val Loss: 0.6841
+INFO - Layer 0 - Epoch 30 - Train Loss: 0.5866 - Val Loss: 0.6996 - Best Val Loss: 0.6841
+INFO - Layer 0 - Epoch 40 - Train Loss: 0.5724 - Val Loss: 0.7329 - Best Val Loss: 0.6841
+INFO - Layer 0 - Epoch 50 - Train Loss: 0.5575 - Val Loss: 0.6746 - Best Val Loss: 0.6746
+INFO - Layer 0 - Epoch 60 - Train Loss: 0.5564 - Val Loss: 0.6870 - Best Val Loss: 0.6746
+INFO - Layer 0 - Epoch 70 - Train Loss: 0.5558 - Val Loss: 0.6729 - Best Val Loss: 0.6729
+INFO - Layer 0 - Epoch 80 - Train Loss: 0.5557 - Val Loss: 0.6652 - Best Val Loss: 0.6652
+INFO - Layer 0 - Epoch 90 - Train Loss: 0.5555 - Val Loss: 0.6670 - Best Val Loss: 0.6652
+INFO - Layer 0 - Epoch 100 - Train Loss: 0.5554 - Val Loss: 0.6634 - Best Val Loss: 0.6634
+INFO - Fold 4, Accuracy on training dataset: 1.0000
+INFO - Fold 4, Accuracy on validation dataset: 0.8857
+INFO - Fold 4, Accuracy on test dataset: 0.9167
+INFO - =========================
+INFO - Layer 0 - Train plotting shape: (4, 11)
+INFO - Layer 0 - Val plotting shape: (4, 11)
+INFO - Layer 1 - Train plotting shape: (4, 11)
+INFO - Layer 1 - Val plotting shape: (4, 11)
+INFO - Layer 2 - Train plotting shape: (4, 11)
+INFO - Layer 2 - Val plotting shape: (4, 11)
+INFO - Layer 3 - Train plotting shape: (4, 11)
+INFO - Layer 3 - Val plotting shape: (4, 11)
+INFO - Best model saved at: ./models/multi_QPSOo/wine_multi_QPSOo_best_model.pth
+INFO - 
+============= BEST MODEL METRICS =============
+INFO - 
+Best Model Metrics on Training Set:
+INFO - 
+Métricas para wine_best_train:
+INFO - Accuracy: 0.9718
+INFO - Precision (macro): 0.9719
+INFO - Precision (weighted): 0.9718
+INFO - Recall (macro): 0.9690
+INFO - Recall (weighted): 0.9718
+INFO - F1 (macro): 0.9704
+INFO - F1 (weighted): 0.9717
+INFO - Confusion Matrix:
+INFO - 
+[[51  0  0]
+ [ 1 54  1]
+ [ 0  2 33]]
+INFO - 
+Best Model Metrics on Test Set:
+INFO - 
+Métricas para wine_best_test:
+INFO - Accuracy: 0.9167
+INFO - Precision (macro): 0.9315
+INFO - Precision (weighted): 0.9224
+INFO - Recall (macro): 0.8910
+INFO - Recall (weighted): 0.9167
+INFO - F1 (macro): 0.9046
+INFO - F1 (weighted): 0.9147
+INFO - Confusion Matrix:
+INFO - 
+[[ 6  0  2]
+ [ 0 15  0]
+ [ 0  1 12]]
+INFO - 
+ROC-AUC Scores for Best Model:
+INFO - Class 0: 0.9732
+INFO - Class 1: 1.0000
+INFO - Class 2: 0.9866
+INFO - Micro-average: 0.9880
+INFO - Macro-average: 0.9897
+INFO - =============================================
+INFO - =============================================
+INFO - Model Setup:
+INFO - optimizer: multi_QPSOo
+INFO - dataset: wine
+INFO - input_dim: 13
+INFO - output_dim: 3
+INFO - n_samples: 142
+INFO - hidden_layers: [39, 26, 13]
+INFO - n_particles: 20
+INFO - g: 1.13
+INFO - interval_parms_updated: 10
+INFO - n_folds: 4
+INFO - n_epochs: 100
+INFO - Total Parameters: 1979
+INFO - =============================================
+INFO - Mean time per layer 0: 1.2067 - std: 0.0106 seconds
+INFO - Mean time per layer 1: 1.2097 - std: 0.0033 seconds
+INFO - Mean time per layer 2: 1.2044 - std: 0.0044 seconds
+INFO - Mean time per layer 3: 1.2409 - std: 0.0405 seconds
+INFO - Mean time per epoch and folder: 4.8621 - std: 0.0309 seconds
+INFO - Mean accuracy on training dataset: 0.9883 - std: 0.0078
+INFO - Mean accuracy on validation dataset: 0.8663 - std: 0.0113
+INFO - Mean accuracy on test dataset: 0.8403 - std: 0.0865
+INFO - =============================================
