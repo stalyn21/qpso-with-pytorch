@@ -37,7 +37,10 @@ def main():
 
     # For image clasificattion
     dataset_name = 'mcw'
-    X_train_val, X_test, y_train_val, y_test = load_and_preprocess_mcw(reduction_method='isomap', n_components=14)
+    # If apply featre reduction (isomap, mds, pca)
+    # X_train_val, X_test, y_train_val, y_test = load_and_preprocess_mcw(reduction_method='isomap', n_components=7)
+    # If not apply featre reduction
+    X_train_val, X_test, y_train_val, y_test = load_and_preprocess_mcw()
 
     input_shape = X_train_val.shape[1]
     output_shape = len(np.unique(y_train_val))
@@ -52,11 +55,11 @@ def main():
         'n_samples': n_samples,
         'hidden_layers': [input_shape*3, input_shape*2, input_shape], # [(input_shape * 3) // 2, input_shape * 2, (input_shape * 3) // 2,],
         'features_reduction': input_shape,
-        'n_particles':  100, # 20, # for bechmark datasets
+        'n_particles':  20, # 20, # for bechmark datasets
         'g': 1.13,
         'interval_parms_updated': 10,
         'n_folds': 4,
-        'n_epochs': 2000 # 100 # for bechmarck datastes
+        'n_epochs': 1000 # 100 # for bechmarck datastes
     }
 
     # Logging Setup
@@ -190,7 +193,8 @@ def main():
                 y_test_tensor.cpu().numpy(),
                 n_classes=config['output_dim'],
                 dataset_name=f"{dataset_name}_best_model",
-                optimizer=config['optimizer']
+                optimizer=config['optimizer'],
+                f_reduction=config['features_reduction']
             )
 
             logging.info("\nROC-AUC Scores for Best Model:")

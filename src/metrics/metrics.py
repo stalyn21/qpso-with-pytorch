@@ -107,7 +107,7 @@ class MulticlassMetrics:
         }
         return metrics
 
-    def plot_multiclass_roc(self, classifier, X, y, n_classes, dataset_name, optimizer):
+    def plot_multiclass_roc(self, classifier, X, y, n_classes, dataset_name, optimizer, f_reduction='org'):
         """
         Calcula y visualiza curvas ROC para clasificación binaria y multiclase con información detallada.
         """
@@ -289,7 +289,7 @@ class MulticlassMetrics:
 
         # Ajustar el diseño y guardar
         plt.tight_layout()
-        plt.savefig(f'./metrics/graphics/roc/{optimizer}/{dataset_name}_roc_curves_{optimizer}.png',
+        plt.savefig(f'./metrics/graphics/roc/{optimizer}/{dataset_name}_roc_curves_{optimizer}_{f_reduction}.png',
                     dpi=300,
                     bbox_inches='tight',
                     pad_inches=0.1,
