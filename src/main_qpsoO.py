@@ -7,7 +7,8 @@ import time
 from sklearn.model_selection import KFold
 
 # custome data, optimizer and model
-from data.benchmarck import load_and_preprocess_data
+# from data.benchmarck import load_and_preprocess_data # uuncomment by benchmarck datasets
+from data.weather_image import load_and_preprocess_mcw
 from metrics.plotting import plot_cross_validation_losses
 from metrics.metrics import MulticlassMetrics
 from one_swarm.custome_optimizer.qpso_optimizerO import QDPSOoOptimizer
@@ -17,7 +18,7 @@ from one_swarm.ann.ann_qpsoO import ExtendedModel
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 def save_best_model(model, config, best_acc):
-    model_path = f"./models/{config['optimizer']}/{config['dataset']}_{config['optimizer']}_best_model.pth"
+    model_path = f"./models/{config['optimizer']}/{config['dataset']}_{config['optimizer']}_{config['features_reduction']}_best_model.pth"
     torch.save({
         'model_state_dict': model.state_dict(),
         'config': config,
@@ -31,9 +32,12 @@ def main():
     metrics_calculator = MulticlassMetrics()
 
     # load and preprocess the data accepcting the dataset name: iris, breast_cancer, wine, and circle 
-    dataset_name = 'circle'
+    # dataset_name = 'circle'
+    # X_train_val, X_test, y_train_val, y_test = load_and_preprocess_data(dataset_name)
 
-    X_train_val, X_test, y_train_val, y_test = load_and_preprocess_data(dataset_name)
+    # For image clasificattion
+    dataset_name = 'mcw'
+    X_train_val, X_test, y_train_val, y_test = load_and_preprocess_mcw(reduction_method='isomap', n_components=14)
 
     input_shape = X_train_val.shape[1]
     output_shape = len(np.unique(y_train_val))
@@ -47,11 +51,12 @@ def main():
         'output_dim': output_shape,
         'n_samples': n_samples,
         'hidden_layers': [input_shape*3, input_shape*2, input_shape], # [(input_shape * 3) // 2, input_shape * 2, (input_shape * 3) // 2,],
-        'n_particles': 20,
+        'features_reduction': input_shape,
+        'n_particles':  100, # 20, # for bechmark datasets
         'g': 1.13,
         'interval_parms_updated': 10,
         'n_folds': 4,
-        'n_epochs': 100
+        'n_epochs': 2000 # 100 # for bechmarck datastes
     }
 
     # Logging Setup
@@ -61,7 +66,7 @@ def main():
         level=logging.INFO,  # Establecer el nivel de registro en INFO
         format='%(levelname)s - %(message)s',
         handlers=[
-            logging.FileHandler(f"./output/{config['optimizer']}/{dataset_name}_{config['optimizer']}.output"),  # Enviar logs al archivo iris.output
+            logging.FileHandler(f"./output/{config['optimizer']}/{dataset_name}_{config['optimizer']}_{config['features_reduction']}.output"),  # Enviar logs al archivo iris.output
             logging.StreamHandler()  # También enviar logs a la consola
         ]
     )
@@ -130,7 +135,7 @@ def main():
             test_results.append(accuracy)
 
     # Graficar las pérdidas
-    plot_cross_validation_losses(all_losses, dataset_name, config['optimizer'], config['interval_parms_updated'])
+    plot_cross_validation_losses(all_losses, dataset_name, config)
 
     if best_model is not None:
         model.load_state_dict(best_model)

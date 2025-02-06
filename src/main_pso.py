@@ -15,7 +15,7 @@ from one_swarm.ann.ann_pso import ExtendedModelPSO
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
    
 def save_best_model(model, config, best_acc):
-    model_path = f"./models/{config['optimizer']}/{config['dataset']}_{config['optimizer']}_best_model.pth"
+    model_path = f"./models/{config['optimizer']}/{config['dataset']}_{config['optimizer']}_{config['features_reduction']}_best_model.pth"
     torch.save({
         'model_state_dict': model.state_dict(),
         'config': config,
@@ -43,6 +43,7 @@ def main():
         'output_dim': output_shape,
         'n_samples': n_samples,
         'hidden_layers': [input_shape*3, input_shape*2, input_shape], # [input_shape * 2, (input_shape * 3) // 2, input_shape],
+        'features_reduction': input_shape,
         'n_particles': 20,
         'n_folds': 4,
         'n_epochs': 100
@@ -52,7 +53,7 @@ def main():
         level=logging.INFO,
         format='%(levelname)s - %(message)s',
         handlers=[
-            logging.FileHandler(f"./output/{config['optimizer']}/{dataset_name}_{config['optimizer']}.output"),
+            logging.FileHandler(f"./output/{config['optimizer']}/{dataset_name}_{config['optimizer']}_{config['features_reduction']}.output"),
             logging.StreamHandler()
         ]
     )
@@ -136,7 +137,7 @@ def main():
             test_results.append(test_acc)
     
     # Graficar las pérdidas
-    plot_cross_validation_losses(all_losses, dataset_name, config['optimizer'])
+    plot_cross_validation_losses(all_losses, dataset_name, config)
 
     if best_model is not None:
         model.load_state_dict(best_model)

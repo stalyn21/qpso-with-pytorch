@@ -4,7 +4,7 @@ from sklearn.datasets import load_iris, load_breast_cancer, load_wine, make_circ
 from collections import namedtuple
 from sklearn.preprocessing import StandardScaler
 from sklearn.model_selection import train_test_split
-from ann.annO import ExtendedModel  # Asegúrate de que esta importación sea correcta
+from one_swarm.ann import ExtendedModel  # Asegúrate de que esta importación sea correcta
 
 # Aseguramos que PyTorch use GPU si está disponible
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")

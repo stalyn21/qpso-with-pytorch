@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 import torch
 import logging
 
-def plot_cross_validation_losses(all_losses, dataset_name, optimizer):
+def plot_cross_validation_losses(all_losses, dataset_name, config):
     """
     Plotea las curvas de pérdida para cross-validation usando matplotlib con LaTeX.
     Genera dos gráficos separados: uno para las pérdidas y otro para la diferencia.
@@ -40,7 +40,11 @@ def plot_cross_validation_losses(all_losses, dataset_name, optimizer):
         logging.info(f"Contenido de all_losses[0]: {all_losses[0]}")
         raise
 
-    epochs = range(len(train_losses[0]))
+    if 'interval_update' not in config:
+        config['interval_update'] = 1
+
+    # epochs = range(len(train_losses[0]))
+    epochs = range(0, len(train_losses[0]) * config['interval_update'], config['interval_update'])
 
     # Calcular estadísticas
     train_mean = np.mean(train_losses, axis=0)
@@ -113,7 +117,7 @@ def plot_cross_validation_losses(all_losses, dataset_name, optimizer):
               framealpha=0.9)
 
     plt.tight_layout()
-    plt.savefig(f'./metrics/graphics/loss/{optimizer}/{dataset_name}_losses_comparison_{optimizer}.png',
+    plt.savefig(f'./metrics/graphics/loss/{config['optimizer']}/{dataset_name}_losses_comparison_{config['optimizer']}_{config['features_reduction']}.png',
                 dpi=300,
                 bbox_inches='tight',
                 pad_inches=0.1)
@@ -148,7 +152,7 @@ def plot_cross_validation_losses(all_losses, dataset_name, optimizer):
               framealpha=0.9)
 
     plt.tight_layout()
-    plt.savefig(f'./metrics/graphics/loss/{optimizer}/{dataset_name}_loss_difference_{optimizer}.png',
+    plt.savefig(f'./metrics/graphics/loss/{config['optimizer']}/{dataset_name}_loss_difference_{config['optimizer']}_{config['features_reduction']}.png',
                 dpi=300,
                 bbox_inches='tight',
                 pad_inches=0.1)
