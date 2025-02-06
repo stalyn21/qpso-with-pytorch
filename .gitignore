@@ -162,4 +162,4 @@ cython_debug/
 #.idea/
 
 ###  DATA IMG
-./src/data/img/
+src/data/img/
