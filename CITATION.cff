@@ -1,0 +1,43 @@
+# Este archivo permite que GitHub genere automaticamente
+# el formato de citacion para tu repositorio.
+# Mas info: https://citation-file-format.github.io/
+
+cff-version: 1.2.0
+title: "PyTorch QPSO Suite"
+message: "Si usas este software, por favor citalo como se indica a continuacion."
+type: software
+authors:
+  - family-names: "Chancay Moreira"
+    given-names: "Stalyn Javier"
+    orcid: ""  # Agrega tu ORCID si tienes uno
+repository-code: "https://github.com/stalyn21/qpso-with-pytorch"  # Ajusta la URL cuando publiques
+url: "https://github.com/stalyn21/qpso-with-pytorch"
+license: MIT
+version: "1.0.0"
+date-released: "2024-01-01"
+keywords:
+  - quantum particle swarm optimization
+  - QPSO
+  - QDPSO
+  - neural network training
+  - PyTorch
+  - metaheuristic optimization
+  - hyperparameter optimization
+abstract: >-
+  Suite de aplicaciones basadas en Quantum Particle Swarm Optimization (QPSO)
+  implementadas en PyTorch con aceleracion GPU. Incluye implementaciones
+  optimizadas del algoritmo QPSO/QDPSO, framework para entrenamiento de redes
+  neuronales sin backpropagation, y optimizacion de hiperparametros con Optuna.
+references:
+  - type: article
+    authors:
+      - family-names: "Sun"
+        given-names: "J."
+      - family-names: "Feng"
+        given-names: "B."
+      - family-names: "Xu"
+        given-names: "W."
+    title: "Particle swarm optimization with particles having quantum behavior"
+    year: 2004
+    conference:
+      name: "Congress on Evolutionary Computation"

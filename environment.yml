@@ -1,0 +1,79 @@
+# =============================================================================
+# QPSO-PyTorch Conda Environment
+# =============================================================================
+# This file creates a conda environment with GPU support for running
+# Quantum Particle Swarm Optimization (QPSO) with PyTorch.
+#
+# Installation:
+#   conda env create -f environment.yml
+#   conda activate pytorch_qpso_gpu
+#
+# Update existing environment:
+#   conda env update -f environment.yml --prune
+# =============================================================================
+
+name: pytorch_qpso_gpu
+
+channels:
+  - pytorch
+  - nvidia
+  - conda-forge
+  - defaults
+
+dependencies:
+  # -----------------------------------------------------------------------------
+  # Python
+  # -----------------------------------------------------------------------------
+  - python=3.12
+
+  # -----------------------------------------------------------------------------
+  # PyTorch ecosystem (with CUDA 12.4 support)
+  # -----------------------------------------------------------------------------
+  - pytorch=2.5.*
+  - pytorch-cuda=12.4
+  - torchvision
+  - torchaudio
+
+  # -----------------------------------------------------------------------------
+  # Scientific computing (conda-forge)
+  # -----------------------------------------------------------------------------
+  - numpy
+  - pillow
+  - pyyaml
+
+  # -----------------------------------------------------------------------------
+  # Package management
+  # -----------------------------------------------------------------------------
+  - pip
+
+  # -----------------------------------------------------------------------------
+  # Pip dependencies
+  # -----------------------------------------------------------------------------
+  - pip:
+      # PSO for Neural Networks
+      - torch-pso>=1.2.0
+
+      # Scientific computing
+      - scipy>=1.15.0
+      - scikit-learn>=1.6.0
+      - pandas>=2.0.0
+
+      # Visualization
+      - matplotlib>=3.10.0
+      - seaborn>=0.13.0
+      - plotly>=6.0.0
+      - kaleido>=1.2.0
+
+      # Image processing
+      - opencv-python>=4.10.0
+      - mahotas>=1.4.0
+
+      # Hyperparameter optimization
+      - optuna>=4.0.0
+
+      # Utilities
+      - tqdm>=4.60.0
+
+      # Testing
+      - pytest>=9.0.0
+      - pytest-timeout>=2.4.0

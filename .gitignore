@@ -1,0 +1,342 @@
+# =============================================================================
+# QPSO-PyTorch .gitignore
+# =============================================================================
+# Este archivo define qué archivos y directorios NO deben subirse al repositorio
+# para mantener el repo liviano y evitar subir archivos generados o sensibles.
+# =============================================================================
+
+# =============================================================================
+# PYTHON
+# =============================================================================
+
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# C extensions
+*.so
+
+# Distribution / packaging
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# PyInstaller
+*.manifest
+*.spec
+
+# Installer logs
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Unit test / coverage reports
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
+.pytest_cache/
+cover/
+
+# Translations
+*.mo
+*.pot
+
+# =============================================================================
+# ENTORNOS VIRTUALES / AMBIENTES
+# =============================================================================
+
+# Virtual environments
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# Conda
+*.conda
+conda-meta/
+
+# pyenv
+.python-version
+
+# pipenv
+Pipfile.lock
+
+# PEP 582
+__pypackages__/
+
+# =============================================================================
+# JUPYTER NOTEBOOKS
+# =============================================================================
+
+# Jupyter Notebook
+.ipynb_checkpoints
+*/.ipynb_checkpoints/*
+
+# IPython
+profile_default/
+ipython_config.py
+
+# =============================================================================
+# DATASETS E IMÁGENES DE ENTRENAMIENTO
+# =============================================================================
+# IMPORTANTE: Los datasets de imágenes son muy pesados y no deben subirse.
+# Los usuarios deben descargarlos por separado.
+
+# Dataset MCW (Multi-Class Weather) - imágenes de clima
+**/data/img/
+data/img/
+
+# Datasets genéricos
+*.jpg
+*.jpeg
+*.png
+*.gif
+*.bmp
+*.tiff
+*.tif
+*.webp
+
+# EXCEPCIÓN: Permitir imágenes de documentación específicas
+!**/docs/**/*.png
+!**/docs/**/*.jpg
+!README_assets/
+
+# =============================================================================
+# MODELOS ENTRENADOS Y CHECKPOINTS
+# =============================================================================
+# Los modelos entrenados son pesados y específicos del usuario
+
+# PyTorch models
+*.pth
+*.pt
+*.ckpt
+
+# TensorFlow/Keras
+*.h5
+*.hdf5
+*.keras
+
+# ONNX
+*.onnx
+
+# Pickle files (pueden contener modelos)
+*.pkl
+*.pickle
+
+# Directorio de modelos de salida
+**/output/models/
+output/models/
+
+# =============================================================================
+# RESULTADOS GENERADOS
+# =============================================================================
+# Gráficas, métricas y resultados de experimentos
+
+# Directorio de imágenes de métricas generadas
+**/img/metric/
+img/metric/
+
+# Resultados de búsqueda de hiperparámetros
+**/results/
+results/
+
+# Archivos de convergencia generados
+convergencia*.png
+
+# =============================================================================
+# BASES DE DATOS
+# =============================================================================
+
+# SQLite (usado por Optuna para HPO)
+*.db
+*.sqlite
+*.sqlite3
+
+# Optuna study database
+optuna_study.db
+*.db-journal
+
+# =============================================================================
+# LOGS Y ARCHIVOS TEMPORALES
+# =============================================================================
+
+# Logs
+*.log
+logs/
+*.out
+*.err
+
+# Archivos temporales
+*.tmp
+*.temp
+*.swp
+*.swo
+*~
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# Windows
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+ehthumbs_vista.db
+*.stackdump
+[Dd]esktop.ini
+$RECYCLE.BIN/
+*.cab
+*.msi
+*.msix
+*.msm
+*.msp
+*.lnk
+
+# Linux
+*~
+.fuse_hidden*
+.directory
+.Trash-*
+.nfs*
+
+# =============================================================================
+# IDEs Y EDITORES
+# =============================================================================
+
+# Visual Studio Code
+.vscode/
+*.code-workspace
+
+# PyCharm / JetBrains
+.idea/
+*.iml
+*.ipr
+*.iws
+out/
+.idea_modules/
+
+# Sublime Text
+*.sublime-project
+*.sublime-workspace
+
+# Vim
+*.swp
+*.swo
+Session.vim
+Sessionx.vim
+.netrwhist
+tags
+
+# Emacs
+*~
+\#*\#
+/.emacs.desktop
+/.emacs.desktop.lock
+*.elc
+auto-save-list
+tramp
+.\#*
+
+# Spyder
+.spyderproject
+.spyproject
+
+# Rope
+.ropeproject
+
+# =============================================================================
+# HERRAMIENTAS DE IA / ASISTENTES
+# =============================================================================
+
+# Claude Code
+.claude/
+
+# GitHub Copilot
+.copilot/
+
+# Cursor
+.cursor/
+
+# =============================================================================
+# ARCHIVOS DE CONFIGURACIÓN SENSIBLES
+# =============================================================================
+
+# Variables de entorno con secretos
+.env
+.env.local
+.env.*.local
+*.env
+
+# Credenciales
+credentials.json
+secrets.json
+*.pem
+*.key
+
+# =============================================================================
+# OTROS
+# =============================================================================
+
+# Archivos comprimidos de datos
+*.zip
+*.tar
+*.tar.gz
+*.tgz
+*.rar
+*.7z
+
+# Archivos de datos grandes
+*.npy
+*.npz
+*.parquet
+*.feather
+
+# Mypy
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# Cython
+cython_debug/
+
+# Profiling
+*.prof
+*.lprof
+
+# Sphinx documentation
+docs/_build/
+
+# mkdocs documentation
+/site
+
+# Celery
+celerybeat-schedule
+celerybeat.pid
