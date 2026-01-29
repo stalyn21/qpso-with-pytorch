@@ -18,14 +18,14 @@
 
 # Optimizadores a explorar
 # Opciones: "QPSO" "QDPSO" o ambos "QPSO QDPSO"
-OPTIMIZERS="QPSO"
+OPTIMIZERS="QDPSO"
 
 # Estrategias a explorar
 # Opciones: "forward" "weighted" "layerwise" o combinaciones
 STRATEGIES="forward weighted layerwise"
 
 # Numero de trials (configuraciones a probar)
-N_TRIALS=30
+N_TRIALS=100
 
 # =============================================================================
 # CONFIGURACION DE EXPLORACION
@@ -138,6 +138,68 @@ DATASET_PATH="./data/img/mcw"
 OUTPUT_DIR="./results/hyperparameter_search"
 
 # =============================================================================
+# CONFIGURACION DE RENDIMIENTO (FASE 1 MEJORAS)
+# =============================================================================
+
+# Paralelismo: -1 = auto (75% de cores), 1 = secuencial
+N_JOBS=-1
+
+# Dispositivo: auto, cuda, mps, cpu
+DEVICE="auto"
+
+# Persistencia SQLite (permite continuar búsquedas interrumpidas)
+# Dejar vacio para en memoria (no persistente)
+STORAGE_PATH="./results/hyperparameter_search/optuna_study.db"
+
+# Continuar estudio existente: true o false
+RESUME_STUDY=true
+
+# =============================================================================
+# FASE 2: ESPACIO DE BUSQUEDA AMPLIADO
+# =============================================================================
+
+# Activaciones a explorar (separadas por espacio)
+# Opciones: relu tanh sigmoid leaky_relu elu gelu
+ACTIVATIONS="relu tanh leaky_relu elu gelu"  # Default: solo tanh (fija)
+# ACTIVATIONS="relu tanh gelu"  # Ejemplo: optimizar entre varias
+
+# Dropout (min, max). Si min == max, se usa fijo
+DROPOUT_MIN=0.0
+DROPOUT_MAX=0.0  # Default: sin dropout
+# DROPOUT_MAX=0.5  # Ejemplo: optimizar entre 0 y 0.5
+
+# Batch normalization (separadas por espacio)
+# Opciones: true false
+BATCH_NORM="false"  # Default: sin batch norm
+# BATCH_NORM="true false"  # Ejemplo: optimizar
+
+# Boundary strategies para QPSO (separadas por espacio)
+# Opciones: clamp reflect wrap random
+BOUNDARY_STRATEGIES="clamp"  # Default: solo clamp (fija)
+# BOUNDARY_STRATEGIES="clamp reflect"  # Ejemplo: optimizar
+
+# Tolerancia para convergencia (min, max). Escala logaritmica
+TOL_MIN=1e-12
+TOL_MAX=1e-12  # Default: fija en 1e-12
+# TOL_MAX=1e-8  # Ejemplo: optimizar
+
+# =============================================================================
+# FASE 2: PRUNER Y CALLBACKS
+# =============================================================================
+
+# Tipo de pruner: median (conservador) o hyperband (agresivo)
+PRUNER="median"
+
+# Early stopping GLOBAL (detiene toda la búsqueda si no mejora)
+# 0 = desactivado (default), >0 = numero de trials sin mejora para detener
+EARLY_STOPPING_PATIENCE=0  # Default: desactivado
+# EARLY_STOPPING_PATIENCE=20  # Ejemplo: detener si 20 trials sin mejora
+
+# Frecuencia de checkpoints (cada N trials)
+# 0 = desactivado, >0 = guardar checkpoint cada N trials
+CHECKPOINT_FREQUENCY=10  # Default: cada 10 trials
+
+# =============================================================================
 # NO MODIFICAR DEBAJO DE ESTA LINEA
 # =============================================================================
 
@@ -221,6 +283,36 @@ print_config() {
     else
         echo -e "  ${GREEN}Timeout:${NC}          Sin limite"
     fi
+
+    print_section "Rendimiento (Fase 1 Mejoras)"
+    echo -e "  ${GREEN}Paralelismo:${NC}      ${N_JOBS} (auto = 75% cores)"
+    echo -e "  ${GREEN}Dispositivo:${NC}      ${DEVICE}"
+    if [ -n "$STORAGE_PATH" ]; then
+        echo -e "  ${GREEN}Storage SQLite:${NC}   ${STORAGE_PATH}"
+    else
+        echo -e "  ${GREEN}Storage SQLite:${NC}   En memoria (no persistente)"
+    fi
+    echo -e "  ${GREEN}Continuar estudio:${NC} ${RESUME_STUDY}"
+
+    print_section "Fase 2: Espacio Ampliado"
+    echo -e "  ${GREEN}Activaciones:${NC}     ${ACTIVATIONS}"
+    echo -e "  ${GREEN}Dropout:${NC}          [${DROPOUT_MIN}, ${DROPOUT_MAX}]"
+    echo -e "  ${GREEN}Batch Norm:${NC}       ${BATCH_NORM}"
+    echo -e "  ${GREEN}Boundary Strat:${NC}   ${BOUNDARY_STRATEGIES}"
+    echo -e "  ${GREEN}Tolerancia:${NC}       [${TOL_MIN}, ${TOL_MAX}]"
+
+    print_section "Fase 2: Pruner y Callbacks"
+    echo -e "  ${GREEN}Pruner:${NC}           ${PRUNER}"
+    if [ "$EARLY_STOPPING_PATIENCE" -eq 0 ]; then
+        echo -e "  ${GREEN}Early Stop Global:${NC} desactivado"
+    else
+        echo -e "  ${GREEN}Early Stop Global:${NC} ${EARLY_STOPPING_PATIENCE} trials"
+    fi
+    if [ "$CHECKPOINT_FREQUENCY" -eq 0 ]; then
+        echo -e "  ${GREEN}Checkpoint freq:${NC}  desactivado"
+    else
+        echo -e "  ${GREEN}Checkpoint freq:${NC}  cada ${CHECKPOINT_FREQUENCY} trials"
+    fi
     echo ""
 }
 
@@ -260,6 +352,20 @@ if [ "$FORCE_INITIAL_TRIALS" = false ]; then
     CMD="$CMD --no-ensure-combinations"
 fi
 
+# Rendimiento (Fase 1 Mejoras)
+CMD="$CMD --n-jobs $N_JOBS"
+CMD="$CMD --device $DEVICE"
+
+# Storage SQLite
+if [ -n "$STORAGE_PATH" ]; then
+    CMD="$CMD --storage $STORAGE_PATH"
+fi
+
+# Resume study
+if [ "$RESUME_STUDY" = false ]; then
+    CMD="$CMD --no-resume"
+fi
+
 # Espacio de busqueda - QPSO
 CMD="$CMD --alpha-start $ALPHA_START_MIN $ALPHA_START_MAX"
 CMD="$CMD --alpha-end $ALPHA_END_MIN $ALPHA_END_MAX"
@@ -287,6 +393,38 @@ CMD="$CMD --fine-tune-iters $FINE_TUNE_ITERS_MIN $FINE_TUNE_ITERS_MAX"
 # Espacio de busqueda - Otros
 CMD="$CMD --weight-bound $WEIGHT_BOUND_MIN $WEIGHT_BOUND_MAX"
 CMD="$CMD --patience $PATIENCE_MIN $PATIENCE_MAX"
+
+# =========================================================================
+# FASE 2: Espacio de busqueda ampliado
+# =========================================================================
+
+# Activaciones
+CMD="$CMD --activations $ACTIVATIONS"
+
+# Dropout
+CMD="$CMD --dropout $DROPOUT_MIN $DROPOUT_MAX"
+
+# Batch normalization
+CMD="$CMD --batch-norm $BATCH_NORM"
+
+# Boundary strategies
+CMD="$CMD --boundary-strategies $BOUNDARY_STRATEGIES"
+
+# Tolerancia
+CMD="$CMD --tol $TOL_MIN $TOL_MAX"
+
+# =========================================================================
+# FASE 2: Pruner y Callbacks
+# =========================================================================
+
+# Pruner
+CMD="$CMD --pruner $PRUNER"
+
+# Early stopping global
+CMD="$CMD --early-stopping-patience $EARLY_STOPPING_PATIENCE"
+
+# Checkpoint frequency
+CMD="$CMD --checkpoint-frequency $CHECKPOINT_FREQUENCY"
 
 # Mostrar comando
 echo -e "${YELLOW}Comando a ejecutar:${NC}"

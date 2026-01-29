@@ -130,6 +130,65 @@ DATASET_PATH = './data/img/mcw'
 OUTPUT_DIR = './results/hyperparameter_search'
 
 # =============================================================================
+# CONFIGURACION DE RENDIMIENTO (FASE 1 MEJORAS)
+# =============================================================================
+
+# Paralelismo: -1 = auto (75% de cores), 1 = secuencial
+N_JOBS = -1
+
+# Dispositivo: 'auto', 'cuda', 'mps', 'cpu'
+DEVICE = 'auto'
+
+# Persistencia SQLite (permite continuar búsquedas interrumpidas)
+# None = en memoria (no persistente), str = ruta al archivo .db
+STORAGE_PATH = './results/hyperparameter_search/optuna_study.db'
+
+# Continuar estudio existente si existe
+RESUME_STUDY = True
+
+# =============================================================================
+# FASE 2: ESPACIO DE BUSQUEDA AMPLIADO
+# =============================================================================
+
+# Activaciones a explorar (si solo 1, se usa fija; si varias, se optimiza)
+# Opciones: 'relu', 'tanh', 'sigmoid', 'leaky_relu', 'elu', 'gelu'
+ACTIVATIONS = ['tanh']  # Default: solo tanh (fija)
+# ACTIVATIONS = ['relu', 'tanh', 'gelu']  # Ejemplo: optimizar entre varias
+
+# Dropout (min, max). Si min == max, se usa fijo
+DROPOUT_RANGE = (0.0, 0.0)  # Default: sin dropout
+# DROPOUT_RANGE = (0.0, 0.5)  # Ejemplo: optimizar entre 0 y 0.5
+
+# Batch normalization (lista de opciones a explorar)
+USE_BATCH_NORM_OPTIONS = [False]  # Default: sin batch norm
+# USE_BATCH_NORM_OPTIONS = [True, False]  # Ejemplo: optimizar
+
+# Boundary strategies para QPSO
+# Opciones: 'clamp', 'reflect', 'wrap', 'random'
+BOUNDARY_STRATEGIES = ['clamp']  # Default: solo clamp (fija)
+# BOUNDARY_STRATEGIES = ['clamp', 'reflect']  # Ejemplo: optimizar
+
+# Tolerancia para convergencia (min, max). Escala logaritmica
+TOL_RANGE = (1e-12, 1e-12)  # Default: fija en 1e-12
+# TOL_RANGE = (1e-14, 1e-8)  # Ejemplo: optimizar
+
+# =============================================================================
+# FASE 2: PRUNER Y CALLBACKS
+# =============================================================================
+
+# Tipo de pruner: 'median' (conservador) o 'hyperband' (agresivo)
+PRUNER_TYPE = 'median'
+
+# Early stopping GLOBAL (detiene toda la búsqueda si no mejora)
+# 0 = desactivado (default), >0 = numero de trials sin mejora para detener
+EARLY_STOPPING_PATIENCE = 0  # Default: desactivado
+# EARLY_STOPPING_PATIENCE = 20  # Ejemplo: detener si 20 trials sin mejora
+
+# Frecuencia de checkpoints (cada N trials)
+# 0 = desactivado, >0 = guardar checkpoint cada N trials
+CHECKPOINT_FREQUENCY = 10  # Default: cada 10 trials
+
+# =============================================================================
 # NO MODIFICAR DEBAJO DE ESTA LINEA
 # =============================================================================
 
@@ -194,6 +253,24 @@ def print_config():
     print(f"  Dataset:          {DATASET_PATH}")
     print(f"  Salida:           {OUTPUT_DIR}")
     print(f"  Timeout:          {TIMEOUT if TIMEOUT else 'Sin limite'}")
+
+    print_section("Rendimiento (Fase 1 Mejoras)")
+    print(f"  Paralelismo:      {N_JOBS} {'(auto)' if N_JOBS == -1 else ''}")
+    print(f"  Dispositivo:      {DEVICE}")
+    print(f"  Storage SQLite:   {STORAGE_PATH if STORAGE_PATH else 'En memoria'}")
+    print(f"  Continuar estudio:{RESUME_STUDY}")
+
+    print_section("Fase 2: Espacio Ampliado")
+    print(f"  Activaciones:     {ACTIVATIONS}")
+    print(f"  Dropout:          {DROPOUT_RANGE}")
+    print(f"  Batch Norm:       {USE_BATCH_NORM_OPTIONS}")
+    print(f"  Boundary Strat:   {BOUNDARY_STRATEGIES}")
+    print(f"  Tolerancia:       {TOL_RANGE}")
+
+    print_section("Fase 2: Pruner y Callbacks")
+    print(f"  Pruner:           {PRUNER_TYPE}")
+    print(f"  Early Stop Global:{EARLY_STOPPING_PATIENCE} {'(desactivado)' if EARLY_STOPPING_PATIENCE == 0 else 'trials'}")
+    print(f"  Checkpoint freq:  {CHECKPOINT_FREQUENCY} {'(desactivado)' if CHECKPOINT_FREQUENCY == 0 else 'trials'}")
     print()
 
 
@@ -209,6 +286,12 @@ def create_config() -> SearchConfig:
         timeout=TIMEOUT,
         seed=SEED,
         ensure_all_combinations=FORCE_INITIAL_TRIALS,
+
+        # Rendimiento (Fase 1 Mejoras)
+        n_jobs=N_JOBS,
+        device=DEVICE,
+        storage_path=STORAGE_PATH,
+        resume_study=RESUME_STUDY,
 
         # Dataset y salida
         dataset_path=DATASET_PATH,
@@ -241,6 +324,18 @@ def create_config() -> SearchConfig:
         # Espacio de busqueda - Otros
         weight_bound=WEIGHT_BOUND,
         patience=PATIENCE,
+
+        # FASE 2: Espacio de busqueda ampliado
+        activations=ACTIVATIONS,
+        dropout_range=DROPOUT_RANGE,
+        use_batch_norm_options=USE_BATCH_NORM_OPTIONS,
+        boundary_strategies=BOUNDARY_STRATEGIES,
+        tol_range=TOL_RANGE,
+
+        # FASE 2: Pruner y Callbacks
+        pruner_type=PRUNER_TYPE,
+        early_stopping_patience=EARLY_STOPPING_PATIENCE,
+        checkpoint_frequency=CHECKPOINT_FREQUENCY,
     )
 
 

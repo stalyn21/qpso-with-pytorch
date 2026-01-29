@@ -55,6 +55,7 @@ class StrategyConfig:
     patience: int = 50
     tol: float = 1e-12
     seed: Optional[int] = None
+    boundary_strategy: str = 'clamp'  # Estrategia de límites: clamp, reflect, wrap, random
 
     # Parametros para weighted
     layer_decay: float = 0.8      # Decaimiento entre capas
@@ -242,7 +243,7 @@ class BaseTrainingStrategy:
             'device': str(self._device),
             'dtype': torch.float32,
             'seed': self.config.seed,
-            'boundary_strategy': 'clamp',
+            'boundary_strategy': self.config.boundary_strategy,
             'tol': self.config.tol,
             'patience': self.config.patience,
             'track_history': True,

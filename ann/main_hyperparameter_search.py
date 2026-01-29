@@ -34,6 +34,9 @@ import sys
 import os
 import json
 import warnings
+import logging
+import traceback as tb_module
+import threading
 from datetime import datetime
 from typing import Dict, List, Any, Optional, Tuple
 from dataclasses import dataclass, field, asdict
@@ -64,8 +67,106 @@ from data import load_mcw
 # Sklearn
 from sklearn.model_selection import StratifiedKFold
 
-# Suprimir warnings
-warnings.filterwarnings('ignore')
+# Suprimir warnings específicos (no todos)
+warnings.filterwarnings('ignore', category=UserWarning, module='optuna')
+warnings.filterwarnings('ignore', category=FutureWarning, module='torch')
+warnings.filterwarnings('ignore', message='.*overflow.*', category=RuntimeWarning)
+# Suprimir warnings de sklearn cuando no hay predicciones para alguna clase
+# (normal durante exploración inicial de QPSO)
+warnings.filterwarnings('ignore', message='.*Precision is ill-defined.*', category=UserWarning)
+warnings.filterwarnings('ignore', message='.*UndefinedMetricWarning.*', category=UserWarning)
+
+# =============================================================================
+# CONFIGURACION DE LOGGING
+# =============================================================================
+
+def setup_logging(output_dir: str, verbose: bool = True) -> logging.Logger:
+    """
+    Configura el sistema de logging para HPO.
+
+    Args:
+        output_dir: Directorio donde guardar los logs
+        verbose: Si True, también muestra logs en consola
+
+    Returns:
+        Logger configurado
+    """
+    os.makedirs(output_dir, exist_ok=True)
+
+    logger = logging.getLogger('hpo')
+    logger.setLevel(logging.DEBUG)
+
+    # Limpiar handlers previos
+    logger.handlers.clear()
+
+    # Handler para archivo (todos los niveles)
+    file_handler = logging.FileHandler(
+        os.path.join(output_dir, 'hpo_search.log'),
+        mode='a',
+        encoding='utf-8'
+    )
+    file_handler.setLevel(logging.DEBUG)
+    file_handler.setFormatter(logging.Formatter(
+        '%(asctime)s - %(levelname)s - %(message)s',
+        datefmt='%Y-%m-%d %H:%M:%S'
+    ))
+    logger.addHandler(file_handler)
+
+    # Handler para consola (solo warnings y errores)
+    if verbose:
+        console_handler = logging.StreamHandler()
+        console_handler.setLevel(logging.WARNING)
+        console_handler.setFormatter(logging.Formatter('%(levelname)s: %(message)s'))
+        logger.addHandler(console_handler)
+
+    return logger
+
+# Logger global (se inicializa en main)
+logger: Optional[logging.Logger] = None
+
+
+# =============================================================================
+# DETECCION DE DISPOSITIVO (GPU/MPS/CPU)
+# =============================================================================
+
+def get_optimal_device() -> str:
+    """
+    Detecta el mejor dispositivo disponible para computación.
+
+    Orden de preferencia: CUDA > MPS (Apple Silicon) > CPU
+
+    Returns:
+        String con el dispositivo: 'cuda', 'mps', o 'cpu'
+    """
+    if torch.cuda.is_available():
+        return 'cuda'
+    elif hasattr(torch.backends, 'mps') and torch.backends.mps.is_available():
+        # Verificar que MPS realmente funcione
+        try:
+            torch.zeros(1).to('mps')
+            return 'mps'
+        except Exception:
+            pass
+    return 'cpu'
+
+
+def get_device_info(device: str) -> str:
+    """
+    Obtiene información detallada del dispositivo.
+
+    Args:
+        device: Dispositivo ('cuda', 'mps', 'cpu')
+
+    Returns:
+        String con información del dispositivo
+    """
+    if device == 'cuda':
+        return f"CUDA - {torch.cuda.get_device_name(0)}"
+    elif device == 'mps':
+        return "MPS - Apple Silicon"
+    else:
+        import platform
+        return f"CPU - {platform.processor() or 'Unknown'}"
 
 
 # =============================================================================
@@ -78,6 +179,9 @@ warnings.filterwarnings('ignore')
 
 AVAILABLE_OPTIMIZERS = ['QPSO', 'QDPSO']
 AVAILABLE_STRATEGIES = ['forward', 'weighted', 'layerwise']
+AVAILABLE_ACTIVATIONS = ['relu', 'tanh', 'sigmoid', 'leaky_relu', 'elu', 'gelu']
+AVAILABLE_BOUNDARY_STRATEGIES = ['clamp', 'reflect', 'wrap', 'random']
+AVAILABLE_PRUNERS = ['median', 'hyperband']
 
 # Parametros por defecto para trials iniciales
 DEFAULT_OPTIMIZER_PARAMS = {
@@ -109,16 +213,23 @@ class SearchConfig:
     study_name: str = 'qpso_mcw_optimization'
     n_trials: int = 30               # Numero de configuraciones a probar
     timeout: Optional[int] = None    # Tiempo maximo en segundos (None = sin limite)
-    n_jobs: int = 1                  # Paralelismo (-1 = todos los cores)
+    n_jobs: int = -1                 # Paralelismo (-1 = auto-detectar cores, 1 = secuencial)
     ensure_all_combinations: bool = True  # Garantizar exploracion de todas las combinaciones
 
+    # Persistencia del estudio (SQLite)
+    storage_path: Optional[str] = None  # None = en memoria, str = ruta a SQLite
+    resume_study: bool = True        # Si True, continua estudio existente
+
+    # Dispositivo
+    device: str = 'auto'             # 'auto', 'cuda', 'mps', 'cpu'
+
     # Validacion
-    n_folds: int = 3                 # Folds para cross-validation
+    n_folds: int = 4                 # Folds para cross-validation
     val_size: float = 0.15           # Tamaño de validacion
     test_size: float = 0.15          # Tamaño de test (holdout final)
 
     # Reproducibilidad
-    seed: int = 42
+    seed: int = 21
 
     # Salida
     output_dir: str = './results/hyperparameter_search'
@@ -156,19 +267,223 @@ class SearchConfig:
     weight_bound: Tuple[float, float] = (0.5, 2.0)
     patience: Tuple[int, int] = (20, 60)
 
+    # =========================================================================
+    # FASE 2: ESPACIO DE BUSQUEDA AMPLIADO
+    # =========================================================================
+
+    # Activaciones a explorar (si solo 1, se usa fija; si varias, se optimiza)
+    activations: List[str] = field(default_factory=lambda: ['tanh'])
+
+    # Dropout (0.0 = sin dropout)
+    dropout_range: Tuple[float, float] = (0.0, 0.0)  # Default: sin dropout
+
+    # Batch normalization
+    use_batch_norm_options: List[bool] = field(default_factory=lambda: [False])
+
+    # Boundary strategies para QPSO
+    boundary_strategies: List[str] = field(default_factory=lambda: ['clamp'])
+
+    # Tolerancia para convergencia (escala log)
+    tol_range: Tuple[float, float] = (1e-12, 1e-12)  # Default: fijo en 1e-12
+
+    # =========================================================================
+    # FASE 2: PRUNER Y CALLBACKS
+    # =========================================================================
+
+    # Tipo de pruner: 'median' (conservador) o 'hyperband' (agresivo)
+    pruner_type: str = 'median'
+
+    # Early stopping GLOBAL (detiene toda la búsqueda si no mejora)
+    # Desactivado por defecto (0 = desactivado)
+    early_stopping_patience: int = 0  # 0 = desactivado, >0 = trials sin mejora
+
+    # Frecuencia de checkpoints (cada N trials)
+    checkpoint_frequency: int = 10  # 0 = desactivado
+
     @property
     def n_combinations(self) -> int:
         """Numero total de combinaciones optimizer x strategy."""
         return len(self.optimizers) * len(self.strategies)
 
     def validate(self):
-        """Valida que los optimizadores y estrategias sean validos."""
+        """Valida la configuración completa."""
+        # Validar optimizadores
         for opt in self.optimizers:
             if opt not in AVAILABLE_OPTIMIZERS:
                 raise ValueError(f"Optimizador invalido: {opt}. Opciones: {AVAILABLE_OPTIMIZERS}")
+
+        # Validar estrategias
         for strat in self.strategies:
             if strat not in AVAILABLE_STRATEGIES:
                 raise ValueError(f"Estrategia invalida: {strat}. Opciones: {AVAILABLE_STRATEGIES}")
+
+        # Validar activaciones (Fase 2)
+        for act in self.activations:
+            if act not in AVAILABLE_ACTIVATIONS:
+                raise ValueError(f"Activacion invalida: {act}. Opciones: {AVAILABLE_ACTIVATIONS}")
+
+        # Validar boundary strategies (Fase 2)
+        for bs in self.boundary_strategies:
+            if bs not in AVAILABLE_BOUNDARY_STRATEGIES:
+                raise ValueError(f"Boundary strategy invalida: {bs}. Opciones: {AVAILABLE_BOUNDARY_STRATEGIES}")
+
+        # Validar pruner (Fase 2)
+        if self.pruner_type not in AVAILABLE_PRUNERS:
+            raise ValueError(f"Pruner invalido: {self.pruner_type}. Opciones: {AVAILABLE_PRUNERS}")
+
+        # Validar rangos (min < max)
+        range_params = [
+            ('alpha_start', self.alpha_start),
+            ('alpha_end', self.alpha_end),
+            ('g_range', self.g_range),
+            ('n_particles', self.n_particles),
+            ('max_iters', self.max_iters),
+            ('n_hidden_layers', self.n_hidden_layers),
+            ('neurons_multiplier', self.neurons_multiplier),
+            ('neuron_decay', self.neuron_decay),
+            ('layer_decay', self.layer_decay),
+            ('regularization', self.regularization),
+            ('iters_per_layer', self.iters_per_layer),
+            ('fine_tune_iters', self.fine_tune_iters),
+            ('weight_bound', self.weight_bound),
+            ('patience', self.patience),
+            ('dropout_range', self.dropout_range),
+            ('tol_range', self.tol_range),
+        ]
+
+        for name, (min_val, max_val) in range_params:
+            if min_val > max_val:
+                raise ValueError(f"Rango invalido para {name}: min ({min_val}) > max ({max_val})")
+
+        # Validar restricción alpha_start > alpha_end (Fase 2)
+        # El mínimo de alpha_start debe ser >= mínimo de alpha_end
+        if self.alpha_start[0] < self.alpha_end[0]:
+            if logger:
+                logger.warning(
+                    f"Advertencia: alpha_start min ({self.alpha_start[0]}) < alpha_end min ({self.alpha_end[0]}). "
+                    "Esto puede generar configuraciones donde alpha aumenta."
+                )
+
+        # Validar valores positivos
+        if self.n_trials < 1:
+            raise ValueError("n_trials debe ser >= 1")
+        if self.n_folds < 2:
+            raise ValueError("n_folds debe ser >= 2")
+        if self.early_stopping_patience < 0:
+            raise ValueError("early_stopping_patience debe ser >= 0")
+        if self.checkpoint_frequency < 0:
+            raise ValueError("checkpoint_frequency debe ser >= 0")
+
+
+# =============================================================================
+# CALLBACKS DE OPTUNA (FASE 2)
+# =============================================================================
+
+class CheckpointCallback:
+    """
+    Callback para guardar checkpoints periodicos durante la busqueda.
+
+    Guarda el estado actual del estudio cada N trials completados.
+    """
+
+    def __init__(self, output_dir: str, frequency: int = 10):
+        """
+        Args:
+            output_dir: Directorio donde guardar checkpoints
+            frequency: Frecuencia de checkpoints (cada N trials). 0 = desactivado.
+        """
+        self.output_dir = output_dir
+        self.frequency = frequency
+        self._last_checkpoint = 0
+
+    def __call__(self, study: 'optuna.Study', trial: 'optuna.Trial') -> None:
+        if self.frequency <= 0:
+            return
+
+        n_complete = len([t for t in study.trials
+                         if t.state == optuna.trial.TrialState.COMPLETE])
+
+        if n_complete > 0 and n_complete % self.frequency == 0 and n_complete != self._last_checkpoint:
+            self._last_checkpoint = n_complete
+            checkpoint_path = os.path.join(
+                self.output_dir,
+                f'checkpoint_trial_{n_complete}.json'
+            )
+            try:
+                checkpoint_data = {
+                    'n_trials_complete': n_complete,
+                    'best_value': study.best_value if study.best_trial else None,
+                    'best_params': study.best_params if study.best_trial else None,
+                    'best_trial_number': study.best_trial.number if study.best_trial else None,
+                    'timestamp': datetime.now().isoformat()
+                }
+                with open(checkpoint_path, 'w') as f:
+                    json.dump(checkpoint_data, f, indent=2)
+                if logger:
+                    logger.info(f"Checkpoint guardado: {checkpoint_path}")
+            except Exception as e:
+                if logger:
+                    logger.warning(f"Error guardando checkpoint: {e}")
+
+
+class EarlyStoppingCallback:
+    """
+    Callback para detener la busqueda si no hay mejora en N trials.
+
+    IMPORTANTE: Desactivado por defecto (patience=0).
+    Solo se activa si patience > 0.
+    """
+
+    def __init__(self, patience: int = 0, min_delta: float = 0.0001):
+        """
+        Args:
+            patience: Numero de trials sin mejora antes de detener. 0 = desactivado.
+            min_delta: Mejora minima para considerar que hubo progreso.
+        """
+        self.patience = patience
+        self.min_delta = min_delta
+        self.best_value: Optional[float] = None
+        self.trials_without_improvement = 0
+        self._enabled = patience > 0
+
+    def __call__(self, study: 'optuna.Study', trial: 'optuna.Trial') -> None:
+        if not self._enabled:
+            return
+
+        if trial.state != optuna.trial.TrialState.COMPLETE:
+            return
+
+        if trial.value is None:
+            return
+
+        current_value = trial.value
+
+        if self.best_value is None:
+            self.best_value = current_value
+            self.trials_without_improvement = 0
+            return
+
+        # Verificar si hubo mejora (asumiendo maximización)
+        if current_value > self.best_value + self.min_delta:
+            self.best_value = current_value
+            self.trials_without_improvement = 0
+            if logger:
+                logger.info(f"Nueva mejor configuración encontrada: {current_value:.6f}")
+        else:
+            self.trials_without_improvement += 1
+            if logger:
+                logger.debug(f"Sin mejora: {self.trials_without_improvement}/{self.patience}")
+
+        # Detener si se alcanzó la paciencia
+        if self.trials_without_improvement >= self.patience:
+            if logger:
+                logger.warning(
+                    f"Early stopping GLOBAL activado: {self.patience} trials sin mejora. "
+                    f"Mejor valor: {self.best_value:.6f}"
+                )
+            print(f"\n[Early Stopping] Deteniendo búsqueda: {self.patience} trials sin mejora")
+            print(f"  Mejor valor alcanzado: {self.best_value:.6f}")
+            study.stop()
 
 
 def enqueue_initial_trials(study: 'optuna.Study', config: SearchConfig):
@@ -261,6 +576,25 @@ def build_search_space(config: SearchConfig) -> Dict[str, Any]:
         # Otros
         'weight_bound': config.weight_bound,
         'patience': config.patience,
+
+        # =====================================================================
+        # FASE 2: Espacio de busqueda ampliado
+        # =====================================================================
+
+        # Activaciones (si solo 1, se usa fija; si varias, se optimiza)
+        'activations': config.activations,
+
+        # Dropout
+        'dropout': config.dropout_range,
+
+        # Batch normalization
+        'use_batch_norm': config.use_batch_norm_options,
+
+        # Boundary strategy para QPSO
+        'boundary_strategy': config.boundary_strategies,
+
+        # Tolerancia (si min == max, se usa fija)
+        'tol': config.tol_range,
     }
 
 
@@ -318,6 +652,7 @@ class ObjectiveFunction:
     Funcion objetivo para Optuna.
 
     Encapsula la logica de evaluacion de una configuracion de hiperparametros.
+    Soporta ejecución paralela thread-safe.
     """
 
     def __init__(self, data, config: SearchConfig, search_space: Dict[str, Any]):
@@ -334,13 +669,26 @@ class ObjectiveFunction:
         self.search_space = search_space
         self.input_dim = data.n_features
         self.output_dim = data.n_classes
-        self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
+
+        # Detectar dispositivo óptimo
+        if config.device == 'auto':
+            self.device = get_optimal_device()
+        else:
+            self.device = config.device
+
+        # Lock para acceso thread-safe a GPU (necesario para n_jobs > 1)
+        # MPS y CUDA no son thread-safe por defecto
+        self._device_lock = threading.Lock() if self.device in ('cuda', 'mps') else None
 
         # Preparar datos
         self.X = np.vstack([data.X_train, data.X_val])
         self.y = np.concatenate([data.y_train, data.y_val])
         self.X_test = data.X_test
         self.y_test = data.y_test
+
+        # Pre-convertir a tensores para eficiencia
+        self.X_tensor = torch.tensor(self.X, dtype=torch.float32)
+        self.y_tensor = torch.tensor(self.y, dtype=torch.long)
 
     def __call__(self, trial: Trial) -> float:
         """
@@ -409,6 +757,42 @@ class ObjectiveFunction:
         patience = trial.suggest_int('patience', *ss['patience'])
 
         # =====================================================================
+        # FASE 2: Parametros ampliados
+        # =====================================================================
+
+        # Activacion (si solo hay una opcion, usar fija)
+        if len(ss['activations']) == 1:
+            activation = ss['activations'][0]
+        else:
+            activation = trial.suggest_categorical('activation', ss['activations'])
+
+        # Dropout (si min == max, usar fijo)
+        dropout_min, dropout_max = ss['dropout']
+        if dropout_min == dropout_max:
+            dropout = dropout_min
+        else:
+            dropout = trial.suggest_float('dropout', dropout_min, dropout_max)
+
+        # Batch normalization (si solo hay una opcion, usar fija)
+        if len(ss['use_batch_norm']) == 1:
+            use_batch_norm = ss['use_batch_norm'][0]
+        else:
+            use_batch_norm = trial.suggest_categorical('use_batch_norm', ss['use_batch_norm'])
+
+        # Boundary strategy (si solo hay una opcion, usar fija)
+        if len(ss['boundary_strategy']) == 1:
+            boundary_strategy = ss['boundary_strategy'][0]
+        else:
+            boundary_strategy = trial.suggest_categorical('boundary_strategy', ss['boundary_strategy'])
+
+        # Tolerancia (si min == max, usar fija; sino usar escala log)
+        tol_min, tol_max = ss['tol']
+        if tol_min == tol_max:
+            tol = tol_min
+        else:
+            tol = trial.suggest_float('tol', tol_min, tol_max, log=True)
+
+        # =====================================================================
         # 2. Cross-validation
         # =====================================================================
 
@@ -421,28 +805,25 @@ class ObjectiveFunction:
         fold_scores = []
 
         for fold_idx, (train_idx, val_idx) in enumerate(kfold.split(self.X, self.y)):
-            # Dividir datos
-            X_train_fold = self.X[train_idx]
-            y_train_fold = self.y[train_idx]
-            X_val_fold = self.X[val_idx]
-            y_val_fold = self.y[val_idx]
+            # Dividir datos usando tensores pre-convertidos (más eficiente)
+            X_train_t = self.X_tensor[train_idx]
+            y_train_t = self.y_tensor[train_idx]
+            X_val_t = self.X_tensor[val_idx]
+            y_val_t = self.y_tensor[val_idx]
+            y_val_fold = self.y[val_idx]  # NumPy para métricas
 
-            # Convertir a tensores
-            X_train_t = torch.tensor(X_train_fold, dtype=torch.float32)
-            y_train_t = torch.tensor(y_train_fold, dtype=torch.long)
-            X_val_t = torch.tensor(X_val_fold, dtype=torch.float32)
-            y_val_t = torch.tensor(y_val_fold, dtype=torch.long)
-
-            # Crear modelo
+            # Crear modelo (Fase 2: con activation, dropout, batch_norm)
             model = QPSOCompatibleANN(
                 input_dim=self.input_dim,
                 output_dim=self.output_dim,
                 hidden_layers=hidden_layers,
-                activation='tanh',
-                output_activation='softmax'
+                activation=activation,
+                output_activation='softmax',
+                dropout=dropout,
+                use_batch_norm=use_batch_norm
             )
 
-            # Configurar estrategia
+            # Configurar estrategia (Fase 2: con boundary_strategy y tol)
             strategy_config = StrategyConfig(
                 n_particles=n_particles,
                 max_iters=max_iters,
@@ -451,6 +832,8 @@ class ObjectiveFunction:
                 weight_bound=weight_bound,
                 patience=patience,
                 seed=self.config.seed + fold_idx,
+                boundary_strategy=boundary_strategy,
+                tol=tol,
                 **strategy_params
             )
 
@@ -467,17 +850,56 @@ class ObjectiveFunction:
             strategy.set_data(X_train_t, y_train_t, X_val_t, y_val_t)
 
             try:
-                result = strategy.train(verbose=False)
+                # Usar lock si hay GPU para thread-safety
+                if self._device_lock:
+                    with self._device_lock:
+                        result = strategy.train(verbose=False)
+                else:
+                    result = strategy.train(verbose=False)
+
             except Exception as e:
-                # Si falla el entrenamiento, retornar score bajo
+                # Logging detallado del error
+                error_msg = f"Trial {trial.number}, Fold {fold_idx} falló: {str(e)}"
+                error_tb = tb_module.format_exc()
+
+                if logger:
+                    logger.error(error_msg)
+                    logger.debug(f"Traceback:\n{error_tb}")
+
+                # Guardar error en el trial para análisis posterior
+                trial.set_user_attr('error', str(e))
+                trial.set_user_attr('error_traceback', error_tb)
+                trial.set_user_attr('error_fold', fold_idx)
+                trial.set_user_attr('failed_config', {
+                    'optimizer': optimizer_name,
+                    'strategy': strategy_name,
+                    'n_particles': n_particles,
+                    'hidden_layers': hidden_layers
+                })
+
+                # Retornar score bajo
                 return 0.0
 
-            # Evaluar en validacion
-            with torch.no_grad():
-                model.to(self.device)
-                X_val_t = X_val_t.to(self.device)
-                output = model(X_val_t)
-                preds = output.argmax(dim=1).cpu().numpy()
+            # Evaluar en validacion (con lock si hay GPU)
+            try:
+                if self._device_lock:
+                    with self._device_lock:
+                        with torch.no_grad():
+                            model.to(self.device)
+                            X_val_device = X_val_t.to(self.device)
+                            output = model(X_val_device)
+                            preds = output.argmax(dim=1).cpu().numpy()
+                else:
+                    with torch.no_grad():
+                        model.to(self.device)
+                        X_val_device = X_val_t.to(self.device)
+                        output = model(X_val_device)
+                        preds = output.argmax(dim=1).cpu().numpy()
+
+            except Exception as e:
+                if logger:
+                    logger.error(f"Trial {trial.number}, Fold {fold_idx} - Error en evaluación: {e}")
+                return 0.0
 
             # Calcular F1-score
             metrics_calc = MulticlassMetrics()
@@ -490,6 +912,10 @@ class ObjectiveFunction:
             # Verificar si debe detenerse
             if trial.should_prune():
                 raise optuna.TrialPruned()
+
+        # Guardar métricas del trial exitoso
+        trial.set_user_attr('fold_scores', fold_scores)
+        trial.set_user_attr('std_f1', float(np.std(fold_scores)))
 
         # Retornar promedio de folds
         return np.mean(fold_scores)
@@ -517,7 +943,12 @@ def evaluate_best_config(
     """
     print_header("EVALUACION FINAL - MEJOR CONFIGURACION")
 
-    device = 'cuda' if torch.cuda.is_available() else 'cpu'
+    # Usar dispositivo configurado
+    if config.device == 'auto':
+        device = get_optimal_device()
+    else:
+        device = config.device
+
     input_dim = data.n_features
     output_dim = data.n_classes
 
@@ -650,7 +1081,7 @@ def evaluate_best_config(
 
 def analyze_results_by_category(study: 'optuna.Study', config: SearchConfig) -> Dict[str, Any]:
     """
-    Analiza los resultados agrupados por optimizador, estrategia y combinacion.
+    Analiza los resultados agrupados por optimizador, estrategia, activacion y combinacion.
 
     Args:
         study: Estudio completado de Optuna
@@ -660,6 +1091,8 @@ def analyze_results_by_category(study: 'optuna.Study', config: SearchConfig) -> 
         Diccionario con analisis por categoria:
         - by_optimizer: Mejor trial por cada optimizador
         - by_strategy: Mejor trial por cada estrategia
+        - by_activation: Mejor trial por cada funcion de activacion
+        - by_activation_strategy: Mejor trial por cada combinacion activation x strategy
         - by_combination: Mejor trial por cada combinacion optimizer x strategy
         - ranking: Lista ordenada de combinaciones de mejor a peor
     """
@@ -673,6 +1106,8 @@ def analyze_results_by_category(study: 'optuna.Study', config: SearchConfig) -> 
         return {
             'by_optimizer': {},
             'by_strategy': {},
+            'by_activation': {},
+            'by_activation_strategy': {},
             'by_combination': {},
             'ranking': []
         }
@@ -705,6 +1140,44 @@ def analyze_results_by_category(study: 'optuna.Study', config: SearchConfig) -> 
                 'n_trials': len(trials_strat)
             }
 
+    # Agrupar por funcion de activacion (Fase 2)
+    by_activation = {}
+    # Obtener todas las activaciones usadas en los trials
+    activations_used = set(t.params.get('activation', 'tanh') for t in completed_trials)
+    for activation in activations_used:
+        trials_act = [t for t in completed_trials if t.params.get('activation', 'tanh') == activation]
+        if trials_act:
+            best = max(trials_act, key=lambda t: t.value)
+            by_activation[activation] = {
+                'trial_number': best.number,
+                'f1_score_cv': best.value,
+                'params': best.params,
+                'strategy': best.params.get('strategy'),
+                'optimizer': best.params.get('optimizer'),
+                'n_trials': len(trials_act)
+            }
+
+    # Agrupar por combinacion (activation x strategy) - Para referencia futura
+    by_activation_strategy = {}
+    for activation in activations_used:
+        for strategy in config.strategies:
+            combo_key = f"{activation}_{strategy}"
+            trials_combo = [
+                t for t in completed_trials
+                if t.params.get('activation', 'tanh') == activation and t.params.get('strategy') == strategy
+            ]
+            if trials_combo:
+                best = max(trials_combo, key=lambda t: t.value)
+                by_activation_strategy[combo_key] = {
+                    'activation': activation,
+                    'strategy': strategy,
+                    'trial_number': best.number,
+                    'f1_score_cv': best.value,
+                    'params': best.params,
+                    'optimizer': best.params.get('optimizer'),
+                    'n_trials': len(trials_combo)
+                }
+
     # Agrupar por combinacion (optimizer x strategy)
     by_combination = {}
     for optimizer in config.optimizers:
@@ -735,6 +1208,8 @@ def analyze_results_by_category(study: 'optuna.Study', config: SearchConfig) -> 
     return {
         'by_optimizer': by_optimizer,
         'by_strategy': by_strategy,
+        'by_activation': by_activation,
+        'by_activation_strategy': by_activation_strategy,
         'by_combination': by_combination,
         'ranking': ranking
     }
@@ -918,7 +1393,54 @@ def print_category_analysis(analysis: Dict[str, Any], config: SearchConfig):
               f"#{strat_data['trial_number']:>5} {strat_data['optimizer']:<12} "
               f"{strat_data['n_trials']:>7}")
 
-    # 3. Mejor por Combinacion
+    # 3. Mejor por Funcion de Activacion (Fase 2 - para referencia futura)
+    if analysis.get('by_activation'):
+        print("\n" + "-" * 75)
+        print(" MEJOR CONFIGURACION POR FUNCION DE ACTIVACION")
+        print("-" * 75)
+        print(f"{'Activacion':<12} {'F1-CV':>8} {'Trial':>7} {'Estrategia':<12} {'Trials':>7}")
+        print("-" * 75)
+
+        # Ordenar por F1-score descendente
+        sorted_activations = sorted(
+            analysis['by_activation'].items(),
+            key=lambda x: x[1]['f1_score_cv'],
+            reverse=True
+        )
+
+        for act_name, act_data in sorted_activations:
+            print(f"{act_name:<12} {act_data['f1_score_cv']:>8.4f} "
+                  f"#{act_data['trial_number']:>5} {act_data['strategy']:<12} "
+                  f"{act_data['n_trials']:>7}")
+
+    # 4. Mejor por Combinacion Activacion x Estrategia (para referencia futura)
+    if analysis.get('by_activation_strategy'):
+        print("\n" + "-" * 80)
+        print(" MEJOR CONFIGURACION POR ACTIVACION x ESTRATEGIA (Referencia Futura)")
+        print("-" * 80)
+        print(f"{'Rank':<5} {'Activacion':<12} {'Estrategia':<12} {'F1-CV':>8} {'Trial':>7} {'Trials':>7}")
+        print("-" * 80)
+
+        # Ordenar por F1-score descendente
+        sorted_act_strat = sorted(
+            analysis['by_activation_strategy'].values(),
+            key=lambda x: x['f1_score_cv'],
+            reverse=True
+        )
+
+        for rank, combo in enumerate(sorted_act_strat, 1):
+            print(f"{rank:<5} {combo['activation']:<12} {combo['strategy']:<12} "
+                  f"{combo['f1_score_cv']:>8.4f} #{combo['trial_number']:>5} "
+                  f"{combo['n_trials']:>7}")
+
+        # Destacar la mejor combinacion
+        if sorted_act_strat:
+            best = sorted_act_strat[0]
+            print("-" * 80)
+            print(f" MEJOR: {best['activation'].upper()} + {best['strategy'].upper()} "
+                  f"(F1-CV: {best['f1_score_cv']:.4f})")
+
+    # 5. Mejor por Combinacion Optimizer x Strategy
     print("\n" + "-" * 75)
     print(" MEJOR CONFIGURACION POR COMBINACION (Optimizer x Strategy)")
     print("-" * 75)
@@ -984,7 +1506,12 @@ def evaluate_single_config(
     Returns:
         Diccionario con resultados de evaluacion
     """
-    device = 'cuda' if torch.cuda.is_available() else 'cpu'
+    # Usar dispositivo configurado
+    if config.device == 'auto':
+        device = get_optimal_device()
+    else:
+        device = config.device
+
     input_dim = data.n_features
     output_dim = data.n_classes
 
@@ -1238,6 +1765,9 @@ def print_single_combination_details(rank: int, result: Dict[str, Any], is_winne
     print(f"  Max Iteraciones: {params['max_iters']}")
     print(f"  Weight Bound: {params['weight_bound']:.3f}")
     print(f"  Patience: {params['patience']}")
+    # Fase 2: Mostrar funcion de activacion
+    activation = params.get('activation', 'tanh')
+    print(f"  Activacion: {activation}")
 
     if result['optimizer'] == 'QPSO':
         print(f"  Alpha: ({params['alpha_start']:.4f}, {params['alpha_end']:.4f})")
@@ -1774,6 +2304,36 @@ Ejemplos de uso:
         help='Desactiva la garantia de explorar todas las combinaciones iniciales'
     )
 
+    parser.add_argument(
+        '--n-jobs', '-j',
+        type=int,
+        default=-1,
+        help='Numero de workers paralelos. -1=auto (75%% de cores), 1=secuencial. Default: -1'
+    )
+
+    # Persistencia
+    parser.add_argument(
+        '--storage',
+        type=str,
+        default=None,
+        help='Ruta a base de datos SQLite para persistir estudio. Ej: ./study.db. Default: en memoria'
+    )
+
+    parser.add_argument(
+        '--no-resume',
+        action='store_true',
+        help='No continuar estudio existente, crear uno nuevo'
+    )
+
+    # Dispositivo
+    parser.add_argument(
+        '--device',
+        type=str,
+        choices=['auto', 'cuda', 'mps', 'cpu'],
+        default='auto',
+        help='Dispositivo para computacion. Default: auto (detecta CUDA/MPS/CPU)'
+    )
+
     # Dataset
     parser.add_argument(
         '--dataset-path',
@@ -1929,6 +2489,85 @@ Ejemplos de uso:
         help='Rango de paciencia (early stopping). Default: 20 60'
     )
 
+    # =========================================================================
+    # FASE 2: ESPACIO DE BUSQUEDA AMPLIADO
+    # =========================================================================
+
+    phase2_group = parser.add_argument_group('Fase 2: Espacio Ampliado')
+
+    phase2_group.add_argument(
+        '--activations',
+        type=str,
+        nargs='+',
+        default=['tanh'],
+        choices=['relu', 'tanh', 'sigmoid', 'leaky_relu', 'elu', 'gelu'],
+        help='Activaciones a explorar. Default: tanh (fija). Ej: --activations relu tanh gelu'
+    )
+
+    phase2_group.add_argument(
+        '--dropout',
+        type=float,
+        nargs=2,
+        metavar=('MIN', 'MAX'),
+        default=[0.0, 0.0],
+        help='Rango de dropout. Default: 0.0 0.0 (sin dropout). Ej: --dropout 0.0 0.5'
+    )
+
+    phase2_group.add_argument(
+        '--batch-norm',
+        type=str,
+        nargs='+',
+        default=['false'],
+        choices=['true', 'false'],
+        help='Opciones de batch normalization. Default: false. Ej: --batch-norm true false'
+    )
+
+    phase2_group.add_argument(
+        '--boundary-strategies',
+        type=str,
+        nargs='+',
+        default=['clamp'],
+        choices=['clamp', 'reflect', 'wrap', 'random'],
+        help='Estrategias de limites para QPSO. Default: clamp. Ej: --boundary-strategies clamp reflect'
+    )
+
+    phase2_group.add_argument(
+        '--tol',
+        type=float,
+        nargs=2,
+        metavar=('MIN', 'MAX'),
+        default=[1e-12, 1e-12],
+        help='Rango de tolerancia (escala log). Default: 1e-12 1e-12 (fija). Ej: --tol 1e-14 1e-8'
+    )
+
+    # =========================================================================
+    # FASE 2: PRUNER Y CALLBACKS
+    # =========================================================================
+
+    callbacks_group = parser.add_argument_group('Fase 2: Pruner y Callbacks')
+
+    callbacks_group.add_argument(
+        '--pruner',
+        type=str,
+        choices=['median', 'hyperband'],
+        default='median',
+        help='Tipo de pruner. median=conservador, hyperband=agresivo. Default: median'
+    )
+
+    callbacks_group.add_argument(
+        '--early-stopping-patience',
+        type=int,
+        default=0,
+        help='Trials sin mejora para detener busqueda (0=desactivado). Default: 0'
+    )
+
+    callbacks_group.add_argument(
+        '--checkpoint-frequency',
+        type=int,
+        default=10,
+        help='Guardar checkpoint cada N trials (0=desactivado). Default: 10'
+    )
+
     return parser.parse_args()
 
 
@@ -1942,6 +2581,12 @@ def create_config_from_args(args: argparse.Namespace) -> SearchConfig:
     Returns:
         SearchConfig configurado
     """
+    # Determinar ruta de storage (SQLite)
+    storage_path = args.storage
+    if storage_path is None:
+        # Por defecto, crear archivo SQLite en el directorio de salida
+        storage_path = os.path.join(args.output_dir, 'optuna_study.db')
+
     config = SearchConfig(
         # Optimizadores y estrategias
         optimizers=args.optimizer,
@@ -1952,6 +2597,14 @@ def create_config_from_args(args: argparse.Namespace) -> SearchConfig:
         timeout=args.timeout,
         seed=args.seed,
         ensure_all_combinations=not args.no_ensure_combinations,
+        n_jobs=args.n_jobs,
+
+        # Persistencia
+        storage_path=storage_path,
+        resume_study=not args.no_resume,
+
+        # Dispositivo
+        device=args.device,
 
         # Dataset y salida
         dataset_path=args.dataset_path,
@@ -1984,6 +2637,20 @@ def create_config_from_args(args: argparse.Namespace) -> SearchConfig:
         # Espacio de busqueda - Otros
         weight_bound=tuple(args.weight_bound),
         patience=tuple(args.patience),
+
+        # =====================================================================
+        # FASE 2: Espacio de busqueda ampliado
+        # =====================================================================
+        activations=args.activations,
+        dropout_range=tuple(args.dropout),
+        use_batch_norm_options=[s.lower() == 'true' for s in args.batch_norm],
+        boundary_strategies=args.boundary_strategies,
+        tol_range=tuple(args.tol),
+
+        # FASE 2: Pruner y Callbacks
+        pruner_type=args.pruner,
+        early_stopping_patience=args.early_stopping_patience,
+        checkpoint_frequency=args.checkpoint_frequency,
     )
     config.validate()
     return config
@@ -1995,6 +2662,7 @@ def create_config_from_args(args: argparse.Namespace) -> SearchConfig:
 
 def main():
     """Ejecuta la busqueda de hiperparametros."""
+    global logger
 
     if not OPTUNA_AVAILABLE:
         print("ERROR: Optuna no esta instalado.")
@@ -2005,14 +2673,40 @@ def main():
     args = parse_args()
     config = create_config_from_args(args)
 
+    # Crear directorio de salida primero (necesario para logging)
+    ensure_output_dir(config.output_dir)
+
+    # Inicializar sistema de logging
+    logger = setup_logging(config.output_dir, verbose=True)
+    logger.info(f"Iniciando búsqueda de hiperparámetros")
+    logger.info(f"Configuración: {config}")
+
     # Construir espacio de busqueda
     search_space = build_search_space(config)
 
     print_header("HYPERPARAMETER SEARCH - QPSO/QDPSO")
     print(f"\nFecha: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-    print(f"Dispositivo: {'CUDA' if torch.cuda.is_available() else 'CPU'}")
-    if torch.cuda.is_available():
-        print(f"GPU: {torch.cuda.get_device_name(0)}")
+
+    # Detectar dispositivo
+    if config.device == 'auto':
+        device = get_optimal_device()
+    else:
+        device = config.device
+    print(f"Dispositivo: {get_device_info(device)}")
+    logger.info(f"Dispositivo seleccionado: {device}")
+
+    # Calcular número de workers para paralelismo
+    import multiprocessing
+    if config.n_jobs == -1:
+        # Usar 75% de los cores disponibles
+        actual_n_jobs = max(1, int(multiprocessing.cpu_count() * 0.75))
+    elif config.n_jobs <= 0:
+        actual_n_jobs = 1
+    else:
+        actual_n_jobs = config.n_jobs
+
+    print(f"Workers paralelos: {actual_n_jobs} (de {multiprocessing.cpu_count()} cores)")
+    logger.info(f"Paralelismo: {actual_n_jobs} workers")
 
     # Crear directorio de salida
     ensure_output_dir(config.output_dir)
@@ -2039,7 +2733,7 @@ def main():
     except Exception as e:
         print(f"Error cargando datos: {e}")
         import traceback
-        traceback.print_exc()
+        tb_module.print_exc()
         return None, None
 
     # =========================================================================
@@ -2069,23 +2763,78 @@ def main():
     print(f"  Iteraciones: {search_space['max_iters']}")
     print(f"  Capas ocultas: {search_space['n_hidden_layers']}")
 
-    # Crear estudio
+    # Configurar almacenamiento persistente (SQLite)
+    storage = None
+    if config.storage_path:
+        storage = f"sqlite:///{config.storage_path}"
+        print(f"\n  Almacenamiento: SQLite ({config.storage_path})")
+        logger.info(f"Storage SQLite: {config.storage_path}")
+    else:
+        print(f"\n  Almacenamiento: En memoria (no persistente)")
+        logger.warning("Estudio en memoria - se perderá si se interrumpe")
+
+    # Crear sampler
     sampler = TPESampler(seed=config.seed)
 
     # Proteger los primeros N trials del pruning (N = numero de combinaciones)
     n_startup_trials = n_combos if config.ensure_all_combinations else 5
-    pruner = MedianPruner(n_startup_trials=n_startup_trials, n_warmup_steps=1)
 
-    study = optuna.create_study(
-        study_name=config.study_name,
-        direction='maximize',  # Maximizar F1-score
-        sampler=sampler,
-        pruner=pruner
-    )
+    # Crear pruner segun configuracion (Fase 2)
+    if config.pruner_type == 'hyperband':
+        pruner = HyperbandPruner(
+            min_resource=1,
+            max_resource=config.n_folds,
+            reduction_factor=3
+        )
+        print(f"  Pruner: HyperbandPruner (agresivo)")
+        logger.info("Usando HyperbandPruner")
+    else:
+        pruner = MedianPruner(n_startup_trials=n_startup_trials, n_warmup_steps=1)
+        print(f"  Pruner: MedianPruner (conservador, {n_startup_trials} startup trials)")
+        logger.info(f"Usando MedianPruner con {n_startup_trials} startup trials")
+
+    # Intentar cargar estudio existente o crear uno nuevo
+    study = None
+    n_previous_trials = 0
+
+    if storage and config.resume_study:
+        try:
+            study = optuna.load_study(
+                study_name=config.study_name,
+                storage=storage
+            )
+            n_previous_trials = len(study.trials)
+            print(f"  Continuando estudio existente con {n_previous_trials} trials previos")
+            logger.info(f"Estudio cargado: {n_previous_trials} trials previos")
+
+            # Verificar si ya se completaron suficientes trials
+            if n_previous_trials >= config.n_trials:
+                print(f"\n  NOTA: Ya hay {n_previous_trials} trials (>= {config.n_trials} solicitados)")
+                print(f"  Use --no-resume para crear un nuevo estudio o aumente --n-trials")
+
+        except KeyError:
+            # Estudio no existe, crear uno nuevo
+            print(f"  Creando nuevo estudio persistente")
+            logger.info("Creando nuevo estudio (no existía previamente)")
+            study = None
+
+    if study is None:
+        study = optuna.create_study(
+            study_name=config.study_name,
+            direction='maximize',  # Maximizar F1-score
+            sampler=sampler,
+            pruner=pruner,
+            storage=storage,
+            load_if_exists=False
+        )
+        logger.info(f"Nuevo estudio creado: {config.study_name}")
 
     # Encolar trials iniciales para garantizar exploracion de todas las combinaciones
-    if config.ensure_all_combinations:
+    # Solo si no hay trials previos
+    if config.ensure_all_combinations and n_previous_trials == 0:
         enqueue_initial_trials(study, config)
+    elif config.ensure_all_combinations and n_previous_trials > 0:
+        print(f"  Saltando trials iniciales (ya hay {n_previous_trials} previos)")
 
     # =========================================================================
     # EJECUTAR BUSQUEDA
@@ -2093,23 +2842,74 @@ def main():
 
     print_header("EJECUTANDO BUSQUEDA DE HIPERPARAMETROS")
     print(f"\nOptimizando F1-Score (macro)...")
+    print(f"Trials a ejecutar: {config.n_trials - n_previous_trials} nuevos (total: {config.n_trials})")
     print(f"Esto puede tomar varios minutos/horas dependiendo de n_trials.\n")
 
     # Crear funcion objetivo
     objective = ObjectiveFunction(data, config, search_space)
 
-    # Ejecutar optimizacion
-    start_time = time.time()
+    # =========================================================================
+    # FASE 2: Crear callbacks
+    # =========================================================================
+    callbacks = []
 
-    study.optimize(
-        objective,
-        n_trials=config.n_trials,
-        timeout=config.timeout,
-        n_jobs=config.n_jobs,
-        show_progress_bar=True
-    )
+    # Callback de checkpoint (si frequency > 0)
+    if config.checkpoint_frequency > 0:
+        checkpoint_callback = CheckpointCallback(
+            output_dir=config.output_dir,
+            frequency=config.checkpoint_frequency
+        )
+        callbacks.append(checkpoint_callback)
+        print(f"  Checkpoint: cada {config.checkpoint_frequency} trials")
+        logger.info(f"CheckpointCallback activado: cada {config.checkpoint_frequency} trials")
 
-    search_time = time.time() - start_time
+    # Callback de early stopping global (si patience > 0)
+    if config.early_stopping_patience > 0:
+        early_stopping_callback = EarlyStoppingCallback(
+            patience=config.early_stopping_patience,
+            min_delta=0.0001
+        )
+        callbacks.append(early_stopping_callback)
+        print(f"  Early stopping global: {config.early_stopping_patience} trials sin mejora")
+        logger.info(f"EarlyStoppingCallback activado: patience={config.early_stopping_patience}")
+    else:
+        print(f"  Early stopping global: Desactivado")
+
+    logger.info(f"Iniciando optimización: {config.n_trials} trials, {actual_n_jobs} workers")
+
+    # Calcular trials restantes
+    n_trials_remaining = max(0, config.n_trials - n_previous_trials)
+    search_time = 0  # Inicializar para el caso sin trials nuevos
+
+    if n_trials_remaining == 0:
+        print("No hay trials nuevos que ejecutar.")
+        logger.info("No hay trials nuevos - usando resultados existentes")
+    else:
+        # Ejecutar optimizacion
+        start_time = time.time()
+
+        try:
+            study.optimize(
+                objective,
+                n_trials=n_trials_remaining,
+                timeout=config.timeout,
+                n_jobs=actual_n_jobs,
+                show_progress_bar=True,
+                gc_after_trial=True,  # Liberar memoria después de cada trial
+                callbacks=callbacks if callbacks else None  # Fase 2: callbacks
+            )
+        except KeyboardInterrupt:
+            print("\n\nBúsqueda interrumpida por el usuario.")
+            print("El progreso se ha guardado en la base de datos SQLite.")
+            print("Puede continuar ejecutando el mismo comando.")
+            logger.warning("Búsqueda interrumpida por KeyboardInterrupt")
+        except Exception as e:
+            logger.error(f"Error durante optimización: {e}")
+            logger.error(tb_module.format_exc())
+            raise
+
+        search_time = time.time() - start_time
+        logger.info(f"Optimización completada en {search_time/60:.2f} minutos")
 
     # =========================================================================
     # RESULTADOS DE LA BUSQUEDA
@@ -2275,6 +3075,15 @@ def main():
     print(f"  - trials_history_*.csv (historial completo)")
     print(f"  - category_analysis_*.json (analisis por categorias)")
     print(f"  - combination_test_results_*.json (resultados de las 6 combinaciones en test)")
+    print(f"  - hpo_search.log (log detallado de la búsqueda)")
+
+    if config.storage_path:
+        print(f"\nBase de datos SQLite: {config.storage_path}")
+        print(f"  - Puede continuar la búsqueda ejecutando el mismo comando")
+        print(f"  - Use --no-resume para crear un nuevo estudio")
+        print(f"  - Use optuna-dashboard {config.storage_path} para visualizar")
+
+    logger.info("Búsqueda completada exitosamente")
 
     return study, final_results, category_analysis, combination_results
 
