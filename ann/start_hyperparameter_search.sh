@@ -18,14 +18,14 @@
 
 # Optimizadores a explorar
 # Opciones: "QPSO" "QDPSO" o ambos "QPSO QDPSO"
-OPTIMIZERS="QDPSO"
+OPTIMIZERS="QPSO"
 
 # Estrategias a explorar
 # Opciones: "forward" "weighted" "layerwise" o combinaciones
-STRATEGIES="forward weighted layerwise"
+STRATEGIES="layerwise"
 
 # Numero de trials (configuraciones a probar)
-N_TRIALS=100
+N_TRIALS=1000
 
 # =============================================================================
 # CONFIGURACION DE EXPLORACION
@@ -42,32 +42,32 @@ FORCE_INITIAL_TRIALS=false
 # =============================================================================
 
 # Rango para alpha inicial (QPSO)
-ALPHA_START_MIN=0.7
+ALPHA_START_MIN=0.1
 ALPHA_START_MAX=1.0
 
 # Rango para alpha final (QPSO)
-ALPHA_END_MIN=0.3
-ALPHA_END_MAX=0.7
+ALPHA_END_MIN=0.1
+ALPHA_END_MAX=1.0
 
 # =============================================================================
 # ESPACIO DE BUSQUEDA - QDPSO
 # =============================================================================
 
 # Rango para factor g (QDPSO)
-G_MIN=0.90
-G_MAX=0.99
+G_MIN=0.1
+G_MAX=2.0
 
 # =============================================================================
 # ESPACIO DE BUSQUEDA - ENJAMBRE
 # =============================================================================
 
 # Rango de particulas
-N_PARTICLES_MIN=20
-N_PARTICLES_MAX=80
+N_PARTICLES_MIN=10
+N_PARTICLES_MAX=100
 
 # Rango de iteraciones maximas
 MAX_ITERS_MIN=50
-MAX_ITERS_MAX=300
+MAX_ITERS_MAX=2000
 
 # =============================================================================
 # ESPACIO DE BUSQUEDA - ARQUITECTURA
@@ -82,7 +82,7 @@ NEURONS_MULTIPLIER_MIN=1.5
 NEURONS_MULTIPLIER_MAX=4.0
 
 # Rango de decaimiento de neuronas entre capas
-NEURON_DECAY_MIN=0.5
+NEURON_DECAY_MIN=0.1
 NEURON_DECAY_MAX=0.9
 
 # =============================================================================
@@ -90,43 +90,43 @@ NEURON_DECAY_MAX=0.9
 # =============================================================================
 
 # Rango de decaimiento por capa
-LAYER_DECAY_MIN=0.5
+LAYER_DECAY_MIN=0.1
 LAYER_DECAY_MAX=0.9
 
 # Rango de regularizacion
 REGULARIZATION_MIN=0.001
-REGULARIZATION_MAX=0.1
+REGULARIZATION_MAX=0.9
 
 # =============================================================================
 # ESPACIO DE BUSQUEDA - ESTRATEGIA LAYERWISE
 # =============================================================================
 
 # Rango de iteraciones por capa
-ITERS_PER_LAYER_MIN=20
-ITERS_PER_LAYER_MAX=80
+ITERS_PER_LAYER_MIN=10
+ITERS_PER_LAYER_MAX=2000
 
 # Rango de iteraciones de fine-tuning
-FINE_TUNE_ITERS_MIN=20
-FINE_TUNE_ITERS_MAX=80
+FINE_TUNE_ITERS_MIN=10
+FINE_TUNE_ITERS_MAX=2000
 
 # =============================================================================
 # ESPACIO DE BUSQUEDA - OTROS
 # =============================================================================
 
 # Rango de limite de pesos
-WEIGHT_BOUND_MIN=0.5
+WEIGHT_BOUND_MIN=0.1
 WEIGHT_BOUND_MAX=2.0
 
 # Rango de paciencia (early stopping)
-PATIENCE_MIN=20
-PATIENCE_MAX=60
+PATIENCE_MIN=10
+PATIENCE_MAX=100
 
 # =============================================================================
 # CONFIGURACION AVANZADA
 # =============================================================================
 
 # Semilla para reproducibilidad
-SEED=42
+SEED=21
 
 # Timeout en segundos (dejar vacio para sin limite)
 TIMEOUT=""
@@ -165,7 +165,7 @@ ACTIVATIONS="relu tanh leaky_relu elu gelu"  # Default: solo tanh (fija)
 
 # Dropout (min, max). Si min == max, se usa fijo
 DROPOUT_MIN=0.0
-DROPOUT_MAX=0.0  # Default: sin dropout
+DROPOUT_MAX=0.5  # Default: sin dropout
 # DROPOUT_MAX=0.5  # Ejemplo: optimizar entre 0 y 0.5
 
 # Batch normalization (separadas por espacio)
