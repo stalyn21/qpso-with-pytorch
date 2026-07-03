@@ -169,6 +169,14 @@ results/
 # Archivos de convergencia generados
 convergencia*.png
 
+# multi-swarm (paper 2): artefactos generados por runner/compare/visualize
+# (si la carpeta se renombra a multi_swarm, actualizar estas rutas)
+ann/multi-swarm/output/
+ann/multi-swarm/figs/
+ann/multi-swarm/compare*.csv
+ann/multi-swarm/compare*.md
+ann/multi-swarm/command.sh
+
 # =============================================================================
 # BASES DE DATOS
 # =============================================================================

@@ -902,6 +902,43 @@ class QPSOBaseTensorOptimized(SwarmTensorOptimized):
             elapsed_time=self._elapsed_time
         )
 
+    def reuse_with(self, new_cf: Callable) -> None:
+        """
+        Re-arma el optimizador para una nueva cost function manteniendo el estado
+        espacial (positions, pbest geometry) — warm-start.
+
+        Reset:
+            - Iteraciones (_iters, _no_improvement_count)
+            - Razon de convergencia
+            - Detector de cf vectorizada (re-detect en primera eval)
+
+        Mantiene:
+            - positions: la diversidad espacial explorada en la corrida anterior
+            - pbest geometry (las posiciones), pero re-evaluadas con la nueva cf
+
+        Re-evalua pbest_values con la nueva cf y recalcula gbest. Esto es necesario
+        porque los valores anteriores miden contra la cf vieja y no son comparables.
+
+        Util cuando el problema cambia ligeramente entre llamadas (e.g. block coordinate
+        descent: las contrapartes congeladas se actualizaron pero queremos seguir
+        explorando desde donde estabamos).
+        """
+        self._cf = new_cf
+        self._vectorized_cf = None  # re-detect
+        self._iters = 0
+        self._no_improvement_count = 0
+        self._convergence_reason = ""
+        self._prev_gbest_value = float('inf') if self._minimize else float('-inf')
+
+        # Re-evaluar pbest contra la nueva cf (los valores viejos no son comparables).
+        # Mantenemos pbest = positions (la geometria explorada) pero medimos de nuevo.
+        with torch.no_grad():
+            self._pbest = self._positions.clone()
+            self._pbest_values = self._evaluate(self._positions)
+            # Reset gbest para forzar recalculo via update_gbest
+            self._gbest_value = float('inf') if self._minimize else float('-inf')
+            self.update_gbest(self._minimize)
+
     @property
     def callbacks(self) -> CallbackManager:
         """Retorna el gestor de callbacks."""
