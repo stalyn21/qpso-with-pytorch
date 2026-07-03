@@ -35,7 +35,7 @@ import torch
 
 from core.mlp import MLP
 from tensor_qpso import QDPSOTensorOptimized, CallbackEvent
-from techniques.warm_start import warm_start_cluster
+from swarm.warm_start import warm_start_cluster
 
 
 def _position_label(k: int, num_layers: int) -> str:

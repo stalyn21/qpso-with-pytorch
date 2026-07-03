@@ -169,13 +169,17 @@ results/
 # Archivos de convergencia generados
 convergencia*.png
 
-# multi-swarm (paper 2): artefactos generados por runner/compare/visualize
-# (si la carpeta se renombra a multi_swarm, actualizar estas rutas)
-ann/multi-swarm/output/
-ann/multi-swarm/figs/
-ann/multi-swarm/compare*.csv
-ann/multi-swarm/compare*.md
-ann/multi-swarm/command.sh
+# swarm_mlp (paper 2): artefactos generados por runner/compare/visualize
+ann/swarm_mlp/output/
+ann/swarm_mlp/figs/
+ann/swarm_mlp/compare*.csv
+ann/swarm_mlp/command.sh
+ann/swarm_mlp/README.md
+ann/swarm_mlp/bcd-warmstart.md
+
+# swarm_mlp: docs internos del paper 2 (README, bcd-warmstart, technique-names,
+# compare*.md) — no publicar en el repo público
+ann/swarm_mlp/*.md
 
 # =============================================================================
 # BASES DE DATOS

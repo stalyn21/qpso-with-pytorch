@@ -36,7 +36,7 @@ from core.mlp import MLP
 from core.metrics import mse_int
 from core.loss import cross_entropy_from_logits, l2_penalty
 from tensor_qpso import QDPSOTensorOptimized
-from techniques.warm_start import warm_start_cluster
+from swarm.warm_start import warm_start_cluster
 
 
 def _train_loss_combined(mlp, current, X_train, y_train, lambda_l2):

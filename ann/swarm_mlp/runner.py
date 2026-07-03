@@ -14,7 +14,7 @@ import numpy as np
 import torch
 
 # Permitir ejecutar desde cualquier directorio.
-# _HERE  → resuelve core/ y techniques/ (locales al paquete)
+# _HERE  → resuelve core/, swarm/ y gradient/ (locales al paquete)
 # _ANN   → resuelve tensor_qpso/ (compartido a nivel de ann/, única fuente de verdad)
 _HERE = Path(__file__).parent.resolve()
 _ANN = _HERE.parent
@@ -24,12 +24,12 @@ for _p in (str(_HERE), str(_ANN)):
 
 from core.data import prepare_dataset, prepare_dataset_kfold, BENCHMARK_DATASETS
 from core.mlp import MLP
-from techniques.base import run_sessions
-from techniques.t1_sequential import run_session_t1
-from techniques.t2_async import run_session_t2_async
-from techniques.t2_jacobi import run_session_t2_jacobi
-from techniques.t3_concurrency import run_session_t3
-from techniques.t4_single_swarm import run_session_t4
+from core.sessions import run_sessions
+from swarm.multi_swarm.t1_sequential import run_session_t1
+from swarm.multi_swarm.t2_async import run_session_t2_async
+from swarm.multi_swarm.t2_jacobi import run_session_t2_jacobi
+from swarm.multi_swarm.t3_concurrency import run_session_t3
+from swarm.one_swarm.t4_single_swarm import run_session_t4
 from tensor_qpso import get_device
 
 
