@@ -1,0 +1,59 @@
+{
+  "optimizer": "QPSOo",
+  "args": {
+    "dataset": "breast_cancer",
+    "epochs": 100,
+    "particles": 20,
+    "g": 0.96,
+    "folds": 4,
+    "seed": 2,
+    "split_seed": 100,
+    "reduction": null,
+    "components": null,
+    "select_by": "val",
+    "tag": "g0.96"
+  },
+  "config": {
+    "optimizer": "QPSOo",
+    "dataset": "breast_cancer",
+    "input_dim": 30,
+    "output_dim": 2,
+    "n_samples": 455,
+    "hidden_layers": [
+      90,
+      60,
+      30
+    ],
+    "features_reduction": "30_s2_g0.96",
+    "n_particles": 20,
+    "g": 0.96,
+    "interval_parms_updated": 10,
+    "n_folds": 4,
+    "n_epochs": 100,
+    "interval_update": 1
+  },
+  "train_acc_per_fold": [
+    0.900293231010437,
+    0.9237536787986755,
+    0.9120234847068787,
+    0.9502924084663391
+  ],
+  "val_acc_per_fold": [
+    0.8684210777282715,
+    0.8947368264198303,
+    0.9473684430122375,
+    0.9646017551422119
+  ],
+  "test_acc_per_fold": [
+    0.859649121761322,
+    0.9210526347160339,
+    0.8947368264198303,
+    0.9385964870452881
+  ],
+  "train_time_per_fold_s": [
+    1.4700159420026466,
+    1.3856979370029876,
+    1.4750320010061841,
+    1.400805583994952
+  ]
+}

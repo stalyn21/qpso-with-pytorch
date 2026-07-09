@@ -1,0 +1,57 @@
+{
+  "optimizer": "Adam",
+  "args": {
+    "dataset": "circle",
+    "epochs": 1000,
+    "particles": 20,
+    "folds": 4,
+    "seed": 0,
+    "split_seed": 100,
+    "reduction": null,
+    "components": null,
+    "select_by": "val",
+    "tag": "ep1000",
+    "legacy_arch": false
+  },
+  "config": {
+    "optimizer": "Adam",
+    "dataset": "circle",
+    "inputdim": 2,
+    "outputdim": 2,
+    "nsamples": 400,
+    "hiddenlayers": [
+      6,
+      4,
+      2
+    ],
+    "features_reduction": "2_s0_ep1000",
+    "lr": 0.001,
+    "n_epochs": 1000,
+    "n_folds": 4,
+    "interval_update": 1
+  },
+  "train_acc_per_fold": [
+    1.0,
+    1.0,
+    1.0,
+    0.8966667056083679
+  ],
+  "val_acc_per_fold": [
+    1.0,
+    1.0,
+    1.0,
+    0.8499999642372131
+  ],
+  "test_acc_per_fold": [
+    1.0,
+    1.0,
+    1.0,
+    0.8100000023841858
+  ],
+  "train_time_per_fold_s": [
+    2.7316270310038817,
+    2.533475176001957,
+    2.5120166999986395,
+    2.533279618997767
+  ]
+}

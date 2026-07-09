@@ -1,0 +1,57 @@
+{
+  "optimizer": "Adam",
+  "args": {
+    "dataset": "wine",
+    "epochs": 100,
+    "particles": 20,
+    "folds": 4,
+    "seed": 4,
+    "split_seed": 100,
+    "reduction": null,
+    "components": null,
+    "select_by": "val",
+    "tag": "ep100",
+    "legacy_arch": false
+  },
+  "config": {
+    "optimizer": "Adam",
+    "dataset": "wine",
+    "inputdim": 13,
+    "outputdim": 3,
+    "nsamples": 142,
+    "hiddenlayers": [
+      39,
+      26,
+      13
+    ],
+    "features_reduction": "13_s4_ep100",
+    "lr": 0.001,
+    "n_epochs": 100,
+    "n_folds": 4,
+    "interval_update": 1
+  },
+  "train_acc_per_fold": [
+    1.0,
+    1.0,
+    0.9906541705131531,
+    0.9999999403953552
+  ],
+  "val_acc_per_fold": [
+    1.0,
+    1.0,
+    0.9714285731315613,
+    0.9428571462631226
+  ],
+  "test_acc_per_fold": [
+    1.0,
+    1.0,
+    0.8611111044883728,
+    0.9722222089767456
+  ],
+  "train_time_per_fold_s": [
+    0.5611240200014436,
+    0.3886370009931852,
+    0.4313538780043018,
+    0.45786697400035337
+  ]
+}

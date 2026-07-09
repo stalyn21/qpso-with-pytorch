@@ -1,0 +1,26 @@
+# =============================================================================
+# .gitignore — vectorized-qdpso-mlp/src  (código de reproducción del Paper 1)
+# =============================================================================
+# El .gitignore de la RAÍZ (qpso-with-pytorch/.gitignore) ya ignora de forma
+# global: results/, *.png, *.pth, *.log, *.npz, **/data/img/, __pycache__/ ...
+# Este archivo SOLO ajusta lo necesario para ESTE subproyecto; las reglas de un
+# .gitignore más profundo tienen prioridad sobre las de la raíz en su subárbol.
+
+# --- REINCLUIR: resultados crudos que se necesitan (~1.3 MB) ---
+# 322 JSON por-fold + stats_report.md. El paper referencia
+# "src/results/stats_report.md" y "the per-fold raw results in the public repo".
+!results/
+!results/**
+
+# --- IGNORAR explícitamente lo pesado / regenerable de este subproyecto ---
+# ~8 MB de *.pth (regenerables re-entrenando)
+models/
+# ~256 MB de PNG generados (regenerables con plotting.py)             
+metrics/graphics/   
+# ~13 MB de logs .output por época (fuente de las curvas de loss)
+output/ 
+# batch_*.log (~10 MB de stdout de las tandas)            
+*.log   
+# dataset MCW (symlink) + cache de features *.npz            
+data/img/           
+__pycache__/

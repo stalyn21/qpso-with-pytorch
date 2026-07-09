@@ -1,0 +1,59 @@
+{
+  "optimizer": "QPSOo",
+  "args": {
+    "dataset": "circle",
+    "epochs": 100,
+    "particles": 20,
+    "g": 0.8,
+    "folds": 4,
+    "seed": 3,
+    "split_seed": 100,
+    "reduction": null,
+    "components": null,
+    "select_by": "val",
+    "tag": "g0.8"
+  },
+  "config": {
+    "optimizer": "QPSOo",
+    "dataset": "circle",
+    "input_dim": 2,
+    "output_dim": 2,
+    "n_samples": 400,
+    "hidden_layers": [
+      6,
+      4,
+      2
+    ],
+    "features_reduction": "2_s3_g0.8",
+    "n_particles": 20,
+    "g": 0.8,
+    "interval_parms_updated": 10,
+    "n_folds": 4,
+    "n_epochs": 100,
+    "interval_update": 1
+  },
+  "train_acc_per_fold": [
+    0.75,
+    0.6733333468437195,
+    0.7200000286102295,
+    0.6333333253860474
+  ],
+  "val_acc_per_fold": [
+    0.8100000023841858,
+    0.7199999690055847,
+    0.6899999976158142,
+    0.6100000143051147
+  ],
+  "test_acc_per_fold": [
+    0.7699999809265137,
+    0.7099999785423279,
+    0.699999988079071,
+    0.5399999618530273
+  ],
+  "train_time_per_fold_s": [
+    1.4650248269899748,
+    1.3986710650060559,
+    1.3478171860042494,
+    1.3200020930089522
+  ]
+}

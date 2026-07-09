@@ -1,0 +1,59 @@
+{
+  "optimizer": "QPSOo",
+  "args": {
+    "dataset": "wine",
+    "epochs": 100,
+    "particles": 20,
+    "g": 0.8,
+    "folds": 4,
+    "seed": 1,
+    "split_seed": 100,
+    "reduction": null,
+    "components": null,
+    "select_by": "val",
+    "tag": "g0.8"
+  },
+  "config": {
+    "optimizer": "QPSOo",
+    "dataset": "wine",
+    "input_dim": 13,
+    "output_dim": 3,
+    "n_samples": 142,
+    "hidden_layers": [
+      39,
+      26,
+      13
+    ],
+    "features_reduction": "13_s1_g0.8",
+    "n_particles": 20,
+    "g": 0.8,
+    "interval_parms_updated": 10,
+    "n_folds": 4,
+    "n_epochs": 100,
+    "interval_update": 1
+  },
+  "train_acc_per_fold": [
+    0.6886792778968811,
+    0.7264150977134705,
+    0.7570093274116516,
+    0.8037382960319519
+  ],
+  "val_acc_per_fold": [
+    0.8055555820465088,
+    0.7222222089767456,
+    0.7142857313156128,
+    0.7714285850524902
+  ],
+  "test_acc_per_fold": [
+    0.6388888955116272,
+    0.6666666865348816,
+    0.6388888955116272,
+    0.8888888955116272
+  ],
+  "train_time_per_fold_s": [
+    1.469301290999283,
+    1.370282108997344,
+    1.3840959039953304,
+    1.4302867240039632
+  ]
+}

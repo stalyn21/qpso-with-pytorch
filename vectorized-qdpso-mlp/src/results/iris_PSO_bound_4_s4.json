@@ -1,0 +1,57 @@
+{
+  "optimizer": "PSO_bound",
+  "args": {
+    "dataset": "iris",
+    "epochs": 100,
+    "particles": 20,
+    "folds": 4,
+    "seed": 4,
+    "split_seed": 100,
+    "reduction": null,
+    "components": null,
+    "select_by": "val",
+    "tag": "",
+    "variant": "PSO_bound"
+  },
+  "config": {
+    "optimizer": "PSO_bound",
+    "dataset": "iris",
+    "input_dim": 4,
+    "output_dim": 3,
+    "n_samples": 120,
+    "hidden_layers": [
+      12,
+      8,
+      4
+    ],
+    "features_reduction": "4_s4",
+    "n_particles": 20,
+    "n_folds": 4,
+    "n_epochs": 100,
+    "interval_update": 1
+  },
+  "train_acc_per_fold": [
+    0.9555555582046509,
+    0.8888888955116272,
+    0.9888889193534851,
+    0.8666666746139526
+  ],
+  "val_acc_per_fold": [
+    1.0,
+    0.8666667342185974,
+    0.9666666984558105,
+    0.7666667103767395
+  ],
+  "test_acc_per_fold": [
+    0.9666666984558105,
+    0.9333333969116211,
+    0.9666666984558105,
+    0.8666667342185974
+  ],
+  "train_time_per_fold_s": [
+    4.1575255089992424,
+    4.47483324699715,
+    4.598234965000302,
+    4.30169687900343
+  ]
+}
