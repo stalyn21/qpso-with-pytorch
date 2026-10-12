@@ -1,15 +1,23 @@
-"""Warm-start cluster compartido entre T3 y T4.
+"""Warm-start cluster compartido por las cinco técnicas.
 
-Reemplaza las primeras K partículas de un QDPSO con perturbaciones alrededor de un
+Reemplaza las primeras K partículas del swarm con perturbaciones alrededor de un
 vector semilla. Mantiene el resto random para preservar exploración.
+
+Sólo usa la API pública de `qpso_torch.QPSOBaseTensor` (las vistas `positions`,
+`pbest` y `pbest_values` son vivas: se escriben in-place), así que funciona igual
+con QDPSOo y con QPSOo.
 """
 import torch
 
-from tensor_qpso import QDPSOTensorOptimized
+from swarm.optimizer_factory import SwarmOptimizer
+
+#: Desplazamiento para derivar la semilla del ruido a partir de la del optimizador.
+#: Evita reusar el mismo flujo que generó las posiciones iniciales del swarm.
+_NOISE_SEED_OFFSET = 0x9E3779B1
 
 
 def warm_start_cluster(
-    opt: QDPSOTensorOptimized,
+    opt: SwarmOptimizer,
     seed_vec: torch.Tensor,
     k_seeded: int,
     noise_scale: float,
@@ -21,36 +29,41 @@ def warm_start_cluster(
     - Partículas K..P-1: quedan como estaban (random init de `__init__`).
 
     Re-evalúa pbest_values de las K warm-started con el cf actual del opt y actualiza
-    gbest. Operación in-place sobre los buffers internos del QDPSO.
+    gbest. Operación in-place sobre los buffers del optimizador.
+
+    El ruido sale de un generador propio derivado de `opt.seed`: no consume ni depende
+    del RNG global de torch (qpso-torch tampoco lo toca), así que el cluster es
+    reproducible por optimizador sin importar el orden ni el thread en que se cree.
     """
     if k_seeded < 1:
         return
 
-    seed_safe = seed_vec.detach().to(
-        dtype=opt._positions.dtype, device=opt._positions.device
-    )
-    seed_safe = torch.clamp(seed_safe, min=opt._lower, max=opt._upper)
+    positions = opt.positions
+    lower, upper = opt.lower, opt.upper
 
-    range_size = opt._upper - opt._lower
+    seed_safe = seed_vec.detach().to(dtype=positions.dtype, device=positions.device)
+    seed_safe = torch.clamp(seed_safe, min=lower, max=upper)
+
+    range_size = upper - lower
 
     with torch.no_grad():
         # Partícula 0: seed exacto
-        opt._positions[0] = seed_safe
+        positions[0] = seed_safe
 
         # Partículas 1..K-1: seed + ruido pequeño
         if k_seeded > 1:
-            noise = torch.randn(
-                k_seeded - 1, opt._dim,
-                dtype=opt._positions.dtype, device=opt._positions.device,
-            ) * noise_scale * range_size
-            perturbed = seed_safe.unsqueeze(0) + noise
-            opt._positions[1:k_seeded] = torch.clamp(
-                perturbed, min=opt._lower, max=opt._upper
+            generator = torch.Generator(device="cpu").manual_seed(
+                opt.seed + _NOISE_SEED_OFFSET
             )
+            noise = torch.randn(
+                k_seeded - 1, opt.dim, generator=generator, dtype=positions.dtype,
+            ).to(positions.device) * noise_scale * range_size
+            perturbed = seed_safe.unsqueeze(0) + noise
+            positions[1:k_seeded] = torch.clamp(perturbed, min=lower, max=upper)
 
         # Re-evaluar pbest_values de las K warm-started con el cf actual.
-        new_vals = opt._cf(opt._positions[:k_seeded])
-        opt._pbest[:k_seeded] = opt._positions[:k_seeded].clone()
-        opt._pbest_values[:k_seeded] = new_vals
+        new_vals = opt.cost_fn(positions[:k_seeded])
+        opt.pbest[:k_seeded] = positions[:k_seeded].clone()
+        opt.pbest_values[:k_seeded] = new_vals
 
-        opt.update_gbest(opt._minimize)
+        opt.update_gbest()

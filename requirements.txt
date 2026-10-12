@@ -20,6 +20,11 @@
 # PSO for Neural Networks
 torch-pso>=1.2.0
 
+# QPSO/QDPSO optimizers used by ann/swarm_mlp (pinned to the release tag).
+# Install with --no-deps so pip does not replace the CUDA build of torch:
+#   pip install --no-deps "qpso-torch @ git+ssh://git@github.com/stalyn21/qpso-torch.git@v0.1.0"
+qpso-torch @ git+ssh://git@github.com/stalyn21/qpso-torch.git@v0.1.0
+
 # -----------------------------------------------------------------------------
 # Scientific Computing
 # -----------------------------------------------------------------------------

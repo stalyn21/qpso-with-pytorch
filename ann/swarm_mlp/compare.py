@@ -172,6 +172,8 @@ MULTI_SEED_COLUMNS = [
     ("particles",     lambda r: r["particles"]),
     ("max_iter",      lambda r: r["max_iter"]),
     ("rounds",        lambda r: r["rounds"]),
+    ("optimizer",     lambda r: r["optimizer"]),
+    ("ce_param",      lambda r: r["ce_param"]),
     ("n_seeds",       lambda r: r["n_seeds"]),
     ("n_runs",        lambda r: r["n_runs"]),
     ("test_acc_mean", lambda r: r["test_acc_mean"]),
@@ -200,7 +202,20 @@ def _config_key(cv_summary: Dict[str, Any]) -> Tuple:
         cfg["max_iter"],
         cfg.get("n_rounds", 1),
         cfg["cv_folds"],
+        # Eje optimizador + su factor CE. Sin esto, corridas qpsoo y qdpsoo (o dos
+        # valores de g del análisis de sensibilidad) se promediarían en la MISMA fila.
+        # Los summaries legacy no traen estos campos → caen en (qdpsoo, None) juntos.
+        cfg.get("optimizer", "qdpsoo"),
+        _ce_param(cfg),
     )
+
+
+def _ce_param(cfg: Dict[str, Any]):
+    """Factor de contracción-expansión efectivo: `g` para qdpsoo, `alpha` para qpsoo."""
+    if cfg.get("optimizer", "qdpsoo") == "qpsoo":
+        alpha = cfg.get("alpha")
+        return tuple(alpha) if isinstance(alpha, (list, tuple)) else alpha
+    return cfg.get("g")
 
 
 def aggregate_multi_seed(cv_summaries: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
@@ -217,7 +232,7 @@ def aggregate_multi_seed(cv_summaries: List[Dict[str, Any]]) -> List[Dict[str, A
         if len(summaries) < 2:
             continue  # sólo agrupar cuando hay 2+ seeds para esta config
 
-        tech, ds, hidden, particles, max_iter, n_rounds, cv_folds = key
+        tech, ds, hidden, particles, max_iter, n_rounds, cv_folds, optimizer, ce_param = key
 
         # Recolectar TODOS los puntos individuales (n_seeds × n_folds).
         all_test_accs: List[float] = []
@@ -248,6 +263,8 @@ def aggregate_multi_seed(cv_summaries: List[Dict[str, Any]]) -> List[Dict[str, A
             "particles": particles,
             "max_iter": max_iter,
             "rounds": n_rounds,
+            "optimizer": optimizer,
+            "ce_param": ce_param,
             "n_seeds": len(summaries),
             "n_runs": n_runs,
             "test_acc_mean": statistics.mean(all_test_accs),

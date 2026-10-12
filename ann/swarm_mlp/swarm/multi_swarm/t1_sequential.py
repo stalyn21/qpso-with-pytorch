@@ -24,7 +24,8 @@ from typing import Any, Dict
 import torch
 
 from core.mlp import MLP
-from tensor_qpso import QDPSOTensorOptimized, CallbackEvent
+from qpso_torch import CallbackEvent
+from swarm.optimizer_factory import build_swarm_optimizer
 from swarm.warm_start import warm_start_cluster
 
 
@@ -98,21 +99,13 @@ def run_session_t1(
                 return on_new_best
 
             layer_start = time.time()
-            with QDPSOTensorOptimized(
+            with build_swarm_optimizer(
+                cfg,
                 cf=cost_fn,
-                size=cfg["n_particles"],
                 dim=dim_k,
                 bounds=bounds,
-                maxIters=cfg["max_iter"],
-                g=cfg["g"],
-                device=cfg["device"],
-                dtype=mlp.dtype,
                 seed=session_seed * 10000 + round_idx * 100 + k,
-                boundary_strategy=cfg["boundary_strategy"],
-                tol=cfg["tol"],
-                patience=cfg["patience"],
-                track_history=False,
-                minimize=True,
+                dtype=mlp.dtype,
             ) as opt:
                 # Warm-start: ancla la búsqueda alrededor del segmento actual de la capa
                 # k en `current`. Reduce la varianza vs random init puro (cold start).

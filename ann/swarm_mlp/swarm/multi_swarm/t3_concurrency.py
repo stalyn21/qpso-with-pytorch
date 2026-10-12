@@ -35,7 +35,7 @@ import torch
 from core.mlp import MLP
 from core.metrics import mse_int
 from core.loss import cross_entropy_from_logits, l2_penalty
-from tensor_qpso import QDPSOTensorOptimized
+from swarm.optimizer_factory import build_swarm_optimizer, swap_cost_fn
 from swarm.warm_start import warm_start_cluster
 
 
@@ -96,21 +96,16 @@ def run_session_t3(
             X=X_train, y=y_train, k=k,
             frozen_flat=params_init, lambda_l2=cfg["lambda_l2"],
         )
-        opt = QDPSOTensorOptimized(
+        # El bucle de iteraciones lo manejamos nosotros (lockstep), pero `max_iters`
+        # NO es meramente informativo bajo QPSOo: es el denominador `T` del decaimiento
+        # lineal de alpha. `cfg["max_iter"]` (lo que pasa la factory) es el valor correcto.
+        opt = build_swarm_optimizer(
+            cfg,
             cf=init_cost_fn,
-            size=cfg["n_particles"],
             dim=spec.size,
             bounds=[(low, high)] * spec.size,
-            maxIters=cfg["max_iter"],   # informativo; el bucle lo manejamos nosotros
-            g=cfg["g"],
-            device=cfg["device"],
-            dtype=mlp.dtype,
             seed=session_seed * 1000 + k,
-            boundary_strategy=cfg["boundary_strategy"],
-            tol=cfg["tol"],
-            patience=cfg["patience"],
-            track_history=False,
-            minimize=True,
+            dtype=mlp.dtype,
         )
         # Warm-start cluster: cada swarm refina alrededor de params_init[layer_k].
         seed_segment = params_init[spec.offset : spec.offset + spec.size]
@@ -151,13 +146,10 @@ def run_session_t3(
                     X=X_train, y=y_train, k=k,
                     frozen_flat=current, lambda_l2=cfg["lambda_l2"],
                 )
-                opt._cf = fresh_cost_fn
-                opt._vectorized_cf = None
+                swap_cost_fn(opt, fresh_cost_fn)
 
-                opt.kernel_update()
-                opt._positions = opt._apply_boundary(opt._positions)
-                opt.update_best()
-                opt._iters += 1
+                # Un paso del QDPSO (kernel_update + boundary + update_best + contador).
+                opt.step()
 
                 # Gauss-Seidel: el siguiente swarm en ESTA iteración ya ve el gBest fresco.
                 current[spec.offset : spec.offset + spec.size] = opt.gbest
@@ -188,9 +180,9 @@ def run_session_t3(
 
     session_time = time.time() - session_start
 
-    # Cleanup de swarms (libera memory pool, GPU cache)
+    # Cleanup de swarms (libera los tensores de población y la caché de GPU)
     for opt in swarms:
-        opt.__exit__(None, None, None)
+        opt.release()
 
     # Reporte por capa (orden de impresión: back-to-front; almacenado en orden natural)
     per_layer = []

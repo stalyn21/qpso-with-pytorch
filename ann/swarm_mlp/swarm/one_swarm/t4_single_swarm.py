@@ -17,7 +17,8 @@ from typing import Any, Dict
 import torch
 
 from core.mlp import MLP
-from tensor_qpso import QDPSOTensorOptimized, CallbackEvent
+from qpso_torch import CallbackEvent
+from swarm.optimizer_factory import build_swarm_optimizer
 from swarm.warm_start import warm_start_cluster
 
 
@@ -67,21 +68,13 @@ def run_session_t4(
     k_seeded = max(1, min(k_seeded, cfg["n_particles"]))
 
     session_start = time.time()
-    with QDPSOTensorOptimized(
+    with build_swarm_optimizer(
+        cfg,
         cf=cost_fn,
-        size=cfg["n_particles"],
         dim=mlp.d_total,
         bounds=bounds,
-        maxIters=cfg["max_iter"],
-        g=cfg["g"],
-        device=cfg["device"],
-        dtype=mlp.dtype,
         seed=session_seed,
-        boundary_strategy=cfg["boundary_strategy"],
-        tol=cfg["tol"],
-        patience=cfg["patience"],
-        track_history=False,
-        minimize=True,
+        dtype=mlp.dtype,
     ) as opt:
         # Warm-start cluster: K partículas alrededor de params_init.
         warm_start_cluster(opt, params_init, k_seeded=k_seeded, noise_scale=noise_scale)

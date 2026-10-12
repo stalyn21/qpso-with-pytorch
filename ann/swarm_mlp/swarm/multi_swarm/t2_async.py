@@ -42,7 +42,7 @@ from typing import Any, Dict, List, Optional
 import torch
 
 from core.mlp import MLP
-from tensor_qpso import QDPSOTensorOptimized
+from swarm.optimizer_factory import SwarmOptimizer, build_swarm_optimizer, swap_cost_fn
 from swarm.warm_start import warm_start_cluster
 
 
@@ -61,7 +61,7 @@ def _async_layer_worker(
     current: torch.Tensor,    # tensor COMPARTIDO entre threads (lock-free)
     cfg: Dict[str, Any],
     k: int,
-    opt: QDPSOTensorOptimized,
+    opt: SwarmOptimizer,
     cuda_stream: Optional["torch.cuda.Stream"] = None,
 ) -> Dict[str, Any]:
     """Worker async para la capa k. Avanza max_iter steps lock-free.
@@ -98,14 +98,10 @@ def _async_layer_worker(
             X=X_train, y=y_train, k=k,
             frozen_flat=frozen, lambda_l2=lambda_l2,
         )
-        opt._cf = fresh_cf
-        opt._vectorized_cf = None  # invalidar cache de la versión vectorizada
+        swap_cost_fn(opt, fresh_cf)
 
-        # 3. Un paso del QDPSO.
-        opt.kernel_update()
-        opt._positions = opt._apply_boundary(opt._positions)
-        improved = opt.update_best()
-        opt._iters += 1
+        # 3. Un paso del QDPSO (kernel_update + boundary + update_best + contador).
+        improved = opt.step()
 
         # 4. Escritura lock-free al slice de esta capa.
         current[spec.offset : spec.offset + spec.size] = opt.gbest
@@ -181,7 +177,7 @@ def run_session_t2_async(
     k_seeded_eff = max(1, min(k_seeded, cfg["n_particles"]))
 
     # Crear UN QDPSO persistente por capa.
-    opts: List[QDPSOTensorOptimized] = []
+    opts: List[SwarmOptimizer] = []
     for k in range(mlp.num_layers):
         spec = mlp.layer_specs[k]
         bounds = [(low, high)] * spec.size
@@ -191,21 +187,13 @@ def run_session_t2_async(
             k=k, frozen_flat=params_init,
             lambda_l2=cfg["lambda_l2"],
         )
-        opt = QDPSOTensorOptimized(
+        opt = build_swarm_optimizer(
+            cfg,
             cf=init_cf,
-            size=cfg["n_particles"],
             dim=spec.size,
             bounds=bounds,
-            maxIters=cfg["max_iter"],
-            g=cfg["g"],
-            device=cfg["device"],
-            dtype=mlp.dtype,
             seed=session_seed * 10000 + k,
-            boundary_strategy=cfg["boundary_strategy"],
-            tol=cfg["tol"],
-            patience=cfg["patience"],
-            track_history=False,
-            minimize=True,
+            dtype=mlp.dtype,
         )
         # Ancla la búsqueda en una región conocida del espacio de pesos.
         seed_segment = params_init[spec.offset : spec.offset + spec.size]
@@ -238,7 +226,7 @@ def run_session_t2_async(
     finally:
         # Liberar tensores de los opts persistentes.
         for opt in opts:
-            opt.__exit__(None, None, None)
+            opt.release()
 
     session_time = time.time() - session_start
 

@@ -19,13 +19,11 @@ import numpy as np
 import torch
 
 # Permitir ejecutar desde cualquier directorio.
-# _HERE  → resuelve core/, swarm/ y gradient/ (locales al paquete)
-# _ANN   → resuelve tensor_qpso/ (compartido a nivel de ann/, única fuente de verdad)
+# _HERE → resuelve core/, swarm/ y gradient/ (locales al paquete).
+# El optimizador (QPSO/QDPSO) viene del paquete instalado `qpso-torch`.
 _HERE = Path(__file__).parent.resolve()
-_ANN = _HERE.parent
-for _p in (str(_HERE), str(_ANN)):
-    if _p not in sys.path:
-        sys.path.insert(0, _p)
+if str(_HERE) not in sys.path:
+    sys.path.insert(0, str(_HERE))
 
 from core.data import prepare_dataset, prepare_dataset_kfold, BENCHMARK_DATASETS, PAPER_DATASETS
 from core.mlp import MLP
@@ -35,7 +33,10 @@ from swarm.multi_swarm.t2_async import run_session_t2_async
 from swarm.multi_swarm.t2_jacobi import run_session_t2_jacobi
 from swarm.multi_swarm.t3_concurrency import run_session_t3
 from swarm.one_swarm.t4_single_swarm import run_session_t4
-from tensor_qpso import get_device
+from swarm.optimizer_factory import (
+    DEFAULT_ALPHA, DEFAULT_G, OPTIMIZERS, optimizer_tag, resolve_alpha,
+)
+from qpso_torch import get_device
 
 
 TECHNIQUES = {
@@ -79,7 +80,24 @@ def parse_args():
                    help="Coeficiente del L2 normalizado (l2 = (lambda/2)·||W||²/(d_total·n_train)). "
                         "Default 10.0 con la nueva normalización; valores razonables ∈ [1.0, 100.0]. "
                         "OJO: el lambda viejo (1e-3, sin normalización) NO es comparable a este.")
-    p.add_argument("--g", type=float, default=0.96)
+    p.add_argument("--optimizer", default="qdpsoo", choices=list(OPTIMIZERS),
+                   help="Optimizador swarm (eje del paper). "
+                        "qdpsoo = factor CE ESTÁTICO `g` (QDPSOTensorOptimized). "
+                        "qpsoo = factor CE CALCULADO, alpha con decaimiento lineal "
+                        "(QPSOTensorOptimized). Default qdpsoo.")
+    p.add_argument("--g", type=float, default=DEFAULT_G,
+                   help=f"(qdpsoo) Factor de contracción-expansión estático. "
+                        f"Default {DEFAULT_G} = default del paper. "
+                        "OJO: el default histórico era 0.96 y los resultados preliminares "
+                        "1-seed se corrieron con ese valor — no son comparables. "
+                        "Candidato a re-tuneo: el análisis de sensibilidad barre "
+                        "g ∈ {1.13, 1.20, 1.30, 1.40, 1.50}.")
+    p.add_argument("--alpha", type=float, nargs="+", default=list(DEFAULT_ALPHA),
+                   metavar=("MAX", "MIN"),
+                   help="(qpsoo) Factor CE calculado: par (max, min) con decaimiento "
+                        f"lineal alpha(t) = max - (max-min)·t/T. Default {DEFAULT_ALPHA[0]} "
+                        f"{DEFAULT_ALPHA[1]}. Un solo valor = alpha constante (sin decay). "
+                        "Ignorado con --optimizer qdpsoo.")
     p.add_argument("--bounds", type=float, nargs=2, default=[-1.0, 1.0])
     p.add_argument("--seed", type=int, default=42, help="Semilla base (se deriva una distinta por sesión)")
     p.add_argument("--data-seed", type=int, nargs="+", default=[100],
@@ -115,7 +133,9 @@ def _build_cfg_and_run(
         "n_particles": args.n_particles,
         "max_iter": args.max_iter,
         "lambda_l2": args.lambda_l2,
+        "optimizer": args.optimizer,
         "g": args.g,
+        "alpha": resolve_alpha(args.alpha),
         "bounds": tuple(args.bounds),
         "seed": args.seed,
         "data_seed": data_seed,
@@ -138,6 +158,21 @@ def _build_cfg_and_run(
         cfg=cfg,
         output_dir=output_dir,
     )
+
+
+def _run_tag(args, hidden) -> str:
+    """Nombre del directorio de una corrida.
+
+    El optimizador va SIEMPRE en el tag (no sólo cuando difiere del default) para que
+    las celdas del factorial tengan paths inequívocos: sin esto una corrida qpsoo
+    sobrescribiría a su equivalente qdpsoo.
+    """
+    hidden_tag = "-".join(map(str, hidden))
+    rounds_tag = (f"_rounds{args.n_rounds}"
+                  if args.technique in ("t1", "t2-jacobi") and args.n_rounds > 1 else "")
+    opt_tag = optimizer_tag({"optimizer": args.optimizer})
+    return (f"hid{hidden_tag}_iters{args.max_iter}_part{args.n_particles}"
+            f"{rounds_tag}_{opt_tag}_seed{args.seed}")
 
 
 def _stat_summary(values):
@@ -202,11 +237,7 @@ def main():
                   f"val={data['X_val'].shape[0]}  test={data['X_test'].shape[0]}")
 
             hidden = hidden_for_tag if hidden_for_tag else [3 * data["n_features"]]
-            hidden_tag = "-".join(map(str, hidden))
-            rounds_tag = f"_rounds{args.n_rounds}" if args.technique in ("t1", "t2-jacobi") and args.n_rounds > 1 else ""
-            output_dir = base_dir / (
-                f"hid{hidden_tag}_iters{args.max_iter}_part{args.n_particles}{rounds_tag}_seed{args.seed}"
-            )
+            output_dir = base_dir / _run_tag(args, hidden)
 
             _build_cfg_and_run(
                 args=args, device=device, dtype=dtype, data=data,
@@ -221,11 +252,7 @@ def main():
         n_features = probe["n_features"]
         n_classes = probe["n_classes"]
         hidden = hidden_for_tag if hidden_for_tag else [3 * n_features]
-        hidden_tag = "-".join(map(str, hidden))
-        rounds_tag = f"_rounds{args.n_rounds}" if args.technique in ("t1", "t2-jacobi") and args.n_rounds > 1 else ""
-        splits_root = base_dir / f"splits{len(data_seeds)}" / (
-            f"hid{hidden_tag}_iters{args.max_iter}_part{args.n_particles}{rounds_tag}_seed{args.seed}"
-        )
+        splits_root = base_dir / f"splits{len(data_seeds)}" / _run_tag(args, hidden)
         splits_root.mkdir(parents=True, exist_ok=True)
 
         print(f"📊 Dataset {args.dataset}: {n_features} features, {n_classes} clases")
@@ -284,6 +311,9 @@ def main():
                 "n_particles": args.n_particles,
                 "max_iter": args.max_iter,
                 "lambda_l2": args.lambda_l2,
+                "optimizer": args.optimizer,
+                "g": args.g,
+                "alpha": resolve_alpha(args.alpha),
                 "seed": args.seed,
                 "layer_sizes": [n_features] + list(hidden) + [n_classes],
                 "device": str(device),
@@ -329,11 +359,7 @@ def main():
     n_features = probe["n_features"]
     n_classes = probe["n_classes"]
     hidden = hidden_for_tag if hidden_for_tag else [3 * n_features]
-    hidden_tag = "-".join(map(str, hidden))
-    rounds_tag = f"_rounds{args.n_rounds}" if args.technique in ("t1", "t2-jacobi") and args.n_rounds > 1 else ""
-    cv_root = base_dir / f"cv{args.cv_folds}" / (
-        f"hid{hidden_tag}_iters{args.max_iter}_part{args.n_particles}{rounds_tag}_seed{args.seed}"
-    )
+    cv_root = base_dir / f"cv{args.cv_folds}" / _run_tag(args, hidden)
     cv_root.mkdir(parents=True, exist_ok=True)
 
     print(f"📊 Dataset {args.dataset}: {n_features} features, {n_classes} clases")
@@ -394,6 +420,9 @@ def main():
             "n_particles": args.n_particles,
             "max_iter": args.max_iter,
             "lambda_l2": args.lambda_l2,
+            "optimizer": args.optimizer,
+            "g": args.g,
+            "alpha": resolve_alpha(args.alpha),
             "seed": args.seed,
             "data_seed": cv_data_seed,
             "layer_sizes": [n_features] + list(hidden) + [n_classes],

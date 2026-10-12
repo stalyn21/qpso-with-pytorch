@@ -34,7 +34,8 @@ from typing import Any, Dict, List, Optional
 import torch
 
 from core.mlp import MLP
-from tensor_qpso import QDPSOTensorOptimized, CallbackEvent
+from qpso_torch import CallbackEvent
+from swarm.optimizer_factory import SwarmOptimizer, build_swarm_optimizer
 from swarm.warm_start import warm_start_cluster
 
 
@@ -53,7 +54,7 @@ def _train_layer_round(
     frozen_flat: torch.Tensor,
     cfg: Dict[str, Any],
     k: int,
-    opt: QDPSOTensorOptimized,
+    opt: SwarmOptimizer,
     is_first_round: bool,
     cuda_stream: Optional["torch.cuda.Stream"] = None,
 ) -> Dict[str, Any]:
@@ -144,7 +145,7 @@ def run_session_t2_jacobi(
 
     # Crear UN QDPSO persistente por capa para toda la sesión.
     # Round 0 arranca con cluster warm-started; rounds siguientes hacen reuse_with(new_cf).
-    opts: List[QDPSOTensorOptimized] = []
+    opts: List[SwarmOptimizer] = []
     for k in range(mlp.num_layers):
         spec = mlp.layer_specs[k]
         bounds = [(low, high)] * spec.size
@@ -154,21 +155,13 @@ def run_session_t2_jacobi(
             k=k, frozen_flat=params_init,
             lambda_l2=cfg["lambda_l2"],
         )
-        opt = QDPSOTensorOptimized(
+        opt = build_swarm_optimizer(
+            cfg,
             cf=cost_fn_init,
-            size=cfg["n_particles"],
             dim=spec.size,
             bounds=bounds,
-            maxIters=cfg["max_iter"],
-            g=cfg["g"],
-            device=cfg["device"],
-            dtype=mlp.dtype,
             seed=session_seed * 10000 + k,
-            boundary_strategy=cfg["boundary_strategy"],
-            tol=cfg["tol"],
-            patience=cfg["patience"],
-            track_history=False,
-            minimize=True,
+            dtype=mlp.dtype,
         )
         # Ancla la búsqueda alrededor de params_init[layer_k]. El cluster persiste a través
         # de los rounds vía reuse_with (que mantiene positions y re-evalúa pbest).
@@ -240,7 +233,7 @@ def run_session_t2_jacobi(
     finally:
         # Liberar tensores de los opts persistentes (equivalente a salir del context manager).
         for opt in opts:
-            opt.__exit__(None, None, None)
+            opt.release()
 
     total_parallel = sum(parallel_wall_times)
     total_sequential = sum(sequential_equiv_times)
