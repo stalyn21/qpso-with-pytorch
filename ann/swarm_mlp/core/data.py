@@ -1,8 +1,13 @@
 """Carga de datasets benchmark + splits (estratificado 70/15/15 y K-fold CV) + tensorizado a device.
 
-Datasets del paper (`PAPER_DATASETS`): iris y breast se usan crudos; las variantes
-`mcw-*` y `fmnist-*` parten de 84 features de imagen (ver `core/features.py`) y
-aplican reducción de dimensionalidad a 7 componentes POR SPLIT, sin fugas:
+Todo ajuste (scaler y reductor) se hace SOLO sobre el train de cada split o fold.
+
+Datasets del paper (`PAPER_DATASETS`): iris y breast usan sus features crudos:
+
+    split 70/15/15 (o fold) → MinMax fit(train)
+
+Las variantes `mcw-*` y `fmnist-*` parten de 84 features de imagen (ver
+`core/features.py`) y aplican reducción de dimensionalidad a 7 componentes POR SPLIT:
 
     split 70/15/15 (o fold) → MinMax fit(train) → Isomap/PCA(7) fit(train)
     → re-escala MinMax fit(train)
@@ -132,16 +137,24 @@ def prepare_dataset(
     dtype: torch.dtype = torch.float32,
     data_seed: int = 100,
 ) -> Dict[str, object]:
-    """Carga + normaliza + split estratificado + tensoriza + mueve a `device`."""
+    """Carga + split estratificado 70/15/15 + normaliza + tensoriza + mueve a `device`.
+
+    Sin fugas en ningún dataset: el scaler (y el reductor, si lo hay) se ajusta
+    sólo con el train del split.
+    """
     base, method = _parse_reduction(name)
     X, y = load_dataset(base, data_seed=data_seed)
 
     if method is None:
-        # Ruta legacy (iris/wine/breast/circle): MinMax sobre X completo ANTES del
-        # split (comportamiento histórico, conservado por reproducibilidad).
-        scaler = MinMaxScaler()
-        X = scaler.fit_transform(X)
+        # Datasets sin reducción (iris/wine/breast/circle): split PRIMERO y MinMax
+        # con fit SOLO en train, igual que el resto del protocolo. Val y test se
+        # transforman con las estadísticas de train, así que pueden salirse un
+        # poco de [0, 1]; eso es lo esperado.
         X_train, y_train, X_val, y_val, X_test, y_test = split_70_15_15(X, y, data_seed=data_seed)
+        scaler = MinMaxScaler()
+        X_train = scaler.fit_transform(X_train)
+        X_val = scaler.transform(X_val)
+        X_test = scaler.transform(X_test)
     else:
         # Variantes reducidas (mcw-*/fmnist-*): split PRIMERO, luego scaler +
         # reductor + re-escala con fit SOLO en train (sin fugas).
