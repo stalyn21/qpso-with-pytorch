@@ -98,6 +98,12 @@ def parse_args():
                         f"lineal alpha(t) = max - (max-min)·t/T. Default {DEFAULT_ALPHA[0]} "
                         f"{DEFAULT_ALPHA[1]}. Un solo valor = alpha constante (sin decay). "
                         "Ignorado con --optimizer qdpsoo.")
+    p.add_argument("--reevaluate-pbest", action=argparse.BooleanOptionalAction, default=True,
+                   help="(T2, T3) Re-evaluar los pbest contra la cost function fresca de cada "
+                        "paso (el contexto de las otras capas cambió). Default: activado. "
+                        "Cuesta una evaluación extra del swarm por paso. "
+                        "--no-reevaluate-pbest reproduce el comportamiento previo (valores "
+                        "obsoletos) para la ablación. T1, T2-jacobi y T4 lo ignoran.")
     p.add_argument("--bounds", type=float, nargs=2, default=[-1.0, 1.0])
     p.add_argument("--seed", type=int, default=42, help="Semilla base (se deriva una distinta por sesión)")
     p.add_argument("--data-seed", type=int, nargs="+", default=[100],
@@ -136,6 +142,7 @@ def _build_cfg_and_run(
         "optimizer": args.optimizer,
         "g": args.g,
         "alpha": resolve_alpha(args.alpha),
+        "reevaluate_pbest": args.reevaluate_pbest,
         "bounds": tuple(args.bounds),
         "seed": args.seed,
         "data_seed": data_seed,
@@ -171,8 +178,12 @@ def _run_tag(args, hidden) -> str:
     rounds_tag = (f"_rounds{args.n_rounds}"
                   if args.technique in ("t1", "t2-jacobi") and args.n_rounds > 1 else "")
     opt_tag = optimizer_tag({"optimizer": args.optimizer})
+    # Sólo se marca la ablación (no-default) y sólo donde aplica, para no cambiar
+    # los paths del resto de las celdas.
+    reeval_tag = ("_noreeval"
+                  if args.technique in ("t2", "t3") and not args.reevaluate_pbest else "")
     return (f"hid{hidden_tag}_iters{args.max_iter}_part{args.n_particles}"
-            f"{rounds_tag}_{opt_tag}_seed{args.seed}")
+            f"{rounds_tag}_{opt_tag}{reeval_tag}_seed{args.seed}")
 
 
 def _stat_summary(values):
@@ -314,6 +325,7 @@ def main():
                 "optimizer": args.optimizer,
                 "g": args.g,
                 "alpha": resolve_alpha(args.alpha),
+                "reevaluate_pbest": args.reevaluate_pbest,
                 "seed": args.seed,
                 "layer_sizes": [n_features] + list(hidden) + [n_classes],
                 "device": str(device),
@@ -423,6 +435,7 @@ def main():
             "optimizer": args.optimizer,
             "g": args.g,
             "alpha": resolve_alpha(args.alpha),
+            "reevaluate_pbest": args.reevaluate_pbest,
             "seed": args.seed,
             "data_seed": cv_data_seed,
             "layer_sizes": [n_features] + list(hidden) + [n_classes],

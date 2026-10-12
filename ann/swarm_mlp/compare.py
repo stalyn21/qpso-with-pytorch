@@ -174,6 +174,7 @@ MULTI_SEED_COLUMNS = [
     ("rounds",        lambda r: r["rounds"]),
     ("optimizer",     lambda r: r["optimizer"]),
     ("ce_param",      lambda r: r["ce_param"]),
+    ("reeval_pbest",  lambda r: r["reeval_pbest"]),
     ("n_seeds",       lambda r: r["n_seeds"]),
     ("n_runs",        lambda r: r["n_runs"]),
     ("test_acc_mean", lambda r: r["test_acc_mean"]),
@@ -207,6 +208,9 @@ def _config_key(cv_summary: Dict[str, Any]) -> Tuple:
         # Los summaries legacy no traen estos campos → caen en (qdpsoo, None) juntos.
         cfg.get("optimizer", "qdpsoo"),
         _ce_param(cfg),
+        # Ablación de T2/T3. Los summaries previos a este flag se corrieron SIN
+        # re-evaluación, así que su ausencia equivale a False (no se mezclan con los nuevos).
+        cfg.get("reevaluate_pbest", False),
     )
 
 
@@ -232,7 +236,8 @@ def aggregate_multi_seed(cv_summaries: List[Dict[str, Any]]) -> List[Dict[str, A
         if len(summaries) < 2:
             continue  # sólo agrupar cuando hay 2+ seeds para esta config
 
-        tech, ds, hidden, particles, max_iter, n_rounds, cv_folds, optimizer, ce_param = key
+        (tech, ds, hidden, particles, max_iter, n_rounds, cv_folds,
+         optimizer, ce_param, reeval_pbest) = key
 
         # Recolectar TODOS los puntos individuales (n_seeds × n_folds).
         all_test_accs: List[float] = []
@@ -265,6 +270,7 @@ def aggregate_multi_seed(cv_summaries: List[Dict[str, Any]]) -> List[Dict[str, A
             "rounds": n_rounds,
             "optimizer": optimizer,
             "ce_param": ce_param,
+            "reeval_pbest": reeval_pbest,
             "n_seeds": len(summaries),
             "n_runs": n_runs,
             "test_acc_mean": statistics.mean(all_test_accs),

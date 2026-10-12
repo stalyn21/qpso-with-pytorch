@@ -87,6 +87,7 @@ def run_session_t3(
     k_seeded = int(cfg.get("warm_particles", 10))
     noise_scale = float(cfg.get("warm_noise", 0.05))
     k_seeded_eff = max(1, min(k_seeded, cfg["n_particles"]))
+    reevaluate_pbest = bool(cfg.get("reevaluate_pbest", True))
 
     # 1) Crear N swarms con el cost_fn inicial (counterparts = params_init).
     swarms = []
@@ -146,7 +147,7 @@ def run_session_t3(
                     X=X_train, y=y_train, k=k,
                     frozen_flat=current, lambda_l2=cfg["lambda_l2"],
                 )
-                swap_cost_fn(opt, fresh_cost_fn)
+                swap_cost_fn(opt, fresh_cost_fn, reevaluate_pbest=reevaluate_pbest)
 
                 # Un paso del QDPSO (kernel_update + boundary + update_best + contador).
                 opt.step()

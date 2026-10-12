@@ -106,19 +106,31 @@ def build_swarm_optimizer(
     )
 
 
-def swap_cost_fn(opt: SwarmOptimizer, cf: Callable[[torch.Tensor], torch.Tensor]) -> None:
-    """Cambia la cost function de `opt` SIN tocar nada más (T2 async y T3).
+def swap_cost_fn(
+    opt: SwarmOptimizer,
+    cf: Callable[[torch.Tensor], torch.Tensor],
+    *,
+    reevaluate_pbest: bool = True,
+) -> None:
+    """Cambia la cost function de `opt` conservando el enjambre (T2 async y T3).
 
     Esas técnicas inyectan una cost function fresca en cada paso (el contexto de las
-    otras capas cambió) y necesitan conservar pbest y el contador de iteraciones —
-    `reuse_with()` resetea ambos, así que no sirve aquí.
+    otras capas cambió) y necesitan conservar las posiciones de pbest y el contador de
+    iteraciones — `reuse_with()` resetea ambos, así que no sirve aquí.
+
+    Con `reevaluate_pbest=True` (default) los `pbest_values` se vuelven a medir contra
+    la nueva cost function y el gbest se recalcula desde cero. Sin esto, cada valor
+    guardado corresponde a un contexto que ya no existe: un valor optimista hace que
+    el swarm rechace mejoras reales, y uno pesimista que acepte posiciones peores que
+    su propio gbest. Cuesta UNA evaluación extra del swarm por paso (2 por paso en
+    total) — tenerlo en cuenta al comparar presupuestos entre técnicas.
+
+    `reevaluate_pbest=False` reproduce el comportamiento previo (valores obsoletos);
+    se conserva para la ablación.
 
     qpso-torch 0.1.0 no tiene API pública para esto: es el ÚNICO punto del paquete
-    que escribe un atributo privado del optimizador (`_cost`). Cuando la librería
-    exponga un equivalente, reemplazar el cuerpo de esta función.
-
-    ⚠️ Los `pbest_values` NO se re-evalúan contra la nueva cost function (mismo
-    comportamiento que antes de la migración): quedan medidos contra contextos viejos.
+    que escribe atributos privados del optimizador (`_cost` y `_gbest_value`). Cuando
+    la librería exponga un equivalente, reemplazar el cuerpo de esta función.
     """
     opt._cost = CostFunction(
         cf,
@@ -127,6 +139,15 @@ def swap_cost_fn(opt: SwarmOptimizer, cf: Callable[[torch.Tensor], torch.Tensor]
         minimize=opt.minimize,
         vectorized=True,
     )
+    if not reevaluate_pbest:
+        return
+
+    with torch.no_grad():
+        opt.pbest_values.copy_(opt.cost_fn(opt.pbest))
+        # `update_gbest()` sólo reemplaza ante mejora estricta; el gbest puede haber
+        # EMPEORADO bajo el nuevo contexto, así que se parte del peor valor posible.
+        opt._gbest_value = float("inf") if opt.minimize else float("-inf")
+        opt.update_gbest()
 
 
 def resolve_alpha(

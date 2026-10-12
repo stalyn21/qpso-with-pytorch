@@ -91,6 +91,7 @@ def _async_layer_worker(
     y_val_f = data["y_val"].float()
     lambda_l2 = cfg["lambda_l2"]
     max_iter = int(cfg["max_iter"])
+    reevaluate_pbest = bool(cfg.get("reevaluate_pbest", True))
 
     # Mejor modelo COMPLETO (por val, desempate por train_loss) visto por este worker.
     val_best = {
@@ -109,7 +110,7 @@ def _async_layer_worker(
             X=X_train, y=y_train, k=k,
             frozen_flat=frozen, lambda_l2=lambda_l2,
         )
-        swap_cost_fn(opt, fresh_cf)
+        swap_cost_fn(opt, fresh_cf, reevaluate_pbest=reevaluate_pbest)
 
         # 3. Un paso del QDPSO (kernel_update + boundary + update_best + contador).
         improved = opt.step()
