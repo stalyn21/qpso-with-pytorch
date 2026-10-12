@@ -35,7 +35,10 @@ import torch
 
 from core.mlp import MLP
 from qpso_torch import CallbackEvent
-from swarm.optimizer_factory import SwarmOptimizer, build_swarm_optimizer
+from core.sessions import evaluate_train_loss
+from swarm.optimizer_factory import (
+    SwarmOptimizer, build_swarm_optimizer, reuse_keeping_pbest,
+)
 from swarm.warm_start import warm_start_cluster
 
 
@@ -89,8 +92,9 @@ def _train_layer_round(
     def _run():
         # Round 0: opt recién creado con cost_fn correcta — solo registramos callback y optimizamos.
         # Round r>0: re-armamos el opt con la nueva cost_fn (warm-start) y re-registramos callback.
+        # Los pbest se conservan, re-medidos contra la nueva cost_fn.
         if not is_first_round:
-            opt.reuse_with(cost_fn)
+            reuse_keeping_pbest(opt, cost_fn)
         opt.callbacks.clear(CallbackEvent.ON_NEW_BEST)
         opt.callbacks.register(CallbackEvent.ON_NEW_BEST, on_new_best)
 
@@ -169,6 +173,27 @@ def run_session_t2_jacobi(
         warm_start_cluster(opt, seed_segment, k_seeded_eff, noise_scale)
         opts.append(opt)
 
+    # Mejor modelo COMPLETO visto al cierre de un round (menor val; con val igual,
+    # menor train_loss — misma regla que T2 async y T3). La sincronización Jacobi
+    # junta segmentos que cada capa optimizó contra el snapshot VIEJO de las demás,
+    # así que el `current` de un round puede ser peor que el del anterior
+    # (oscilación). Devolver siempre el último haría que la sesión dependa de en qué
+    # fase de la oscilación termina. `params_init` entra como candidato inicial.
+    X_val, y_val_f = data["X_val"], data["y_val"].float()
+
+    def _score(flat: torch.Tensor):
+        with torch.no_grad():
+            y_pred = mlp.predict(X_val, flat)
+        val_cost = ((y_val_f - y_pred.float()) ** 2).mean().item()
+        train_loss = evaluate_train_loss(
+            mlp, flat, data["X_train"], data["y_train"], cfg["lambda_l2"]
+        )
+        return (val_cost, train_loss)
+
+    best_combined = params_init.clone()
+    best_key = _score(best_combined)
+    round_at_best = -1   # -1 = params_init
+
     try:
         for round_idx in range(n_rounds):
             # Snapshot del contexto al inicio del round (todos los threads lo comparten).
@@ -227,7 +252,15 @@ def run_session_t2_jacobi(
                       f"iters={r['result'].iterations}  "
                       f"{r['layer_time']:.2f}s")
 
-            print(f"    ⏱ [r{round_idx}] paralelo={round_wall_time:.2f}s   "
+            # Evaluar el modelo combinado de este round y quedarnos con el mejor.
+            round_key = _score(current)
+            if round_key < best_key:
+                best_key = round_key
+                best_combined = current.clone()
+                round_at_best = round_idx
+
+            print(f"    ⏱ [r{round_idx}] val_combinado={round_key[0]:.4f}   "
+                  f"paralelo={round_wall_time:.2f}s   "
                   f"Σ secuencial={seq_equiv:.2f}s   speedup≈{speedup:.2f}×")
 
     finally:
@@ -239,10 +272,15 @@ def run_session_t2_jacobi(
     total_sequential = sum(sequential_equiv_times)
     total_speedup = total_sequential / total_parallel if total_parallel > 0 else 0.0
 
+    best_label = "params_init" if round_at_best < 0 else f"round {round_at_best}"
+    print(f"    🧩 jacobi: best_val={best_key[0]:.4f} (modelo combinado de {best_label})")
+
     return {
-        "params_best": current,
+        "params_best": best_combined,
         "per_layer": per_layer,
         "n_rounds": n_rounds,
+        "best_val_cost_during_session": float(best_key[0]),
+        "round_at_best": int(round_at_best),
         "parallel_wall_time": total_parallel,
         "sequential_equivalent_time": total_sequential,
         "speedup": total_speedup,

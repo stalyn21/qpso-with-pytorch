@@ -150,6 +150,36 @@ def swap_cost_fn(
         opt.update_gbest()
 
 
+def reuse_keeping_pbest(
+    opt: SwarmOptimizer,
+    cf: Callable[[torch.Tensor], torch.Tensor],
+) -> None:
+    """`opt.reuse_with(cf)` pero SIN perder la memoria del swarm (T2-jacobi).
+
+    `reuse_with()` re-arma el optimizador para una cost function nueva (resetea el
+    contador y el estado de convergencia, que es lo que un round nuevo necesita),
+    pero re-siembra los pbest desde las posiciones actuales y descarta los históricos.
+    Entre rounds de Jacobi eso tira justo lo que se quería conservar: el mejor punto
+    que cada partícula encontró, incluido el segmento recién sincronizado.
+
+    Aquí los pbest anteriores se re-miden contra la nueva cost function y se
+    restauran donde siguen siendo mejores que la posición actual de su partícula.
+    Cuesta una evaluación extra del swarm por round. Sólo usa API pública.
+    """
+    old_pbest = opt.pbest.clone()
+    opt.reuse_with(cf)
+    with torch.no_grad():
+        old_values = opt.cost_fn(old_pbest)
+        better = (
+            old_values < opt.pbest_values if opt.minimize
+            else old_values > opt.pbest_values
+        )
+        if bool(better.any()):
+            opt.pbest[better] = old_pbest[better]
+            opt.pbest_values[better] = old_values[better]
+            opt.update_gbest()
+
+
 def resolve_alpha(
     alpha: Optional[Union[float, List[float], Tuple[float, ...]]],
 ) -> Union[float, Tuple[float, float]]:
