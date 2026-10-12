@@ -2,11 +2,19 @@
 
 Todo ajuste (scaler y reductor) se hace SOLO sobre el train de cada split o fold.
 
-Datasets del paper (`PAPER_DATASETS`): iris y breast usan sus features crudos:
+Datasets del paper para el MLP (`PAPER_DATASETS`), en dificultad creciente; todos
+usan sus features crudos:
 
     split 70/15/15 (o fold) → MinMax fit(train)
 
-Las variantes `mcw-*` y `fmnist-*` parten de 84 features de imagen (ver
+    iris      4 features,  3 clases,  150 muestras   (sklearn)
+    breast   30 features,  2 clases,  569 muestras   (sklearn)
+    segment  19 features,  7 clases, 2310 muestras   (OpenML, se descarga y cachea)
+    satimage 36 features,  6 clases, 6430 muestras   (OpenML, se descarga y cachea)
+    digits   64 features, 10 clases, 1797 muestras   (sklearn)
+
+Las variantes `mcw-*` y `fmnist-*` (fuera del paper para el MLP) parten de 84
+features de imagen (ver
 `core/features.py`) y aplican reducción de dimensionalidad a 7 componentes POR SPLIT:
 
     split 70/15/15 (o fold) → MinMax fit(train) → Isomap/PCA(7) fit(train)
@@ -18,17 +26,26 @@ iris/breast. El factor de reducción 84/12 = 7 sigue a paper-1 (mejor factor en 
 from typing import Dict, Optional, Tuple
 import numpy as np
 import torch
-from sklearn.datasets import load_iris, load_wine, load_breast_cancer, make_circles
+from sklearn.datasets import (
+    fetch_openml, load_breast_cancer, load_digits, load_iris, load_wine, make_circles,
+)
 from sklearn.decomposition import PCA
 from sklearn.manifold import Isomap
 from sklearn.model_selection import train_test_split, StratifiedKFold
-from sklearn.preprocessing import MinMaxScaler
+from sklearn.preprocessing import LabelEncoder, MinMaxScaler
 
 
-BENCHMARK_DATASETS = ("iris", "wine", "breast", "circle")
+# Suite del paper 2 para el MLP, en dificultad creciente.
+PAPER_DATASETS = ("iris", "breast", "segment", "satimage", "digits")
 
-# Suite estándar del paper 2 (6 variantes; circle/wine quedan fuera del paper).
-PAPER_DATASETS = ("iris", "breast", "mcw-isomap", "mcw-pca", "fmnist-isomap", "fmnist-pca")
+# Disponibles pero fuera del paper: wine/circle y las variantes de imagen reducidas
+# a 7 componentes (las imágenes se estudian con la CNN, no con el MLP).
+BENCHMARK_DATASETS = (
+    "wine", "circle", "mcw-isomap", "mcw-pca", "fmnist-isomap", "fmnist-pca",
+)
+
+# Datasets tabulares de OpenML: nombre → versión fijada (reproducibilidad).
+OPENML_DATASETS = {"segment": 1, "satimage": 1}
 
 N_COMPONENTS_REDUCED = 7   # 84 features / 12 (factor de paper-1)
 
@@ -57,6 +74,17 @@ def load_dataset(name: str, data_seed: int = 100) -> Tuple[np.ndarray, np.ndarra
     if name == "circle":
         X, y = make_circles(n_samples=500, factor=0.5, noise=0.05, random_state=data_seed)
         return X, y
+    if name == "digits":
+        d = load_digits()
+        return d.data, d.target
+    if name in OPENML_DATASETS:
+        from core.features import DEFAULT_CACHE_DIR
+        d = fetch_openml(
+            name, version=OPENML_DATASETS[name], as_frame=False, parser="liac-arff",
+            data_home=str(DEFAULT_CACHE_DIR / "openml"),
+        )
+        # Las etiquetas vienen como texto ('brickface', '1.', ...): se codifican a 0..K-1.
+        return d.data.astype(np.float64), LabelEncoder().fit_transform(d.target)
     if name == "mcw":
         from core.features import load_mcw_raw
         return load_mcw_raw()
@@ -146,7 +174,7 @@ def prepare_dataset(
     X, y = load_dataset(base, data_seed=data_seed)
 
     if method is None:
-        # Datasets sin reducción (iris/wine/breast/circle): split PRIMERO y MinMax
+        # Datasets sin reducción (features crudos): split PRIMERO y MinMax
         # con fit SOLO en train, igual que el resto del protocolo. Val y test se
         # transforman con las estadísticas de train, así que pueden salirse un
         # poco de [0, 1]; eso es lo esperado.
