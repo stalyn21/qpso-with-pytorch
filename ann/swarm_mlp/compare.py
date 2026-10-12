@@ -41,12 +41,12 @@ COLUMNS = [
     ("seed",           lambda r: r["config"]["seed"]),
     ("winner_session", lambda r: r["winner_by_val"]["session"]),
     ("val_acc",        lambda r: r["winner_by_val"]["val_acc"]),
+    ("val_ce",         lambda r: r["winner_by_val"].get("val_ce", float("nan"))),
     ("val_mse",        lambda r: r["winner_by_val"]["val_cost"]),
-    ("val_score",      lambda r: r["winner_by_val"]["val_score"]),
     ("train_loss",     lambda r: r["winner_by_val"].get("train_loss", float("nan"))),
     ("test_acc",       lambda r: r["winner_by_val"]["final_test_acc"]),
+    ("test_ce",        lambda r: r["winner_by_val"].get("final_test_ce", float("nan"))),
     ("test_mse",       lambda r: r["winner_by_val"]["final_test_cost"]),
-    ("test_score",     lambda r: r["winner_by_val"].get("final_test_score", float("nan"))),
     ("gap_winner",     lambda r: _winner_gap(r)),
     ("gap_mean",       lambda r: _mean_gap(r)),
     ("total_time",     lambda r: r["total_time"]),
@@ -481,7 +481,7 @@ def main():
     p.add_argument("--output-dir", default="./output", help="Directorio raíz donde están las corridas")
     p.add_argument("--filter-technique", default=None, help="Filtrar por técnica (t1/t2/t2-jacobi/t3/t4)")
     p.add_argument("--filter-dataset", default=None, help="Filtrar por dataset (iris/wine/breast/circle)")
-    p.add_argument("--sort-by", default="val_score", help="Columna para ordenar (default: val_score)")
+    p.add_argument("--sort-by", default="val_acc", help="Columna para ordenar (default: val_acc)")
     p.add_argument("--cv-sort-by", default="test_acc_mean",
                    help="Columna para ordenar la tabla CV (default: test_acc_mean)")
     p.add_argument("--multi-sort-by", default="test_acc_mean",

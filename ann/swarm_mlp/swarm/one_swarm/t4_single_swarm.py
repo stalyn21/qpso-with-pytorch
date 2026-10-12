@@ -16,6 +16,7 @@ from typing import Any, Dict
 
 import torch
 
+from core.metrics import selection_key
 from core.mlp import MLP
 from qpso_torch import CallbackEvent
 from swarm.optimizer_factory import build_swarm_optimizer
@@ -37,27 +38,20 @@ def run_session_t4(
         lambda_l2=cfg["lambda_l2"],
     )
 
-    # Tracking de mejor val durante la sesión.
-    # NOTA: ON_NEW_BEST sólo dispara cuando opt.gbest_value (= train+L2) mejora,
-    # así que train_loss decrece monótonamente entre disparos. Usar `<=` (no `<`)
-    # garantiza que ante empate de val nos quedamos con el ÚLTIMO snapshot, que
-    # tiene el menor train_loss → modelo más convergido y más generalizable.
+    # Tracking de mejor val durante la sesión (criterio: core.metrics.selection_key,
+    # más val_acc y, con la misma, menos val_ce). ON_NEW_BEST sólo dispara cuando
+    # opt.gbest_value (= train+L2) mejora.
     val_best = {
         "params": params_init.clone(),
-        "val_cost": float("inf"),
+        "key": (float("inf"), float("inf")),
         "iter_at_best": 0,
     }
-    X_val = data["X_val"]
-    y_val_f = data["y_val"].float()
+    X_val, y_val = data["X_val"], data["y_val"]
 
     def on_new_best(opt):
-        with torch.no_grad():
-            y_pred = mlp.predict(X_val, opt.gbest)
-        val_cost = ((y_val_f - y_pred.float()) ** 2).mean().item()
-        # `<=` permite que el último snapshot con val mínimo gane (más maduro
-        # porque opt.gbest_value es monótono decreciente entre disparos).
-        if val_cost <= val_best["val_cost"]:
-            val_best["val_cost"] = val_cost
+        key = selection_key(mlp, opt.gbest, X_val, y_val)
+        if key < val_best["key"]:
+            val_best["key"] = key
             val_best["params"] = opt.gbest.clone()
             val_best["iter_at_best"] = opt.iters
 
@@ -86,11 +80,12 @@ def run_session_t4(
     # Si el QDPSO terminó sin mejorar val (raro pero posible), val_best.params
     # podría estar en su valor inicial. Aseguramos que devolvemos el mejor visto.
     params_best = val_best["params"]
+    best_val_acc, best_val_ce = 1.0 - val_best["key"][0], val_best["key"][1]
 
     print(f"    🎯 single-swarm dim={mlp.d_total}: "
           f"train_loss={float(result.best_value):.4E}  "
           f"iters={result.iterations}  "
-          f"best_val={val_best['val_cost']:.4f} en iter {val_best['iter_at_best']}  "
+          f"best_val: acc={best_val_acc:.4f} ce={best_val_ce:.4f} en iter {val_best['iter_at_best']}  "
           f"warm-cluster=K{k_seeded}/σ{noise_scale}  "
           f"⏱ {session_time:.2f}s  "
           f"({result.convergence_reason})")
@@ -103,7 +98,8 @@ def run_session_t4(
         "iterations_run": int(result.iterations),
         "converged": bool(result.converged),
         "convergence_reason": result.convergence_reason,
-        "val_best_cost": float(val_best["val_cost"]),
+        "val_best_acc": float(best_val_acc),
+        "val_best_ce": float(best_val_ce),
         "iter_at_val_best": int(val_best["iter_at_best"]),
         "layer_time": float(session_time),
         "warm_k_seeded": k_seeded,
@@ -114,6 +110,7 @@ def run_session_t4(
         "params_best": params_best,
         "per_layer": per_layer,
         "session_time": session_time,
-        "best_val_cost_during_session": float(val_best["val_cost"]),
+        "best_val_acc_during_session": float(best_val_acc),
+        "best_val_ce_during_session": float(best_val_ce),
         "iter_at_best": int(val_best["iter_at_best"]),
     }

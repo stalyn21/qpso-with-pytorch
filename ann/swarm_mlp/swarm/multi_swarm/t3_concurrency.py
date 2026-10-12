@@ -33,25 +33,9 @@ from typing import Any, Dict
 import torch
 
 from core.mlp import MLP
-from core.metrics import mse_int
-from core.loss import cross_entropy_from_logits, l2_penalty
+from core.metrics import selection_key
 from swarm.optimizer_factory import build_swarm_optimizer, swap_cost_fn
 from swarm.warm_start import warm_start_cluster
-
-
-def _train_loss_combined(mlp, current, X_train, y_train, lambda_l2):
-    """CE + L2 sobre train con el modelo combinado (tie-breaker maduro).
-
-    L2 normalizado por (d_total · n_train) — ver core/loss.py:l2_penalty.
-    """
-    with torch.no_grad():
-        logits = mlp.forward(X_train, current)
-        ce = cross_entropy_from_logits(logits, y_train, dim_classes=-1).mean().item()
-        l2 = float(l2_penalty(
-            current, lambda_l2,
-            d_total=mlp.d_total, n_train=X_train.shape[0],
-        ).item())
-    return ce + l2
 
 
 def _combine_gbests(
@@ -77,7 +61,6 @@ def run_session_t3(
     low, high = cfg["bounds"]
     X_train, y_train = data["X_train"], data["y_train"]
     X_val, y_val = data["X_val"], data["y_val"]
-    y_val_f = y_val.float()
 
     # Configuración del warm-start cluster para cada swarm (CLI configurable).
     # Cada swarm de capa k recibe como semilla el segmento de params_init correspondiente
@@ -114,13 +97,9 @@ def run_session_t3(
         swarms.append(opt)
 
     # Snapshot inicial: evaluamos val con el combinado de gBests iniciales (post warm-start).
+    # Criterio (core.metrics.selection_key): más val_acc y, con la misma, menos val_ce.
     best_combined = _combine_gbests(params_init, swarms, mlp)
-    with torch.no_grad():
-        y_pred = mlp.predict(X_val, best_combined)
-    best_val_cost = mse_int(y_val, y_pred)
-    best_train_loss = _train_loss_combined(
-        mlp, best_combined, X_train, y_train, cfg["lambda_l2"]
-    )
+    best_key = selection_key(mlp, best_combined, X_val, y_val)
     iter_at_best = 0
 
     # Métricas por capa (gBest final de cada swarm + tiempo)
@@ -159,25 +138,11 @@ def run_session_t3(
                 layer_train_loss[k] = float(opt.gbest_value)
 
             # c) Evaluar el modelo combinado completo en val
-            y_pred = mlp.predict(X_val, current)
-            val_cost = mse_int(y_val, y_pred)
-
-            # Snapshot selection con tie-breaker train_loss:
-            # 1. menor val_cost gana
-            # 2. con mismo val_cost, menor train_loss gana (modelo más convergido)
-            # Evita el "first-hit cherry-pick" que castigaba a T3 en datasets pequeños.
-            if val_cost <= best_val_cost:
-                train_loss_now = _train_loss_combined(
-                    mlp, current, X_train, y_train, cfg["lambda_l2"]
-                )
-                is_better = (val_cost < best_val_cost) or (
-                    val_cost == best_val_cost and train_loss_now < best_train_loss
-                )
-                if is_better:
-                    best_val_cost = val_cost
-                    best_train_loss = train_loss_now
-                    best_combined = current.clone()
-                    iter_at_best = it + 1
+            key = selection_key(mlp, current, X_val, y_val)
+            if key < best_key:
+                best_key = key
+                best_combined = current.clone()
+                iter_at_best = it + 1
 
     session_time = time.time() - session_start
 
@@ -209,7 +174,8 @@ def run_session_t3(
               f"train_loss={layer_train_loss[k]:.4E}  "
               f"iters={cfg['max_iter']}  acumulado={layer_iter_times[k]:.2f}s")
 
-    print(f"    🔁 lockstep: best_val={best_val_cost:.4f} en iter {iter_at_best}/{cfg['max_iter']}  "
+    best_val_acc, best_val_ce = 1.0 - best_key[0], best_key[1]
+    print(f"    🔁 lockstep: best_val: acc={best_val_acc:.4f} ce={best_val_ce:.4f} en iter {iter_at_best}/{cfg['max_iter']}  "
           f"warm-cluster=K{k_seeded_eff}/σ{noise_scale}  "
           f"⏱ sesión={session_time:.2f}s")
 
@@ -217,6 +183,7 @@ def run_session_t3(
         "params_best": best_combined,
         "per_layer": per_layer,
         "session_time": session_time,
-        "best_val_cost_during_session": float(best_val_cost),
+        "best_val_acc_during_session": float(best_val_acc),
+        "best_val_ce_during_session": float(best_val_ce),
         "iter_at_best": int(iter_at_best),
     }

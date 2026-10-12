@@ -23,6 +23,7 @@ from typing import Any, Dict
 
 import torch
 
+from core.metrics import selection_key
 from core.mlp import MLP
 from qpso_torch import CallbackEvent
 from swarm.optimizer_factory import build_swarm_optimizer
@@ -52,7 +53,6 @@ def run_session_t1(
 
     X_val = data["X_val"]
     y_val = data["y_val"]
-    y_val_f = y_val.float()
 
     training_order = list(range(mlp.num_layers - 1, -1, -1))
 
@@ -81,7 +81,7 @@ def run_session_t1(
 
             val_best = {
                 "params": current[spec.offset : spec.offset + spec.size].clone(),
-                "val_cost": float("inf"),
+                "key": (float("inf"), float("inf")),
                 "iter_at_best": 0,
             }
 
@@ -89,11 +89,10 @@ def run_session_t1(
                 def on_new_best(opt):
                     candidate = frozen_ref.clone()
                     candidate[spec_ref.offset : spec_ref.offset + spec_ref.size] = opt.gbest
-                    with torch.no_grad():
-                        y_pred = mlp.predict(X_val, candidate)
-                    val_cost = ((y_val_f - y_pred.float()) ** 2).mean().item()
-                    if val_cost < val_best_ref["val_cost"]:
-                        val_best_ref["val_cost"] = val_cost
+                    # Criterio: más val_acc y, con la misma, menos val_ce.
+                    key = selection_key(mlp, candidate, X_val, y_val)
+                    if key < val_best_ref["key"]:
+                        val_best_ref["key"] = key
                         val_best_ref["params"] = opt.gbest.clone()
                         val_best_ref["iter_at_best"] = opt.iters
                 return on_new_best
@@ -130,7 +129,8 @@ def run_session_t1(
                 "n_out": spec.n_out,
                 "dim": dim_k,
                 "final_train_loss": float(result.best_value),
-                "val_best_cost": float(val_best["val_cost"]),
+                "val_best_acc": float(1.0 - val_best["key"][0]),
+                "val_best_ce": float(val_best["key"][1]),
                 "iter_at_val_best": int(val_best["iter_at_best"]),
                 "iterations_run": int(result.iterations),
                 "converged": bool(result.converged),
@@ -141,7 +141,7 @@ def run_session_t1(
             print(f"    [r{round_idx}] capa {k} ({position_label}) "
                   f"[{spec.n_in}→{spec.n_out}, dim={dim_k}]: "
                   f"train_loss={float(result.best_value):.4E}  "
-                  f"val_best={val_best['val_cost']:.4f}  "
+                  f"val_best: acc={1.0 - val_best['key'][0]:.4f} ce={val_best['key'][1]:.4f}  "
                   f"iters={result.iterations}  {layer_time:.2f}s")
 
     return {

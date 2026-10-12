@@ -54,7 +54,7 @@ def parse_args():
     p.add_argument("--dataset", required=True,
                    choices=sorted(set(BENCHMARK_DATASETS) | set(PAPER_DATASETS)),
                    help="Suite del paper: " + ", ".join(PAPER_DATASETS)
-                        + ". Extra (fuera del paper): wine, circle.")
+                        + ". Extra (fuera del paper): " + ", ".join(BENCHMARK_DATASETS) + ".")
     p.add_argument("--n-sessions", type=int, default=15,
                    help="Sesiones internas con cadena monótona inter-sesión y selección por val. "
                         "En modo CV (--cv-folds K), se ejecutan POR FOLD (recomendado N=1 para CV).")
@@ -292,11 +292,11 @@ def main():
             split_summaries.append({
                 "data_seed": ds,
                 "test_acc":  winner["final_test_acc"],
+                "test_ce":   winner["final_test_ce"],
                 "test_cost": winner["final_test_cost"],
-                "test_score": winner["final_test_score"],
                 "val_acc":   winner["val_acc"],
+                "val_ce":    winner["val_ce"],
                 "val_cost":  winner["val_cost"],
-                "val_score": winner["val_score"],
                 "train_loss": winner["train_loss"],
                 "session":   winner["session"],
                 "total_time": result["total_time"],
@@ -402,11 +402,11 @@ def main():
         fold_summaries.append({
             "fold_idx": fold_idx,
             "test_acc":  winner["final_test_acc"],
+            "test_ce":   winner["final_test_ce"],
             "test_cost": winner["final_test_cost"],
-            "test_score": winner["final_test_score"],
             "val_acc":   winner["val_acc"],
+            "val_ce":    winner["val_ce"],
             "val_cost":  winner["val_cost"],
-            "val_score": winner["val_score"],
             "train_loss": winner["train_loss"],
             "session":   winner["session"],
             "total_time": result["total_time"],

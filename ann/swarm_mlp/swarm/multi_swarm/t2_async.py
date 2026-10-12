@@ -42,8 +42,8 @@ from typing import Any, Dict, List, Optional
 
 import torch
 
+from core.metrics import selection_key
 from core.mlp import MLP
-from core.sessions import evaluate_train_loss
 from swarm.optimizer_factory import SwarmOptimizer, build_swarm_optimizer, swap_cost_fn
 from swarm.warm_start import warm_start_cluster
 
@@ -87,17 +87,16 @@ def _async_layer_worker(
     """
     spec = mlp.layer_specs[k]
     X_train, y_train = data["X_train"], data["y_train"]
-    X_val = data["X_val"]
-    y_val_f = data["y_val"].float()
+    X_val, y_val = data["X_val"], data["y_val"]
     lambda_l2 = cfg["lambda_l2"]
     max_iter = int(cfg["max_iter"])
     reevaluate_pbest = bool(cfg.get("reevaluate_pbest", True))
 
-    # Mejor modelo COMPLETO (por val, desempate por train_loss) visto por este worker.
+    # Mejor modelo COMPLETO visto por este worker (criterio: core.metrics.selection_key,
+    # más val_acc y, con la misma, menos val_ce).
     val_best = {
         "params": None,
-        "val_cost": float("inf"),
-        "train_loss": float("inf"),
+        "key": (float("inf"), float("inf")),
         "iter_at_best": 0,
     }
 
@@ -124,17 +123,9 @@ def _async_layer_worker(
         # Eval val con snapshot ad-hoc + gbest fresco de esta capa.
         candidate = current.clone()
         candidate[spec.offset : spec.offset + spec.size] = opt.gbest
-        with torch.no_grad():
-            y_pred = mlp.predict(X_val, candidate)
-        val_cost = ((y_val_f - y_pred.float()) ** 2).mean().item()
-        if val_cost > val_best["val_cost"]:
-            return
-        # Misma regla que T3: menor val gana; con val igual, menor train_loss
-        # (modelo más convergido). El train_loss sólo se calcula si hace falta.
-        train_loss = evaluate_train_loss(mlp, candidate, X_train, y_train, lambda_l2)
-        if val_cost < val_best["val_cost"] or train_loss < val_best["train_loss"]:
-            val_best["val_cost"] = val_cost
-            val_best["train_loss"] = train_loss
+        key = selection_key(mlp, candidate, X_val, y_val)
+        if key < val_best["key"]:
+            val_best["key"] = key
             val_best["params"] = candidate
             val_best["iter_at_best"] = step + 1
 
@@ -152,8 +143,7 @@ def _async_layer_worker(
         "k": k,
         "spec": spec,
         "best_params": val_best["params"],
-        "val_best_cost": val_best["val_cost"],
-        "val_best_train_loss": val_best["train_loss"],
+        "val_best_key": val_best["key"],
         "iter_at_val_best": val_best["iter_at_best"],
         "final_train_loss": float(opt.gbest_value),
         "iterations_run": int(opt.iters),
@@ -239,25 +229,18 @@ def run_session_t2_async(
     session_time = time.time() - session_start
 
     # Elegir el mejor modelo COMPLETO entre el punto de partida y el mejor de cada
-    # worker (menor val; con val igual, menor train_loss). `params_init` entra como
+    # worker (más val_acc; con la misma, menos val_ce). `params_init` entra como
     # candidato para que la sesión nunca devuelva algo peor en val que su arranque.
     # El orden de los candidatos (init, luego capa 0..N-1) fija el desempate final.
-    X_val, y_val_f = data["X_val"], data["y_val"].float()
-    with torch.no_grad():
-        y_pred_init = mlp.predict(X_val, params_init)
-    best_val_cost = ((y_val_f - y_pred_init.float()) ** 2).mean().item()
-    best_train_loss = evaluate_train_loss(
-        mlp, params_init, data["X_train"], data["y_train"], cfg["lambda_l2"]
-    )
+    best_key = selection_key(mlp, params_init, data["X_val"], data["y_val"])
     params_best = params_init.clone()
     winner_layer = None
     iter_at_best = 0
     for r in sorted(results, key=lambda x: x["k"]):
         if r["best_params"] is None:
             continue
-        candidate_key = (r["val_best_cost"], r["val_best_train_loss"])
-        if candidate_key < (best_val_cost, best_train_loss):
-            best_val_cost, best_train_loss = candidate_key
+        if r["val_best_key"] < best_key:
+            best_key = r["val_best_key"]
             params_best = r["best_params"]
             winner_layer = r["k"]
             iter_at_best = r["iter_at_val_best"]
@@ -277,7 +260,8 @@ def run_session_t2_async(
             "n_out": spec.n_out,
             "dim": spec.size,
             "final_train_loss": r["final_train_loss"],
-            "val_best_cost": float(r["val_best_cost"]),
+            "val_best_acc": float(1.0 - r["val_best_key"][0]),
+            "val_best_ce": float(r["val_best_key"][1]),
             "iter_at_val_best": int(r["iter_at_val_best"]),
             "iterations_run": r["iterations_run"],
             "layer_time": float(r["layer_time"]),
@@ -289,12 +273,13 @@ def run_session_t2_async(
         print(f"    capa {k} ({info['position']}) "
               f"[{info['n_in']}→{info['n_out']}, dim={info['dim']}]: "
               f"train_loss={info['final_train_loss']:.4E}  "
-              f"val_best={info['val_best_cost']:.4f}  "
+              f"val_best: acc={info['val_best_acc']:.4f} ce={info['val_best_ce']:.4f}  "
               f"iters={info['iterations_run']}  "
               f"{info['layer_time']:.2f}s")
 
     winner_label = "params_init" if winner_layer is None else f"capa {winner_layer}"
-    print(f"    🔀 async lock-free: best_val={best_val_cost:.4f} "
+    best_val_acc, best_val_ce = 1.0 - best_key[0], best_key[1]
+    print(f"    🔀 async lock-free: best_val: acc={best_val_acc:.4f} ce={best_val_ce:.4f} "
           f"(snapshot de {winner_label}, iter {iter_at_best})   "
           f"paralelo={session_time:.2f}s   "
           f"Σ secuencial={seq_equiv:.2f}s   speedup≈{speedup:.2f}×")
@@ -302,7 +287,8 @@ def run_session_t2_async(
     return {
         "params_best": params_best,
         "per_layer": per_layer,
-        "best_val_cost_during_session": float(best_val_cost),
+        "best_val_acc_during_session": float(best_val_acc),
+        "best_val_ce_during_session": float(best_val_ce),
         "iter_at_best": int(iter_at_best),
         "session_time": session_time,
         "parallel_wall_time": session_time,

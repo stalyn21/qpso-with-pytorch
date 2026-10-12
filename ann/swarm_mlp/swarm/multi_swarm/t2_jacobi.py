@@ -33,9 +33,9 @@ from typing import Any, Dict, List, Optional
 
 import torch
 
+from core.metrics import selection_key
 from core.mlp import MLP
 from qpso_torch import CallbackEvent
-from core.sessions import evaluate_train_loss
 from swarm.optimizer_factory import (
     SwarmOptimizer, build_swarm_optimizer, reuse_keeping_pbest,
 )
@@ -63,8 +63,7 @@ def _train_layer_round(
 ) -> Dict[str, Any]:
     """Worker que entrena la capa k en un round, usando un opt persistente."""
     spec = mlp.layer_specs[k]
-    X_val = data["X_val"]
-    y_val_f = data["y_val"].float()
+    X_val, y_val = data["X_val"], data["y_val"]
 
     cost_fn = mlp.build_layer_cost_fn(
         X=data["X_train"], y=data["y_train"],
@@ -74,18 +73,17 @@ def _train_layer_round(
 
     val_best = {
         "params": frozen_flat[spec.offset : spec.offset + spec.size].clone(),
-        "val_cost": float("inf"),
+        "key": (float("inf"), float("inf")),
         "iter_at_best": 0,
     }
 
     def on_new_best(_opt):
         candidate = frozen_flat.clone()
         candidate[spec.offset : spec.offset + spec.size] = _opt.gbest
-        with torch.no_grad():
-            y_pred = mlp.predict(X_val, candidate)
-        val_cost = ((y_val_f - y_pred.float()) ** 2).mean().item()
-        if val_cost < val_best["val_cost"]:
-            val_best["val_cost"] = val_cost
+        # Criterio: más val_acc y, con la misma, menos val_ce.
+        key = selection_key(mlp, candidate, X_val, y_val)
+        if key < val_best["key"]:
+            val_best["key"] = key
             val_best["params"] = _opt.gbest.clone()
             val_best["iter_at_best"] = _opt.iters
 
@@ -113,7 +111,7 @@ def _train_layer_round(
         "k": k,
         "spec": spec,
         "best_segment": val_best["params"],
-        "val_best_cost": val_best["val_cost"],
+        "val_best_key": val_best["key"],
         "iter_at_val_best": val_best["iter_at_best"],
         "result": result,
         "layer_time": layer_time,
@@ -173,22 +171,14 @@ def run_session_t2_jacobi(
         warm_start_cluster(opt, seed_segment, k_seeded_eff, noise_scale)
         opts.append(opt)
 
-    # Mejor modelo COMPLETO visto al cierre de un round (menor val; con val igual,
-    # menor train_loss — misma regla que T2 async y T3). La sincronización Jacobi
+    # Mejor modelo COMPLETO visto al cierre de un round (más val_acc; con la misma,
+    # menos val_ce — misma regla que el resto de técnicas). La sincronización Jacobi
     # junta segmentos que cada capa optimizó contra el snapshot VIEJO de las demás,
     # así que el `current` de un round puede ser peor que el del anterior
     # (oscilación). Devolver siempre el último haría que la sesión dependa de en qué
     # fase de la oscilación termina. `params_init` entra como candidato inicial.
-    X_val, y_val_f = data["X_val"], data["y_val"].float()
-
     def _score(flat: torch.Tensor):
-        with torch.no_grad():
-            y_pred = mlp.predict(X_val, flat)
-        val_cost = ((y_val_f - y_pred.float()) ** 2).mean().item()
-        train_loss = evaluate_train_loss(
-            mlp, flat, data["X_train"], data["y_train"], cfg["lambda_l2"]
-        )
-        return (val_cost, train_loss)
+        return selection_key(mlp, flat, data["X_val"], data["y_val"])
 
     best_combined = params_init.clone()
     best_key = _score(best_combined)
@@ -238,7 +228,8 @@ def run_session_t2_jacobi(
                     "n_out": spec.n_out,
                     "dim": spec.size,
                     "final_train_loss": float(r["result"].best_value),
-                    "val_best_cost": float(r["val_best_cost"]),
+                    "val_best_acc": float(1.0 - r["val_best_key"][0]),
+                    "val_best_ce": float(r["val_best_key"][1]),
                     "iter_at_val_best": int(r["iter_at_val_best"]),
                     "iterations_run": int(r["result"].iterations),
                     "converged": bool(r["result"].converged),
@@ -248,7 +239,7 @@ def run_session_t2_jacobi(
                 print(f"    [r{round_idx}] capa {r['k']} ({_position_label(r['k'], mlp.num_layers)}) "
                       f"[{spec.n_in}→{spec.n_out}, dim={spec.size}]: "
                       f"train_loss={float(r['result'].best_value):.4E}  "
-                      f"val_best={r['val_best_cost']:.4f}  "
+                      f"val_best: acc={1.0 - r['val_best_key'][0]:.4f} ce={r['val_best_key'][1]:.4f}  "
                       f"iters={r['result'].iterations}  "
                       f"{r['layer_time']:.2f}s")
 
@@ -259,7 +250,7 @@ def run_session_t2_jacobi(
                 best_combined = current.clone()
                 round_at_best = round_idx
 
-            print(f"    ⏱ [r{round_idx}] val_combinado={round_key[0]:.4f}   "
+            print(f"    ⏱ [r{round_idx}] val_combinado: acc={1.0 - round_key[0]:.4f} ce={round_key[1]:.4f}   "
                   f"paralelo={round_wall_time:.2f}s   "
                   f"Σ secuencial={seq_equiv:.2f}s   speedup≈{speedup:.2f}×")
 
@@ -273,13 +264,14 @@ def run_session_t2_jacobi(
     total_speedup = total_sequential / total_parallel if total_parallel > 0 else 0.0
 
     best_label = "params_init" if round_at_best < 0 else f"round {round_at_best}"
-    print(f"    🧩 jacobi: best_val={best_key[0]:.4f} (modelo combinado de {best_label})")
+    print(f"    🧩 jacobi: best_val: acc={1.0 - best_key[0]:.4f} ce={best_key[1]:.4f} (modelo combinado de {best_label})")
 
     return {
         "params_best": best_combined,
         "per_layer": per_layer,
         "n_rounds": n_rounds,
-        "best_val_cost_during_session": float(best_key[0]),
+        "best_val_acc_during_session": float(1.0 - best_key[0]),
+        "best_val_ce_during_session": float(best_key[1]),
         "round_at_best": int(round_at_best),
         "parallel_wall_time": total_parallel,
         "sequential_equivalent_time": total_sequential,
