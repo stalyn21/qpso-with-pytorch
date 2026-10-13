@@ -2,7 +2,12 @@
 
 Genera dos variantes de figuras a partir de los `cv_summary.json` bajo `output/`:
 
-  **Globales** (grid 2x2 con los 4 datasets), en `figs/global/`:
+Se grafican los datasets del paper (`DATASETS_ORDER`) y sólo las corridas de la
+configuración principal: `--n-particles` y un presupuesto, que es `--eval-budget`
+(evaluaciones de fitness por sesión, igual para todas las técnicas) o, si se pasa
+`--max-iter`, un número de iteraciones.
+
+  **Globales** (un panel por dataset), en `figs/global/`:
     1. radar_by_dataset.{png,pdf}        - 5 métricas normalizadas [0,1]
     2. boxplot_by_dataset.{png,pdf}      - distribución test_acc
     3. pareto_by_dataset.{png,pdf}       - tiempo vs accuracy
@@ -16,14 +21,15 @@ Genera dos variantes de figuras a partir de los `cv_summary.json` bajo `output/`
     7. sensitivity_heatmap.{png,pdf}     - P × max_iter (si hay datos)
 
 Uso:
-    cd re-design
-    python visualize.py                  # todo
+    python visualize.py --output-dir output/paper2      # todo
+    python visualize.py --eval-budget 80240 --n-particles 50
+    python visualize.py --max-iter 200   # corridas a igual número de iteraciones
     python visualize.py --radar          # solo radar (global + individuales)
     python visualize.py --boxplot        # solo boxplot
     python visualize.py --pareto         # solo pareto
     python visualize.py --sensitivity    # solo heatmap
     python visualize.py --no-individual  # omitir per-dataset
-    python visualize.py --no-global      # omitir grid 2x2
+    python visualize.py --no-global      # omitir las globales
     python visualize.py --figs-dir figs/ # otro destino raíz
     python visualize.py --format both    # PNG y PDF
 """
@@ -93,17 +99,21 @@ TECHNIQUE_MARKERS = {
 }
 TECHNIQUES_ORDER = ["t1", "t2", "t2-jacobi", "t3", "t4"]
 
-DATASETS_ORDER = ["iris", "wine", "circle", "breast"]
+# Los datasets del paper, de menor a mayor dificultad (core.data.PAPER_DATASETS).
+DATASETS_ORDER = ["iris", "breast", "segment", "satimage", "digits"]
 DATASET_LABELS = {
-    "iris":   "Iris",
-    "wine":   "Wine",
-    "circle": "Circles",
-    "breast": "Breast Cancer",
+    "iris":     "Iris",
+    "breast":   "Breast Cancer",
+    "segment":  "Segment",
+    "satimage": "Satimage",
+    "digits":   "Digits",
 }
 
-# Configuración "principal" (la del benchmark base). Sólo estas corridas aparecen
-# en las figuras radar/boxplot/Pareto (sensitivity sí explora todas las combinaciones).
-MAIN_CONFIG = {"n_particles": 100, "max_iter": 500}
+# Configuración "principal". Sólo estas corridas aparecen en las figuras
+# radar/boxplot/Pareto (sensitivity sí explora todas las combinaciones). El
+# presupuesto es `eval_budget` (evaluaciones de fitness por sesión) o, si es None,
+# `max_iter`. `main()` la ajusta con --n-particles / --eval-budget / --max-iter.
+MAIN_CONFIG = {"n_particles": 50, "eval_budget": 80240, "max_iter": None}
 
 METRIC_NAMES = ["Accuracy", "Stability", "Reproducibility", "Speed", "Calibration"]
 
@@ -140,11 +150,54 @@ def group_by_config(summaries, include_seed: bool = False):
     return groups
 
 
+def _is_main(cfg) -> bool:
+    if cfg["n_particles"] != MAIN_CONFIG["n_particles"]:
+        return False
+    if MAIN_CONFIG["eval_budget"] is not None:
+        return cfg.get("eval_budget") == MAIN_CONFIG["eval_budget"]
+    return cfg.get("eval_budget") is None and cfg["max_iter"] == MAIN_CONFIG["max_iter"]
+
+
 def filter_main(summaries):
-    """Devuelve sólo summaries con la config principal (P=100, max_iter=500)."""
+    """Devuelve sólo summaries de la config principal y de los datasets del paper."""
     return [s for s in summaries
-            if s["config"]["n_particles"] == MAIN_CONFIG["n_particles"]
-            and s["config"]["max_iter"] == MAIN_CONFIG["max_iter"]]
+            if _is_main(s["config"]) and s["config"]["dataset"] in DATASETS_ORDER]
+
+
+def group_main(summaries):
+    """Agrupa las corridas de la config principal por (técnica, dataset)."""
+    groups: Dict[Tuple, List[Dict[str, Any]]] = defaultdict(list)
+    for s in filter_main(summaries):
+        groups[(s["config"]["technique"], s["config"]["dataset"])].append(s)
+    return groups
+
+
+def main_config_label() -> str:
+    """Texto de la config principal para títulos y avisos."""
+    if MAIN_CONFIG["eval_budget"] is not None:
+        budget = f"{MAIN_CONFIG['eval_budget']:,} fitness evaluations per session"
+    else:
+        budget = f"{MAIN_CONFIG['max_iter']} iterations"
+    return f"P = {MAIN_CONFIG['n_particles']}, {budget}"
+
+
+def n_classes_of(summaries) -> int:
+    return int(summaries[0]["config"]["layer_sizes"][-1])
+
+
+def dataset_grid(polar: bool = False, panel=(5.0, 5.0)):
+    """Figura con un panel por dataset (3 columnas). Los ejes sobrantes se ocultan."""
+    n = len(DATASETS_ORDER)
+    ncols = min(3, n)
+    nrows = -(-n // ncols)
+    fig, axes = plt.subplots(
+        nrows, ncols, figsize=(panel[0] * ncols, panel[1] * nrows), squeeze=False,
+        subplot_kw={"projection": "polar"} if polar else None,
+    )
+    axes = axes.flatten()
+    for ax in axes[n:]:
+        ax.set_visible(False)
+    return fig, axes
 
 
 def get_fold_test_accs(summary):
@@ -215,7 +268,7 @@ def compute_radar_metrics(
 
 def _compute_time_max_by_dataset(groups) -> Dict[str, float]:
     time_max_by_ds: Dict[str, float] = defaultdict(float)
-    for (tech, ds, P, it), sums in groups.items():
+    for (tech, ds), sums in groups.items():
         for s in sums:
             time_max_by_ds[ds] = max(time_max_by_ds[ds], get_total_time(s))
     return time_max_by_ds
@@ -236,7 +289,7 @@ def _draw_radar_subplot(ax, ds, groups, time_max_by_ds, angles, title_pad=24):
     ax.spines["polar"].set_linewidth(1.2)
 
     for tech in TECHNIQUES_ORDER:
-        key = (tech, ds, MAIN_CONFIG["n_particles"], MAIN_CONFIG["max_iter"])
+        key = (tech, ds)
         if key not in groups:
             continue
         metrics = compute_radar_metrics(groups[key], time_max_by_ds[ds])
@@ -250,22 +303,18 @@ def _draw_radar_subplot(ax, ds, groups, time_max_by_ds, angles, title_pad=24):
 
 
 def plot_radar(summaries: List[Dict[str, Any]], output_path: Path) -> bool:
-    """Radar global: grid 2x2 con los 4 datasets."""
-    main = filter_main(summaries)
-    if not main:
-        print(f"⚠  No hay corridas con P={MAIN_CONFIG['n_particles']} "
-              f"max_iter={MAIN_CONFIG['max_iter']} (config principal).")
+    """Radar global: un panel por dataset."""
+    groups = group_main(summaries)
+    if not groups:
+        print(f"⚠  No hay corridas de la config principal ({main_config_label()}).")
         return False
 
-    groups = group_by_config(main, include_seed=False)
     time_max_by_ds = _compute_time_max_by_dataset(groups)
 
     angles = np.linspace(0, 2 * np.pi, len(METRIC_NAMES), endpoint=False).tolist()
     angles += angles[:1]
 
-    fig, axes = plt.subplots(2, 2, figsize=(14, 14),
-                              subplot_kw={"projection": "polar"})
-    axes = axes.flatten()
+    fig, axes = dataset_grid(polar=True, panel=(7.0, 7.0))
 
     for i, ds in enumerate(DATASETS_ORDER):
         _draw_radar_subplot(axes[i], ds, groups, time_max_by_ds, angles)
@@ -277,7 +326,8 @@ def plot_radar(summaries: List[Dict[str, Any]], output_path: Path) -> bool:
                bbox_to_anchor=(0.5, 0.01), frameon=True, framealpha=0.95,
                edgecolor="black", fancybox=False)
     fig.suptitle(
-        "Multi-metric comparison by dataset (normalized [0,1], higher = better)",
+        "Multi-metric comparison by dataset (normalized [0,1], higher = better)\n"
+        f"{main_config_label()}",
         fontsize=16, weight="bold", y=0.995
     )
     fig.text(0.5, 0.045,
@@ -294,11 +344,7 @@ def plot_radar(summaries: List[Dict[str, Any]], output_path: Path) -> bool:
 
 def plot_radar_single(summaries, output_path: Path, ds: str) -> bool:
     """Radar individual: un único dataset."""
-    main = filter_main(summaries)
-    if not main:
-        return False
-
-    groups = group_by_config(main, include_seed=False)
+    groups = group_main(summaries)
     time_max_by_ds = _compute_time_max_by_dataset(groups)
     if time_max_by_ds.get(ds, 0.0) == 0.0:
         return False
@@ -339,10 +385,12 @@ def plot_radar_single(summaries, output_path: Path, ds: str) -> bool:
 def _draw_boxplot_subplot(ax, ds, groups) -> bool:
     """Dibuja el boxplot de un dataset en un axes dado. Devuelve True si hay datos."""
     data, labels, colors, means, stds = [], [], [], [], []
+    n_classes = None
     for tech in TECHNIQUES_ORDER:
-        key = (tech, ds, MAIN_CONFIG["n_particles"], MAIN_CONFIG["max_iter"])
+        key = (tech, ds)
         if key not in groups:
             continue
+        n_classes = n_classes_of(groups[key])
         all_accs = []
         for s in groups[key]:
             all_accs.extend(get_fold_test_accs(s))
@@ -375,20 +423,20 @@ def _draw_boxplot_subplot(ax, ds, groups) -> bool:
         patch.set_edgecolor("black")
         patch.set_linewidth(1.3)
 
+    # El eje se ajusta a los datos: con accuracies de 0.8-0.97 un eje [0, 1]
+    # aplasta las cajas y no deja ver las diferencias entre técnicas.
+    lo = min(min(d) for d in data)
+    hi = max(max(d) for d in data)
+    span = max(hi - lo, 0.02)
+    y_min, y_max = max(0.0, lo - 0.30 * span), min(1.0, hi) + 0.08 * span
     for j, (m, sd) in enumerate(zip(means, stds)):
-        ax.text(j + 1, 0.035, f"{m:.3f}±{sd:.3f}",
+        ax.text(j + 1, y_min + 0.04 * (y_max - y_min), f"{m:.3f}±{sd:.3f}",
                 ha="center", fontsize=8.5, color=colors[j], weight="bold")
 
-    ax.set_title(DATASET_LABELS[ds], fontsize=15, weight="bold", pad=8)
+    ax.set_title(f"{DATASET_LABELS[ds]} ({n_classes} classes, chance = {1 / n_classes:.2f})",
+                 fontsize=14, weight="bold", pad=8)
     ax.set_ylabel("Test Accuracy", fontsize=12)
-    ax.set_ylim(0.0, 1.08)
-
-    ax.axhline(0.5, color="gray", linestyle=":", alpha=0.5, linewidth=1.0)
-    ax.axhline(0.33, color="gray", linestyle="--", alpha=0.4, linewidth=1.0)
-    ax.text(0.02, 0.51, "random (binary)", transform=ax.get_yaxis_transform(),
-            fontsize=7, color="gray", style="italic")
-    ax.text(0.02, 0.34, "random (3-class)", transform=ax.get_yaxis_transform(),
-            fontsize=7, color="gray", style="italic")
+    ax.set_ylim(y_min, y_max)
 
     ax.grid(True, axis="y", alpha=0.3, linewidth=0.5)
     ax.set_axisbelow(True)
@@ -397,15 +445,12 @@ def _draw_boxplot_subplot(ax, ds, groups) -> bool:
 
 
 def plot_boxplot(summaries: List[Dict[str, Any]], output_path: Path) -> bool:
-    """Boxplot global: grid 2x2 con los 4 datasets."""
-    main = filter_main(summaries)
-    if not main:
+    """Boxplot global: un panel por dataset."""
+    groups = group_main(summaries)
+    if not groups:
         return False
 
-    groups = group_by_config(main, include_seed=False)
-
-    fig, axes = plt.subplots(2, 2, figsize=(15, 11))
-    axes = axes.flatten()
+    fig, axes = dataset_grid(panel=(6.5, 5.3))
 
     any_data = False
     for i, ds in enumerate(DATASETS_ORDER):
@@ -417,13 +462,13 @@ def plot_boxplot(summaries: List[Dict[str, Any]], output_path: Path) -> bool:
         return False
 
     fig.suptitle(
-        "Test accuracy distribution by technique × dataset "
-        "(n = N_seeds × 5 folds per cell)",
+        "Test accuracy distribution by technique × dataset\n"
+        f"n = seeds × folds per box; {main_config_label()}",
         fontsize=16, weight="bold", y=0.995
     )
     fig.text(0.5, 0.005,
              "Box: Q1-Q3 with median (black line). Diamond: mean (annotated as mean±std). "
-             "Circles: outliers. Dashed lines: random baselines.",
+             "Circles: outliers. The accuracy axis is zoomed to the data of each panel.",
              ha="center", fontsize=9, style="italic", color="#555")
 
     fig.tight_layout(rect=(0, 0.025, 1, 0.97))
@@ -434,11 +479,7 @@ def plot_boxplot(summaries: List[Dict[str, Any]], output_path: Path) -> bool:
 
 def plot_boxplot_single(summaries, output_path: Path, ds: str) -> bool:
     """Boxplot individual: un único dataset."""
-    main = filter_main(summaries)
-    if not main:
-        return False
-
-    groups = group_by_config(main, include_seed=False)
+    groups = group_main(summaries)
 
     fig, ax = plt.subplots(figsize=(9.0, 6.5))
     if not _draw_boxplot_subplot(ax, ds, groups):
@@ -447,12 +488,12 @@ def plot_boxplot_single(summaries, output_path: Path, ds: str) -> bool:
 
     fig.suptitle(
         f"Test accuracy distribution — {DATASET_LABELS[ds]} "
-        "(n = N_seeds × 5 folds)",
+        "(n = seeds × folds per box)",
         fontsize=14, weight="bold", y=0.995
     )
     fig.text(0.5, 0.005,
              "Box: Q1-Q3 with median (black line). Diamond: mean (annotated as mean±std). "
-             "Circles: outliers. Dashed lines: random baselines.",
+             "Circles: outliers. The accuracy axis is zoomed to the data of each panel.",
              ha="center", fontsize=9, style="italic", color="#555")
 
     fig.tight_layout(rect=(0, 0.035, 1, 0.95))
@@ -469,6 +510,7 @@ def _draw_pareto_subplot(ax, ds, groups, show_legend=False, show_frontier_label=
     """Dibuja el Pareto de un dataset. Devuelve True si hay datos."""
     tech_means: Dict[str, Tuple[float, float]] = {}
     has_data = False
+    lo, hi = 1.0, 0.0
 
     for tech in TECHNIQUES_ORDER:
         key = (tech, ds)
@@ -485,6 +527,7 @@ def _draw_pareto_subplot(ax, ds, groups, show_legend=False, show_frontier_label=
             acc_std = statistics.stdev(accs) if len(accs) > 1 else 0.0
             seed_times.append(t)
             seed_accs.append(acc_mean)
+            lo, hi = min(lo, acc_mean - acc_std), max(hi, acc_mean + acc_std)
             ax.errorbar(t, acc_mean, yerr=acc_std, fmt=TECHNIQUE_MARKERS[tech],
                         color=TECHNIQUE_COLORS[tech], markersize=6, alpha=0.35,
                         capsize=2, elinewidth=0.7)
@@ -513,6 +556,10 @@ def _draw_pareto_subplot(ax, ds, groups, show_legend=False, show_frontier_label=
         ax.set_visible(False)
         return False
 
+    # Eje de accuracy ajustado a los datos (ver el boxplot).
+    span = max(hi - lo, 0.02)
+    y_min, y_max = max(0.0, lo - 0.25 * span), min(1.0, hi) + 0.15 * span
+
     # Pareto frontier sobre los centroides.
     if len(tech_means) >= 2:
         pts = sorted(tech_means.items(), key=lambda kv: kv[1][0])
@@ -529,7 +576,7 @@ def _draw_pareto_subplot(ax, ds, groups, show_legend=False, show_frontier_label=
                     zorder=5, label="Pareto frontier")
             if show_frontier_label:
                 mid_x = (xs[0] * xs[-1]) ** 0.5
-                mid_y = (ys[0] + ys[-1]) / 2 - 0.08
+                mid_y = (ys[0] + ys[-1]) / 2 - 0.10 * (y_max - y_min)
                 ax.annotate(
                     "Pareto frontier",
                     xy=(mid_x, mid_y), fontsize=10, style="italic",
@@ -542,7 +589,7 @@ def _draw_pareto_subplot(ax, ds, groups, show_legend=False, show_frontier_label=
     ax.set_xlabel("Total CV wall-time (s, log scale)", fontsize=12)
     ax.set_ylabel("Test Accuracy (mean per seed)", fontsize=12)
     ax.set_xscale("log")
-    ax.set_ylim(0.0, 1.08)
+    ax.set_ylim(y_min, y_max)
     ax.grid(True, alpha=0.3, which="both", linewidth=0.5)
     ax.set_axisbelow(True)
     if show_legend:
@@ -559,18 +606,12 @@ def _draw_pareto_subplot(ax, ds, groups, show_legend=False, show_frontier_label=
 
 
 def plot_pareto(summaries: List[Dict[str, Any]], output_path: Path) -> bool:
-    """Pareto global: grid 2x2 con los 4 datasets."""
-    main = filter_main(summaries)
-    if not main:
+    """Pareto global: un panel por dataset."""
+    groups = group_main(summaries)
+    if not groups:
         return False
 
-    groups: Dict[Tuple, List[Dict[str, Any]]] = defaultdict(list)
-    for s in main:
-        cfg = s["config"]
-        groups[(cfg["technique"], cfg["dataset"])].append(s)
-
-    fig, axes = plt.subplots(2, 2, figsize=(15, 11))
-    axes = axes.flatten()
+    fig, axes = dataset_grid(panel=(6.5, 5.3))
 
     for i, ds in enumerate(DATASETS_ORDER):
         _draw_pareto_subplot(
@@ -580,13 +621,13 @@ def plot_pareto(summaries: List[Dict[str, Any]], output_path: Path) -> bool:
         )
 
     fig.suptitle(
-        "Pareto: wall-time vs test accuracy by dataset",
+        f"Pareto: wall-time vs test accuracy by dataset\n{main_config_label()}",
         fontsize=16, weight="bold", y=0.995
     )
     fig.text(0.5, 0.005,
              "Small markers: individual seeds (error bars = intra-seed fold std). "
              "Large markers with black edge: per-technique centroid. "
-             "Dashed line: Pareto frontier (non-dominated points).",
+             "Dashed line: Pareto frontier (non-dominated points). Accuracy axis zoomed to the data.",
              ha="center", fontsize=9, style="italic", color="#555")
 
     fig.tight_layout(rect=(0, 0.025, 1, 0.97))
@@ -597,14 +638,7 @@ def plot_pareto(summaries: List[Dict[str, Any]], output_path: Path) -> bool:
 
 def plot_pareto_single(summaries, output_path: Path, ds: str) -> bool:
     """Pareto individual: un único dataset."""
-    main = filter_main(summaries)
-    if not main:
-        return False
-
-    groups: Dict[Tuple, List[Dict[str, Any]]] = defaultdict(list)
-    for s in main:
-        cfg = s["config"]
-        groups[(cfg["technique"], cfg["dataset"])].append(s)
+    groups = group_main(summaries)
 
     fig, ax = plt.subplots(figsize=(9.0, 6.5))
     if not _draw_pareto_subplot(ax, ds, groups,
@@ -721,11 +755,25 @@ def main():
     parser.add_argument("--pareto", action="store_true", help="Sólo Pareto")
     parser.add_argument("--sensitivity", action="store_true",
                         help="Sólo heatmap P × iter")
+    parser.add_argument("--n-particles", type=int, default=MAIN_CONFIG["n_particles"],
+                        help="Partículas de la config principal (default: %(default)s)")
+    parser.add_argument("--eval-budget", type=int, default=MAIN_CONFIG["eval_budget"],
+                        help="Presupuesto de evaluaciones por sesión de la config "
+                             "principal (default: %(default)s)")
+    parser.add_argument("--max-iter", type=int, default=None,
+                        help="Graficar corridas a igual número de iteraciones "
+                             "(sin --eval-budget) en lugar de a presupuesto igual")
     parser.add_argument("--no-global", action="store_true",
-                        help="Omitir versiones globales (grid 2x2)")
+                        help="Omitir versiones globales (un panel por dataset)")
     parser.add_argument("--no-individual", action="store_true",
                         help="Omitir versiones individuales (una por dataset)")
     args = parser.parse_args()
+
+    MAIN_CONFIG["n_particles"] = args.n_particles
+    if args.max_iter is not None:
+        MAIN_CONFIG.update(eval_budget=None, max_iter=args.max_iter)
+    else:
+        MAIN_CONFIG["eval_budget"] = args.eval_budget
 
     no_specific = not any([args.radar, args.boxplot, args.pareto, args.sensitivity])
     do_all = no_specific
@@ -747,6 +795,7 @@ def main():
     print(f"📂 Cargando corridas desde: {output_dir}")
     summaries = load_cv_summaries(output_dir)
     print(f"📊 {len(summaries)} cv_summary.json encontrados.")
+    print(f"🎯 Config principal: {main_config_label()}")
     print(f"🎨 Estilo: paper (serif, dpi=300)\n")
 
     if not summaries:
