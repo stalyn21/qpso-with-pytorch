@@ -47,9 +47,11 @@ COLUMNS = [
     ("test_acc",       lambda r: r["winner_by_val"]["final_test_acc"]),
     ("test_ce",        lambda r: r["winner_by_val"].get("final_test_ce", float("nan"))),
     ("test_mse",       lambda r: r["winner_by_val"]["final_test_cost"]),
+    ("test_macro_f1",  lambda r: r["winner_by_val"].get("final_test_macro_f1", float("nan"))),
     ("gap_winner",     lambda r: _winner_gap(r)),
     ("gap_mean",       lambda r: _mean_gap(r)),
     ("total_time",     lambda r: r["total_time"]),
+    ("fitness_evals",  lambda r: r.get("total_fitness_evals")),
 ]
 
 
@@ -102,6 +104,63 @@ def load_cv_summaries(output_dir: Path) -> List[Dict[str, Any]]:
         except Exception as e:
             print(f"⚠  No pude leer {p}: {e}")
     return summaries
+
+
+def load_splits_summaries(output_dir: Path) -> List[Dict[str, Any]]:
+    """Recorre output_dir buscando los splits_summary.json (splits repetidos 70/15/15)."""
+    summaries = []
+    for p in output_dir.rglob("splits_summary.json"):
+        try:
+            with open(p) as f:
+                data = json.load(f)
+            data["__path__"] = str(p.parent.relative_to(output_dir))
+            summaries.append(data)
+        except Exception as e:
+            print(f"⚠  No pude leer {p}: {e}")
+    return summaries
+
+
+def _agg(key: str, stat: str):
+    """Getter de `aggregated[key][stat]`; None si el resumen es anterior a esa métrica."""
+    return lambda c: c["aggregated"].get(key, {}).get(stat)
+
+
+# Columnas para splits repetidos 70/15/15 (PROTOCOLO DEL PAPER): una fila por
+# (configuración, seed), agregada sobre los data_seeds. `std` es la muestral.
+SPLITS_COLUMNS = [
+    ("technique",       lambda c: c["config"]["technique"]),
+    ("dataset",         lambda c: c["config"]["dataset"]),
+    ("hidden",          lambda c: "x".join(map(str, c["config"]["layer_sizes"][1:-1]))),
+    ("optimizer",       lambda c: c["config"].get("optimizer", "qdpsoo")),
+    ("ce_param",        lambda c: _ce_param(c["config"])),
+    ("particles",       lambda c: c["config"]["n_particles"]),
+    ("max_iter",        lambda c: c["config"]["max_iter"]),
+    ("seed",            lambda c: c["config"]["seed"]),
+    ("n_splits",        _agg("test_acc", "n")),
+    ("test_acc_mean",   _agg("test_acc", "mean")),
+    ("test_acc_std",    _agg("test_acc", "std")),
+    ("test_acc_ci95",   _agg("test_acc", "ci95")),
+    ("test_acc_median", _agg("test_acc", "median")),
+    ("test_acc_min",    _agg("test_acc", "min")),
+    ("test_f1_mean",    _agg("test_macro_f1", "mean")),
+    ("val_acc_mean",    _agg("val_acc", "mean")),
+    ("train_acc_mean",  _agg("train_acc", "mean")),
+    ("evals_mean",      _agg("fitness_evals", "mean")),
+    ("time_mean",       _agg("total_time", "mean")),
+]
+
+
+def to_splits_rows(summaries: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    rows = []
+    for s in summaries:
+        row = {}
+        for name, getter in SPLITS_COLUMNS:
+            try:
+                row[name] = getter(s)
+            except KeyError:
+                row[name] = None
+        rows.append(row)
+    return rows
 
 
 def to_rows(runs: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
@@ -274,12 +333,12 @@ def aggregate_multi_seed(cv_summaries: List[Dict[str, Any]]) -> List[Dict[str, A
             "n_seeds": len(summaries),
             "n_runs": n_runs,
             "test_acc_mean": statistics.mean(all_test_accs),
-            "test_acc_std":  statistics.pstdev(all_test_accs) if n_runs > 1 else 0.0,
+            "test_acc_std":  statistics.stdev(all_test_accs) if n_runs > 1 else 0.0,
             "test_acc_min":  min(all_test_accs),
             "test_acc_max":  max(all_test_accs),
             # std de los means-per-seed: si es alta, el método es sensible a la
             # inicialización del QDPSO entre corridas (no determinismo importa).
-            "seed_std": statistics.pstdev(seed_means) if len(seed_means) > 1 else 0.0,
+            "seed_std": statistics.stdev(seed_means) if len(seed_means) > 1 else 0.0,
             "val_acc_mean":   statistics.mean(all_val_accs),
             "train_loss_mean": statistics.mean(all_train_losses),
             "time_total": total_time,
@@ -486,6 +545,10 @@ def main():
                    help="Columna para ordenar la tabla CV (default: test_acc_mean)")
     p.add_argument("--multi-sort-by", default="test_acc_mean",
                    help="Columna para ordenar la tabla multi-seed (default: test_acc_mean)")
+    p.add_argument("--splits-sort-by", default="test_acc_mean",
+                   help="Columna para ordenar la tabla de splits repetidos (default: test_acc_mean)")
+    p.add_argument("--splits-csv", default="compare_splits.csv",
+                   help="Archivo CSV de splits repetidos (default: compare_splits.csv)")
     p.add_argument("--csv", default="compare.csv", help="Archivo CSV single-split")
     p.add_argument("--cv-csv", default="compare_cv.csv", help="Archivo CSV CV (default: compare_cv.csv)")
     p.add_argument("--multi-csv", default="compare_multi_seed.csv",
@@ -505,9 +568,10 @@ def main():
 
     runs = load_runs(output_dir)
     cv_summaries = load_cv_summaries(output_dir)
+    splits_summaries = load_splits_summaries(output_dir)
 
-    if not runs and not cv_summaries:
-        print(f"⚠  No se encontraron run.json ni cv_summary.json bajo {output_dir}")
+    if not runs and not cv_summaries and not splits_summaries:
+        print(f"⚠  No se encontraron run.json, cv_summary.json ni splits_summary.json bajo {output_dir}")
         return
 
     # Filtros
@@ -520,6 +584,7 @@ def main():
 
     filtered_runs = [r for r in runs if _match(r["config"])]
     filtered_cvs = [s for s in cv_summaries if _match(s["config"])]
+    filtered_splits = [s for s in splits_summaries if _match(s["config"])]
 
     md_sections = []
 
@@ -532,6 +597,16 @@ def main():
                            to_markdown(rows, sort_by=args.sort_by))
     else:
         print(f"📊 0 corridas single-split.\n")
+
+    # ---------- Tabla splits repetidos 70/15/15 (protocolo del paper) ----------
+    splits_rows = to_splits_rows(filtered_splits)
+    if splits_rows:
+        print(f"\n📊 {len(splits_rows)} corrida(s) de splits repetidos en {output_dir}\n")
+        print(print_table(splits_rows, columns=SPLITS_COLUMNS, sort_by=args.splits_sort_by))
+        print("\n  Leyenda: media, std MUESTRAL e IC95 sobre los n_splits data_seeds; "
+              "evals = evaluaciones de la función de costo.")
+        md_sections.append("## Splits repetidos 70/15/15\n\n" +
+                           to_markdown(splits_rows, columns=SPLITS_COLUMNS, sort_by=args.splits_sort_by))
 
     # ---------- Tabla K-fold CV ----------
     if filtered_cvs:
@@ -566,6 +641,9 @@ def main():
         if filtered_cvs:
             to_csv(to_cv_rows(filtered_cvs), cv_csv_path, columns=CV_COLUMNS)
             print(f"📁 CSV CV:           {cv_csv_path.resolve()}")
+        if splits_rows:
+            to_csv(splits_rows, Path(args.splits_csv), columns=SPLITS_COLUMNS)
+            print(f"📁 CSV splits:       {Path(args.splits_csv).resolve()}")
         if multi_rows:
             to_csv(multi_rows, multi_csv_path, columns=MULTI_SEED_COLUMNS)
             print(f"📁 CSV multi-seed:   {multi_csv_path.resolve()}")

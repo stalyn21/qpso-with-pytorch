@@ -12,7 +12,6 @@ Todos los modos son sin data leakage (scaler/reductor fit sólo en train).
 """
 import argparse
 import json
-import statistics
 from pathlib import Path
 import sys
 import numpy as np
@@ -28,6 +27,7 @@ if str(_HERE) not in sys.path:
 from core.data import prepare_dataset, prepare_dataset_kfold, BENCHMARK_DATASETS, PAPER_DATASETS
 from core.mlp import MLP
 from core.sessions import run_sessions
+from core.stats import describe
 from swarm.multi_swarm.t1_sequential import run_session_t1
 from swarm.multi_swarm.t2_async import run_session_t2_async
 from swarm.multi_swarm.t2_jacobi import run_session_t2_jacobi
@@ -182,21 +182,53 @@ def _run_tag(args, hidden) -> str:
     # los paths del resto de las celdas.
     reeval_tag = ("_noreeval"
                   if args.technique in ("t2", "t3") and not args.reevaluate_pbest else "")
+    # Hiperparámetros barridos en el análisis de sensibilidad: sin esto, dos valores
+    # de g (o de alpha, o de lambda) escribirían en el mismo directorio.
+    hp_tag = ""
+    if args.optimizer == "qdpsoo" and args.g != DEFAULT_G:
+        hp_tag += f"_g{args.g:g}"
+    if args.optimizer == "qpsoo" and tuple(args.alpha) != tuple(DEFAULT_ALPHA):
+        hp_tag += "_a" + "-".join(f"{a:g}" for a in args.alpha)
+    if args.lambda_l2 != 10.0:
+        hp_tag += f"_l2-{args.lambda_l2:g}"
     return (f"hid{hidden_tag}_iters{args.max_iter}_part{args.n_particles}"
-            f"{rounds_tag}_{opt_tag}{reeval_tag}_seed{args.seed}")
+            f"{rounds_tag}_{opt_tag}{hp_tag}{reeval_tag}_seed{args.seed}")
 
 
-def _stat_summary(values):
-    """Devuelve (mean, std, min, max) de una lista numérica."""
-    if not values:
-        return {"mean": None, "std": None, "min": None, "max": None, "n": 0}
+def _run_summary(result):
+    """Campos de una corrida que entran al resumen de splits repetidos / K-fold."""
+    winner = result["winner_by_val"]
     return {
-        "mean": float(statistics.mean(values)),
-        "std":  float(statistics.pstdev(values)) if len(values) > 1 else 0.0,
-        "min":  float(min(values)),
-        "max":  float(max(values)),
-        "n":    int(len(values)),
+        "test_acc":  winner["final_test_acc"],
+        "test_ce":   winner["final_test_ce"],
+        "test_cost": winner["final_test_cost"],
+        "test_macro_f1": winner["final_test_macro_f1"],
+        "test_balanced_acc": winner["final_test_balanced_acc"],
+        "val_acc":   winner["val_acc"],
+        "val_ce":    winner["val_ce"],
+        "val_cost":  winner["val_cost"],
+        "train_loss": winner["train_loss"],
+        "train_acc": winner["train_acc"],
+        "session":   winner["session"],
+        "total_time": result["total_time"],
+        "time_to_winner": winner["time_to_winner"],
+        "fitness_evals": result["total_fitness_evals"],
+        "fitness_evals_to_winner": winner["fitness_evals_to_winner"],
+        "gpu_peak_mb": result["gpu_peak_mb"],
     }
+
+
+#: Métricas que se agregan sobre splits o folds con `core.stats.describe`
+#: (media, std MUESTRAL, IC95, mediana, cuartiles, min, max).
+_AGGREGATED = (
+    "test_acc", "test_ce", "test_cost", "test_macro_f1", "test_balanced_acc",
+    "val_acc", "train_loss", "train_acc", "total_time", "time_to_winner",
+    "fitness_evals", "fitness_evals_to_winner",
+)
+
+
+def _aggregate(summaries):
+    return {key: describe([r[key] for r in summaries]) for key in _AGGREGATED}
 
 
 def main():
@@ -288,29 +320,16 @@ def main():
                 data=data_split, output_dir=split_dir, data_seed=ds,
             )
 
-            winner = result["winner_by_val"]
             split_summaries.append({
                 "data_seed": ds,
-                "test_acc":  winner["final_test_acc"],
-                "test_ce":   winner["final_test_ce"],
-                "test_cost": winner["final_test_cost"],
-                "val_acc":   winner["val_acc"],
-                "val_ce":    winner["val_ce"],
-                "val_cost":  winner["val_cost"],
-                "train_loss": winner["train_loss"],
-                "session":   winner["session"],
-                "total_time": result["total_time"],
+                **_run_summary(result),
                 "n_train":  int(data_split["X_train"].shape[0]),
                 "n_val":    int(data_split["X_val"].shape[0]),
                 "n_test":   int(data_split["X_test"].shape[0]),
             })
 
         # ---------- Agregado sobre splits ----------
-        test_accs    = [s["test_acc"]   for s in split_summaries]
-        test_costs   = [s["test_cost"]  for s in split_summaries]
-        val_accs     = [s["val_acc"]    for s in split_summaries]
-        train_losses = [s["train_loss"] for s in split_summaries]
-        times        = [s["total_time"] for s in split_summaries]
+        times = [r["total_time"] for r in split_summaries]
 
         splits_summary = {
             "config": {
@@ -331,13 +350,7 @@ def main():
                 "device": str(device),
             },
             "splits": split_summaries,
-            "aggregated": {
-                "test_acc":   _stat_summary(test_accs),
-                "test_cost":  _stat_summary(test_costs),
-                "val_acc":    _stat_summary(val_accs),
-                "train_loss": _stat_summary(train_losses),
-                "total_time": _stat_summary(times),
-            },
+            "aggregated": _aggregate(split_summaries),
         }
 
         summary_path = splits_root / "splits_summary.json"
@@ -352,6 +365,8 @@ def main():
               f"(min={agg['test_acc']['min']:.4f}, max={agg['test_acc']['max']:.4f})")
         print(f"  val_acc:    {agg['val_acc']['mean']:.4f} ± {agg['val_acc']['std']:.4f}")
         print(f"  train_loss: {agg['train_loss']['mean']:.4f} ± {agg['train_loss']['std']:.4f}")
+        print(f"  IC95 test_acc: ±{agg['test_acc']['ci95']:.4f}   "
+              f"evaluaciones de fitness (media): {agg['fitness_evals']['mean']:.0f}")
         print(f"  ⏱  total:   {sum(times):.2f}s   (mean/split: {agg['total_time']['mean']:.2f}s)")
         print(f"  📁 {summary_path}")
         print('═' * 70)
@@ -398,29 +413,16 @@ def main():
             data=data_fold, output_dir=fold_dir, data_seed=cv_data_seed,
         )
 
-        winner = result["winner_by_val"]
         fold_summaries.append({
             "fold_idx": fold_idx,
-            "test_acc":  winner["final_test_acc"],
-            "test_ce":   winner["final_test_ce"],
-            "test_cost": winner["final_test_cost"],
-            "val_acc":   winner["val_acc"],
-            "val_ce":    winner["val_ce"],
-            "val_cost":  winner["val_cost"],
-            "train_loss": winner["train_loss"],
-            "session":   winner["session"],
-            "total_time": result["total_time"],
+            **_run_summary(result),
             "n_train":  int(data_fold["X_train"].shape[0]),
             "n_val":    int(data_fold["X_val"].shape[0]),
             "n_test":   int(data_fold["X_test"].shape[0]),
         })
 
     # ---------- Agregado CV ----------
-    test_accs   = [f["test_acc"]   for f in fold_summaries]
-    test_costs  = [f["test_cost"]  for f in fold_summaries]
-    val_accs    = [f["val_acc"]    for f in fold_summaries]
-    train_losses = [f["train_loss"] for f in fold_summaries]
-    times       = [f["total_time"] for f in fold_summaries]
+    times = [r["total_time"] for r in fold_summaries]
 
     cv_summary = {
         "config": {
@@ -442,13 +444,7 @@ def main():
             "device": str(device),
         },
         "folds": fold_summaries,
-        "aggregated": {
-            "test_acc":   _stat_summary(test_accs),
-            "test_cost":  _stat_summary(test_costs),
-            "val_acc":    _stat_summary(val_accs),
-            "train_loss": _stat_summary(train_losses),
-            "total_time": _stat_summary(times),
-        },
+        "aggregated": _aggregate(fold_summaries),
     }
 
     summary_path = cv_root / "cv_summary.json"
@@ -463,6 +459,8 @@ def main():
           f"(min={agg['test_acc']['min']:.4f}, max={agg['test_acc']['max']:.4f})")
     print(f"  val_acc:    {agg['val_acc']['mean']:.4f} ± {agg['val_acc']['std']:.4f}")
     print(f"  train_loss: {agg['train_loss']['mean']:.4f} ± {agg['train_loss']['std']:.4f}")
+    print(f"  IC95 test_acc: ±{agg['test_acc']['ci95']:.4f}   "
+          f"evaluaciones de fitness (media): {agg['fitness_evals']['mean']:.0f}")
     print(f"  ⏱  total:   {sum(times):.2f}s   (mean/fold: {agg['total_time']['mean']:.2f}s)")
     print(f"  📁 {summary_path}")
     print('═' * 70)

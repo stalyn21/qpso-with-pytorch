@@ -7,7 +7,9 @@
   hasta ahora (no el de la sesión inmediata anterior). Una sesión peor no envenena
   la cadena.
 - Test SOLO al final, UNA vez, sobre la sesión ganadora (medición no sesgada).
-- Persistencia estructurada (JSON + npy).
+- Costo de cada sesión: evaluaciones de la función de costo, tiempo de pared (con
+  la GPU sincronizada), memoria pico de GPU y traza de validación (`core.budget`).
+- Persistencia estructurada (JSON + npy), con la procedencia de la corrida.
 """
 from dataclasses import dataclass, asdict, field
 from pathlib import Path
@@ -17,9 +19,13 @@ import time
 import numpy as np
 import torch
 
+from core.budget import METER, TRACE_COLUMNS
 from core.mlp import MLP
-from core.metrics import SELECTION_CRITERION, accuracy, mse_int, confusion_matrix
+from core.metrics import (
+    SELECTION_CRITERION, accuracy, classification_metrics, confusion_matrix, mse_int,
+)
 from core.loss import cross_entropy_from_logits, l2_penalty
+from core.provenance import collect_provenance
 
 
 # Tipo del callable de una técnica: recibe contexto y retorna dict con resultados de la sesión.
@@ -42,6 +48,18 @@ class SessionResult:
     guard_triggered: bool = False  # True si el guard de no-regresión hizo fallback a params_init
     per_layer: list = field(default_factory=list)
     session_time: float = 0.0
+    train_acc: float = 0.0          # reporte: accuracy sobre el conjunto de fitness
+    val_macro_f1: float = 0.0
+    test_macro_f1: float = 0.0
+    test_balanced_acc: float = 0.0
+    # Costo de la sesión (ver core/budget.py). Una evaluación = una partícula
+    # evaluada sobre todo el conjunto de fitness.
+    fitness_evals: int = 0
+    fitness_calls: int = 0
+    selection_evals: int = 0        # modelos evaluados en validación para seleccionar
+    selection_time: float = 0.0     # segundos de session_time gastados en eso
+    gpu_peak_mb: float = 0.0        # memoria pico de GPU durante la sesión (0 en CPU)
+    trace: list = field(default_factory=list)   # puntos [fitness_evals, seconds, val_acc, val_ce]
 
 
 def evaluate_model(mlp: MLP, flat_params: torch.Tensor, X: torch.Tensor, y: torch.Tensor):
@@ -78,6 +96,12 @@ def evaluate_train_loss(
             d_total=mlp.d_total, n_train=X_train.shape[0],
         ).item())
     return ce + l2
+
+
+def _sync(device: torch.device) -> None:
+    """Espera a que la GPU termine lo encolado, para que el reloj mida trabajo real."""
+    if device.type == "cuda":
+        torch.cuda.synchronize(device)
 
 
 def l2_norm_squared(params: torch.Tensor) -> float:
@@ -133,7 +157,11 @@ def run_sessions(
         session_seed = cfg["seed"] + k + 1
         print(f"\n━━━ Sesión {k+1}/{cfg['n_sessions']}  (seed={session_seed}) ━━━")
 
-        t0 = time.time()
+        if device.type == "cuda":
+            torch.cuda.reset_peak_memory_stats(device)
+        _sync(device)
+        METER.start()
+        t0 = time.perf_counter()
         tech_out = technique_fn(
             mlp=mlp,
             data=data,
@@ -141,7 +169,11 @@ def run_sessions(
             cfg=cfg,
             session_seed=session_seed,
         )
-        session_time = time.time() - t0
+        _sync(device)
+        session_time = time.perf_counter() - t0
+        cost = METER.snapshot()
+        gpu_peak_mb = (torch.cuda.max_memory_allocated(device) / 2**20
+                       if device.type == "cuda" else 0.0)
 
         params_k = tech_out["params_best"]
         val_acc, val_ce, val_cost, _ = evaluate_full(mlp, params_k, data["X_val"], data["y_val"])
@@ -166,7 +198,12 @@ def run_sessions(
             key = key_init
             guard_triggered = True
 
-        test_acc, test_ce, test_cost, _ = evaluate_full(mlp, params_k, data["X_test"], data["y_test"])
+        test_acc, test_ce, test_cost, y_test_pred_k = evaluate_full(
+            mlp, params_k, data["X_test"], data["y_test"])
+        _, _, _, y_val_pred_k = evaluate_full(mlp, params_k, data["X_val"], data["y_val"])
+        train_acc = evaluate_full(mlp, params_k, data["X_train"], data["y_train"])[0]
+        test_cls = classification_metrics(data["y_test"], y_test_pred_k, data["n_classes"])
+        val_cls = classification_metrics(data["y_val"], y_val_pred_k, data["n_classes"])
         train_loss = evaluate_train_loss(
             mlp, params_k, data["X_train"], data["y_train"], cfg["lambda_l2"]
         )
@@ -179,6 +216,9 @@ def run_sessions(
               f"test: ACC={test_acc:.4f}  CE={test_ce:.4f}  MSE={test_cost:.4f}   │   "
               f"gap(val-test)={val_test_acc_gap:+.4f}"
               f"{'   [guard]' if guard_triggered else ''}")
+        print(f"  costo: {cost['fitness_evals']} evaluaciones de fitness  "
+              f"⏱ {session_time:.2f}s (selección {cost['selection_time']:.2f}s)"
+              + (f"  GPU pico {gpu_peak_mb:.0f} MB" if device.type == "cuda" else ""))
 
         sessions.append(SessionResult(
             session=k, seed=session_seed,
@@ -190,6 +230,16 @@ def run_sessions(
             guard_triggered=bool(guard_triggered),
             per_layer=tech_out.get("per_layer", []),
             session_time=float(session_time),
+            train_acc=float(train_acc),
+            val_macro_f1=val_cls["macro_f1"],
+            test_macro_f1=test_cls["macro_f1"],
+            test_balanced_acc=test_cls["balanced_acc"],
+            fitness_evals=int(cost["fitness_evals"]),
+            fitness_calls=int(cost["fitness_calls"]),
+            selection_evals=int(cost["selection_evals"]),
+            selection_time=float(cost["selection_time"]),
+            gpu_peak_mb=float(gpu_peak_mb),
+            trace=cost["trace"],
         ))
 
         # Selección entre sesiones: mayor val_acc; con la misma, menor val_ce.
@@ -206,6 +256,9 @@ def run_sessions(
         params_init = best_params.clone()
 
     total_time = time.time() - total_start
+    # Costo de producir el modelo ganador: las sesiones están encadenadas, así que
+    # cuenta todo lo corrido hasta la sesión ganadora inclusive.
+    to_winner = sessions[: best_idx + 1]
 
     # Medición final única sobre test (ganador elegido por val)
     final_test_acc, final_test_ce, final_test_cost, y_test_pred = evaluate_full(
@@ -220,6 +273,8 @@ def run_sessions(
     final_train_loss = evaluate_train_loss(
         mlp, best_params, data["X_train"], data["y_train"], cfg["lambda_l2"]
     )
+    final_train_acc = evaluate_full(mlp, best_params, data["X_train"], data["y_train"])[0]
+    final_test_cls = classification_metrics(data["y_test"], y_test_pred, data["n_classes"])
 
     winner = {
         "session": int(best_idx),
@@ -228,9 +283,14 @@ def run_sessions(
         "val_ce": float(final_val_ce),
         "val_cost": float(final_val_cost),
         "train_loss": float(final_train_loss),
+        "train_acc": float(final_train_acc),
         "final_test_acc": float(final_test_acc),
         "final_test_ce": float(final_test_ce),
         "final_test_cost": float(final_test_cost),
+        "final_test_macro_f1": final_test_cls["macro_f1"],
+        "final_test_balanced_acc": final_test_cls["balanced_acc"],
+        "fitness_evals_to_winner": int(sum(s.fitness_evals for s in to_winner)),
+        "time_to_winner": float(sum(s.session_time for s in to_winner)),
         "test_confusion_matrix": cm,
     }
 
@@ -248,6 +308,10 @@ def run_sessions(
         "test_mse":          [s.test_cost for s in sessions],
         "train_loss":        [s.train_loss for s in sessions],
         "val_test_acc_gap":  [s.val_test_acc_gap for s in sessions],
+        "train_acc":         [s.train_acc for s in sessions],
+        "test_macro_f1":     [s.test_macro_f1 for s in sessions],
+        "fitness_evals_cum": list(np.cumsum([s.fitness_evals for s in sessions]).tolist()),
+        "time_cum":          list(np.cumsum([s.session_time for s in sessions]).tolist()),
     }
 
     result_dict = {
@@ -262,7 +326,11 @@ def run_sessions(
         "sessions": [asdict(s) for s in sessions],
         "winner_by_val": winner,
         "learning_curve": learning_curve,
+        "trace_columns": list(TRACE_COLUMNS),
         "total_time": float(total_time),
+        "total_fitness_evals": int(sum(s.fitness_evals for s in sessions)),
+        "gpu_peak_mb": float(max((s.gpu_peak_mb for s in sessions), default=0.0)),
+        "provenance": collect_provenance(device),
     }
 
     with open(output_dir / "run.json", "w") as f:
@@ -274,7 +342,9 @@ def run_sessions(
     print(f"🏆 Ganadora: sesión {best_idx}   (criterio: mayor val ACC, desempate menor val CE)")
     print(f"   val  ACC={final_val_acc:.4f}  CE={final_val_ce:.4f}  MSE={final_val_cost:.4f}   (criterio de selección)")
     print(f"   test ACC={final_test_acc:.4f}  CE={final_test_ce:.4f}  MSE={final_test_cost:.4f}   (final, no sesgado)")
-    print(f"⏱  Tiempo total: {total_time:.2f}s")
+    print(f"⏱  Tiempo total: {total_time:.2f}s   "
+          f"evaluaciones de fitness: {result_dict['total_fitness_evals']} "
+          f"(hasta la ganadora: {winner['fitness_evals_to_winner']})")
     print(f"📁 Output: {output_dir}")
     print("═" * 70)
 

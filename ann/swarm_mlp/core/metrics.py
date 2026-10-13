@@ -1,8 +1,10 @@
 """Métricas de evaluación y criterio de selección de modelos."""
-from typing import Tuple
+import time
+from typing import Dict, Tuple
 
 import torch
 
+from core.budget import METER
 from core.loss import cross_entropy_from_logits
 
 #: Nombre del criterio, guardado en run.json para distinguir corridas.
@@ -40,8 +42,29 @@ def selection_key(model, flat_params: torch.Tensor, X_val: torch.Tensor, y_val: 
     cross-entropy de validación. La CE es continua, así que deshace los empates
     de accuracy (frecuentes con pocas muestras de val) sin recurrir al train.
     """
-    acc, ce = acc_and_ce(model, flat_params, X_val, y_val)
+    t0 = time.perf_counter()
+    acc, ce = acc_and_ce(model, flat_params, X_val, y_val)   # los .item() sincronizan la GPU
+    METER.record_selection(acc, ce, time.perf_counter() - t0)
     return (1.0 - acc, ce)
+
+
+def classification_metrics(y_true: torch.Tensor, y_pred: torch.Tensor, n_classes: int) -> Dict[str, float]:
+    """Accuracy balanceada y F1 macro, ambas promediadas sobre las `n_classes` clases.
+
+    - `balanced_acc`: media del recall por clase (no premia acertar sólo la mayoritaria).
+    - `macro_f1`: media del F1 por clase; una clase nunca predicha aporta F1 = 0.
+    """
+    idx = y_true * n_classes + y_pred
+    cm = torch.bincount(idx, minlength=n_classes * n_classes).reshape(n_classes, n_classes).double()
+    tp = cm.diag()
+    support, predicted = cm.sum(dim=1), cm.sum(dim=0)
+    recall = tp / support.clamp(min=1)
+    f1 = 2 * tp / (support + predicted).clamp(min=1)
+    present = support > 0   # clases sin muestras en este split no entran al promedio
+    return {
+        "balanced_acc": float(recall[present].mean().item()),
+        "macro_f1": float(f1[present].mean().item()),
+    }
 
 
 def confusion_matrix(y_true: torch.Tensor, y_pred: torch.Tensor, n_classes: int):

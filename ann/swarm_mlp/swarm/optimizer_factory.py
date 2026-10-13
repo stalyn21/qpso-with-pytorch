@@ -38,6 +38,8 @@ import torch
 from qpso_torch import QDPSOTensor, QPSOBaseTensor, QPSOTensor
 from qpso_torch.cost import CostFunction
 
+from core.budget import counted
+
 #: Identificadores aceptados por `--optimizer`. La nomenclatura ("QPSOo"/"QDPSOo")
 #: es la del paper-1, mantenida por consistencia.
 OPTIMIZERS = ("qdpsoo", "qpsoo")
@@ -75,11 +77,14 @@ def build_swarm_optimizer(
     lo contrario, así que quedan fijos aquí en vez de repetirse cinco veces.
     `vectorized=True` también: las cost functions de `core/mlp.py` evalúan el swarm
     completo en una llamada, y declararlo evita la detección (ambigua si dim == P).
+
+    Toda cost function que sale de este módulo va envuelta con `counted`: así el
+    medidor de `core.budget` cuenta las evaluaciones sin que las técnicas lo sepan.
     """
     name = str(cfg.get("optimizer", "qdpsoo")).lower()
 
     common = dict(
-        cost_fn=cf,
+        cost_fn=counted(cf),
         n_particles=cfg["n_particles"],
         dim=dim,
         bounds=bounds,
@@ -133,7 +138,7 @@ def swap_cost_fn(
     la librería exponga un equivalente, reemplazar el cuerpo de esta función.
     """
     opt._cost = CostFunction(
-        cf,
+        counted(cf),
         dtype=opt.dtype,
         device=opt.device,
         minimize=opt.minimize,
@@ -167,7 +172,7 @@ def reuse_keeping_pbest(
     Cuesta una evaluación extra del swarm por round. Sólo usa API pública.
     """
     old_pbest = opt.pbest.clone()
-    opt.reuse_with(cf)
+    opt.reuse_with(counted(cf))
     with torch.no_grad():
         old_values = opt.cost_fn(old_pbest)
         better = (

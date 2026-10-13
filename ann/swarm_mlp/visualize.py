@@ -190,9 +190,9 @@ def compute_radar_metrics(
         times.append(get_total_time(s))
 
     test_acc_mean = statistics.mean(all_test) if all_test else 0.0
-    test_acc_std = statistics.pstdev(all_test) if len(all_test) > 1 else 0.0
+    test_acc_std = statistics.stdev(all_test) if len(all_test) > 1 else 0.0
     val_acc_mean = statistics.mean(all_val) if all_val else 0.0
-    seed_std = statistics.pstdev(seed_means) if len(seed_means) > 1 else 0.0
+    seed_std = statistics.stdev(seed_means) if len(seed_means) > 1 else 0.0
     time_mean = statistics.mean(times) if times else 0.0
 
     accuracy = max(0.0, min(1.0, test_acc_mean))
@@ -352,7 +352,7 @@ def _draw_boxplot_subplot(ax, ds, groups) -> bool:
         labels.append(TECHNIQUE_LABELS[tech])
         colors.append(TECHNIQUE_COLORS[tech])
         means.append(statistics.mean(all_accs))
-        stds.append(statistics.pstdev(all_accs) if len(all_accs) > 1 else 0.0)
+        stds.append(statistics.stdev(all_accs) if len(all_accs) > 1 else 0.0)
 
     if not data:
         ax.set_visible(False)
@@ -482,7 +482,7 @@ def _draw_pareto_subplot(ax, ds, groups, show_legend=False, show_frontier_label=
             if not accs:
                 continue
             acc_mean = statistics.mean(accs)
-            acc_std = statistics.pstdev(accs) if len(accs) > 1 else 0.0
+            acc_std = statistics.stdev(accs) if len(accs) > 1 else 0.0
             seed_times.append(t)
             seed_accs.append(acc_mean)
             ax.errorbar(t, acc_mean, yerr=acc_std, fmt=TECHNIQUE_MARKERS[tech],
