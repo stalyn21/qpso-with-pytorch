@@ -83,7 +83,7 @@ def parse_args():
                    help="(TODAS las técnicas) Escala del ruido para el cluster warm-start, relativa al rango de bounds. "
                         "Default 0.05.")
     p.add_argument("--hidden-sizes", type=int, nargs="*", default=None,
-                   help="Tamaños de capas ocultas. Default: [3 * n_features]")
+                   help="Tamaños de capas ocultas. Default: [3n, 2n, n] con n = n_features")
     p.add_argument("--lambda-l2", type=float, default=10.0,
                    help="Coeficiente del L2 normalizado (l2 = (lambda/2)·||W||²/(d_total·n_train)). "
                         "Default 10.0 con la nueva normalización; valores razonables ∈ [1.0, 100.0]. "
@@ -129,11 +129,16 @@ def parse_args():
     return p.parse_args()
 
 
+def default_hidden(n_features: int):
+    """Capas ocultas por defecto: [3n, 2n, n], la arquitectura del paper 1."""
+    return [3 * n_features, 2 * n_features, n_features]
+
+
 def _build_cfg_and_run(
     *, args, device, dtype, data, output_dir, data_seed,
 ):
     """Construye el MLP y la cfg para un split dado y ejecuta run_sessions."""
-    hidden = args.hidden_sizes if args.hidden_sizes else [3 * data["n_features"]]
+    hidden = args.hidden_sizes if args.hidden_sizes else default_hidden(data["n_features"])
     layer_sizes = [data["n_features"]] + list(hidden) + [data["n_classes"]]
     mlp = MLP(layer_sizes=layer_sizes, device=device, dtype=dtype)
     print(f"🧠 MLP layers: {layer_sizes}   params={mlp.d_total}   swarms={mlp.num_layers}")
@@ -305,7 +310,7 @@ def main():
             print(f"📊 Splits: train={data['X_train'].shape[0]}  "
                   f"val={data['X_val'].shape[0]}  test={data['X_test'].shape[0]}")
 
-            hidden = hidden_for_tag if hidden_for_tag else [3 * data["n_features"]]
+            hidden = hidden_for_tag if hidden_for_tag else default_hidden(data["n_features"])
             output_dir = base_dir / _run_tag(args, hidden)
 
             _build_cfg_and_run(
@@ -320,7 +325,7 @@ def main():
         probe = prepare_dataset(args.dataset, device=device, dtype=dtype, data_seed=data_seeds[0])
         n_features = probe["n_features"]
         n_classes = probe["n_classes"]
-        hidden = hidden_for_tag if hidden_for_tag else [3 * n_features]
+        hidden = hidden_for_tag if hidden_for_tag else default_hidden(n_features)
         splits_root = base_dir / f"splits{len(data_seeds)}" / _run_tag(args, hidden)
         splits_root.mkdir(parents=True, exist_ok=True)
 
@@ -412,7 +417,7 @@ def main():
     )
     n_features = probe["n_features"]
     n_classes = probe["n_classes"]
-    hidden = hidden_for_tag if hidden_for_tag else [3 * n_features]
+    hidden = hidden_for_tag if hidden_for_tag else default_hidden(n_features)
     cv_root = base_dir / f"cv{args.cv_folds}" / _run_tag(args, hidden)
     cv_root.mkdir(parents=True, exist_ok=True)
 
