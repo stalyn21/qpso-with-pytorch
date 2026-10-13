@@ -24,6 +24,7 @@ _HERE = Path(__file__).parent.resolve()
 if str(_HERE) not in sys.path:
     sys.path.insert(0, str(_HERE))
 
+from core.budget import evals_per_session, iters_for_budget
 from core.data import prepare_dataset, prepare_dataset_kfold, BENCHMARK_DATASETS, PAPER_DATASETS
 from core.mlp import MLP
 from core.sessions import run_sessions
@@ -67,6 +68,13 @@ def parse_args():
                         "Default 1. Sólo afecta a T1/T2-jacobi — T2 async, T3 y T4 lo ignoran.")
     p.add_argument("--n-particles", type=int, default=50)
     p.add_argument("--max-iter", type=int, default=200)
+    p.add_argument("--eval-budget", type=int, default=None,
+                   help="Presupuesto de evaluaciones de la función de costo POR SESIÓN "
+                        "(una evaluación = una partícula sobre todo el conjunto de fitness). "
+                        "Si se da, reemplaza a --max-iter: cada técnica recibe las iteraciones "
+                        "que caben en el presupuesto, de modo que todas se comparan a igual costo. "
+                        "A igual --max-iter las técnicas multi-swarm gastan varias veces más "
+                        "evaluaciones que T4 (un enjambre por capa; T2/T3 evalúan dos veces por paso).")
     p.add_argument("--warm-particles", type=int, default=10,
                    help="(TODAS las técnicas) Cantidad de partículas inicializadas como cluster alrededor "
                         "de params_init/current (1 seed exacto + K-1 con ruido). Default 10. "
@@ -130,6 +138,18 @@ def _build_cfg_and_run(
     mlp = MLP(layer_sizes=layer_sizes, device=device, dtype=dtype)
     print(f"🧠 MLP layers: {layer_sizes}   params={mlp.d_total}   swarms={mlp.num_layers}")
 
+    budget_kwargs = dict(
+        n_particles=args.n_particles, n_layers=mlp.num_layers,
+        warm_particles=args.warm_particles, n_rounds=args.n_rounds,
+        reevaluate_pbest=args.reevaluate_pbest,
+    )
+    max_iter = args.max_iter
+    if args.eval_budget is not None:
+        max_iter = iters_for_budget(args.technique, args.eval_budget, **budget_kwargs)
+    planned_evals = evals_per_session(args.technique, max_iter, **budget_kwargs)
+    print(f"💰 max_iter={max_iter}  →  {planned_evals} evaluaciones de fitness por sesión"
+          + (f"  (presupuesto {args.eval_budget})" if args.eval_budget is not None else ""))
+
     cfg = {
         "technique": args.technique,
         "dataset": args.dataset,
@@ -137,7 +157,9 @@ def _build_cfg_and_run(
         "n_sessions": args.n_sessions,
         "n_rounds": args.n_rounds,
         "n_particles": args.n_particles,
-        "max_iter": args.max_iter,
+        "max_iter": max_iter,
+        "eval_budget": args.eval_budget,
+        "planned_evals_per_session": planned_evals,
         "lambda_l2": args.lambda_l2,
         "optimizer": args.optimizer,
         "g": args.g,
@@ -191,7 +213,11 @@ def _run_tag(args, hidden) -> str:
         hp_tag += "_a" + "-".join(f"{a:g}" for a in args.alpha)
     if args.lambda_l2 != 10.0:
         hp_tag += f"_l2-{args.lambda_l2:g}"
-    return (f"hid{hidden_tag}_iters{args.max_iter}_part{args.n_particles}"
+    # Con presupuesto de evaluaciones, `max_iter` depende de la técnica y de la red:
+    # lo que identifica a la corrida es el presupuesto.
+    budget_tag = (f"evals{args.eval_budget}" if args.eval_budget is not None
+                  else f"iters{args.max_iter}")
+    return (f"hid{hidden_tag}_{budget_tag}_part{args.n_particles}"
             f"{rounds_tag}_{opt_tag}{hp_tag}{reeval_tag}_seed{args.seed}")
 
 
@@ -340,6 +366,7 @@ def main():
                 "n_rounds": args.n_rounds,
                 "n_particles": args.n_particles,
                 "max_iter": args.max_iter,
+                "eval_budget": args.eval_budget,
                 "lambda_l2": args.lambda_l2,
                 "optimizer": args.optimizer,
                 "g": args.g,
@@ -433,6 +460,7 @@ def main():
             "n_rounds": args.n_rounds,
             "n_particles": args.n_particles,
             "max_iter": args.max_iter,
+            "eval_budget": args.eval_budget,
             "lambda_l2": args.lambda_l2,
             "optimizer": args.optimizer,
             "g": args.g,

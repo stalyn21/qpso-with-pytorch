@@ -78,3 +78,57 @@ def counted(cost_fn: Callable[[torch.Tensor], torch.Tensor]) -> Callable[[torch.
         return cost_fn(positions)
 
     return wrapper
+
+
+def evals_per_session(
+    technique: str,
+    max_iter: int,
+    *,
+    n_particles: int,
+    n_layers: int,
+    warm_particles: int,
+    n_rounds: int = 1,
+    reevaluate_pbest: bool = True,
+) -> int:
+    """Evaluaciones de fitness que gasta UNA sesión de `technique` con `max_iter`.
+
+    Supone que ningún optimizador corta antes por paciencia (T1, T2-jacobi y T4
+    pueden hacerlo; entonces gastan menos). P = partículas, K = partículas de
+    warm-start, I = iteraciones, L = capas (enjambres), R = rondas:
+
+        t4          P + K + I·P                      un enjambre
+        t1          R · L · (P + K + I·P)            un enjambre nuevo por (ronda, capa)
+        t2, t3      L · (P + K + c·I·P)              c = 2 con re-evaluación de pbest, 1 sin ella
+        t2-jacobi   L · (P + K + (R-1)·2P + R·I·P)   2P por ronda extra: reuse + pbest re-medidos
+
+    El `P + K` es la evaluación inicial del enjambre más la del cluster de warm-start.
+    """
+    P, I, L, R = int(n_particles), int(max_iter), int(n_layers), int(n_rounds)
+    K = max(1, min(int(warm_particles), P))
+    if technique == "t4":
+        return P + K + I * P
+    if technique == "t1":
+        return R * L * (P + K + I * P)
+    if technique in ("t2", "t3"):
+        return L * (P + K + (2 if reevaluate_pbest else 1) * I * P)
+    if technique == "t2-jacobi":
+        return L * (P + K + (R - 1) * 2 * P + R * I * P)
+    raise ValueError(f"Técnica no reconocida: {technique!r}")
+
+
+def iters_for_budget(technique: str, eval_budget: int, **kwargs: Any) -> int:
+    """Mayor `max_iter` cuya sesión no supera `eval_budget` evaluaciones de fitness.
+
+    Es lo que permite comparar técnicas a IGUAL costo: se fija el presupuesto y cada
+    técnica recibe las iteraciones que le alcanzan. `kwargs` son los de
+    `evals_per_session`. El costo es lineal en `max_iter`, así que se despeja.
+    """
+    fixed = evals_per_session(technique, 0, **kwargs)
+    per_iter = evals_per_session(technique, 1, **kwargs) - fixed
+    iters = (int(eval_budget) - fixed) // per_iter
+    if iters < 1:
+        raise ValueError(
+            f"El presupuesto de {eval_budget} evaluaciones no alcanza para una iteración "
+            f"de {technique} (mínimo {fixed + per_iter})."
+        )
+    return int(iters)
