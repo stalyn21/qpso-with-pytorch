@@ -79,6 +79,11 @@ def parse_args():
                    help="(TODAS las técnicas) Cantidad de partículas inicializadas como cluster alrededor "
                         "de params_init/current (1 seed exacto + K-1 con ruido). Default 10. "
                         "Reduce dramáticamente la varianza por cold start.")
+    p.add_argument("--warm-percent", type=float, default=None,
+                   help="(TODAS las técnicas) Tamaño del cluster warm-start como porcentaje de "
+                        "--n-particles, en lugar de un número fijo: K = parte entera de "
+                        "P·pct/100 (p. ej. 40 → 10 de 25, 20 de 50, 30 de 75). Si se da, "
+                        "reemplaza a --warm-particles. Las técnicas usan al menos 1.")
     p.add_argument("--warm-noise", type=float, default=0.05,
                    help="(TODAS las técnicas) Escala del ruido para el cluster warm-start, relativa al rango de bounds. "
                         "Default 0.05.")
@@ -126,7 +131,17 @@ def parse_args():
     p.add_argument("--tol", type=float, default=1e-12)
     p.add_argument("--patience", type=int, default=100)
     p.add_argument("--output-dir", default=str(_HERE / "output"))
-    return p.parse_args()
+    args = p.parse_args()
+    if args.warm_percent is not None:
+        if not 0 <= args.warm_percent <= 100:
+            p.error(f"--warm-percent debe estar entre 0 y 100 (se dio {args.warm_percent}).")
+        args.warm_particles = warm_particles_from_percent(args.n_particles, args.warm_percent)
+    return args
+
+
+def warm_particles_from_percent(n_particles: int, percent: float) -> int:
+    """K del cluster warm-start como porcentaje de P, quedándose con la parte entera."""
+    return int(n_particles * percent // 100)
 
 
 def default_hidden(n_features: int):
@@ -180,6 +195,7 @@ def _build_cfg_and_run(
         "tol": args.tol,
         "patience": args.patience,
         "warm_particles": args.warm_particles,
+        "warm_percent": args.warm_percent,
         "warm_noise": args.warm_noise,
         "cv_folds": args.cv_folds,
         "fold_idx": data.get("fold_idx", None),
@@ -218,6 +234,9 @@ def _run_tag(args, hidden) -> str:
         hp_tag += "_a" + "-".join(f"{a:g}" for a in args.alpha)
     if args.lambda_l2 != 10.0:
         hp_tag += f"_l2-{args.lambda_l2:g}"
+    # Con el cluster como porcentaje, dos porcentajes con el mismo P no deben pisarse.
+    if args.warm_percent is not None:
+        hp_tag += f"_warm{args.warm_percent:g}pct"
     # Con presupuesto de evaluaciones, `max_iter` depende de la técnica y de la red:
     # lo que identifica a la corrida es el presupuesto.
     budget_tag = (f"evals{args.eval_budget}" if args.eval_budget is not None
