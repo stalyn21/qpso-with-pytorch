@@ -1,11 +1,12 @@
 """T3 — Concurrencia: intercambio de parámetros DURANTE cada iteración.
 
-Diferencia clave con T1/T2:
-    - T1/T2: contrapartes de cada capa CONGELADAS a `params_init` durante toda la sesión.
-              El intercambio ocurre solo después de la sesión.
-    - T3:    contrapartes ACTUALIZADAS en cada iteración del QDPSO con los gBests
-              actuales de los otros swarms. No requiere intercambio post-sesión porque
-              ya se hizo durante el entrenamiento.
+Diferencia clave con las otras técnicas multi-enjambre:
+    - T1:        una capa a la vez; cada capa corre su QDPSO completo y recién entonces
+                 su mejor segmento pasa a ser contexto de la siguiente.
+    - T2:        las capas corren en hilos y leen el contexto sin sincronizar (async).
+    - T2-jacobi: las capas ven la misma foto del contexto durante toda una ronda.
+    - T3:        contrapartes ACTUALIZADAS en cada iteración del QDPSO con los gBests
+                 actuales de los otros swarms, en orden fijo (lockstep).
 
 Implementación lockstep (Gauss-Seidel back-to-front):
     1. Crear N swarms QDPSO, uno por capa.

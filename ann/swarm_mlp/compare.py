@@ -348,13 +348,6 @@ def aggregate_multi_seed(cv_summaries: List[Dict[str, Any]]) -> List[Dict[str, A
     return rows
 
 
-def to_multi_seed_rows(rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-    """No-op: aggregate_multi_seed ya devuelve filas con las columnas correctas.
-    Este wrapper existe para mantener simetría con to_rows / to_cv_rows.
-    """
-    return rows
-
-
 def fmt_value(v: Any) -> str:
     if v is None:
         return "—"

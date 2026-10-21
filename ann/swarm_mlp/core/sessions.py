@@ -62,12 +62,6 @@ class SessionResult:
     trace: list = field(default_factory=list)   # puntos [fitness_evals, seconds, val_acc, val_ce]
 
 
-def evaluate_model(mlp: MLP, flat_params: torch.Tensor, X: torch.Tensor, y: torch.Tensor):
-    with torch.no_grad():
-        y_pred = mlp.predict(X, flat_params)
-    return mse_int(y, y_pred), accuracy(y, y_pred), y_pred
-
-
 def evaluate_full(mlp: MLP, flat_params: torch.Tensor, X: torch.Tensor, y: torch.Tensor):
     """(acc, ce, mse_int, y_pred) con un solo forward."""
     with torch.no_grad():
