@@ -16,7 +16,7 @@ set -u
 OUT=${OUT:-output/paper2-1s}
 ITERS=${ITERS:-100}
 PATIENCE=${PATIENCE:-$ITERS}
-WARM_PCT=${WARM_PCT:-20}
+WARM_PCT=${WARM_PCT:-30}
 PARTICLES=${PARTICLES:-"25 50 75 100"}
 SEEDS=${SEEDS:-"42 43 44"}
 DATASETS=${DATASETS:-"iris breast segment satimage digits"}
