@@ -79,11 +79,34 @@ class MLP:
             offset += size
         self.layer_specs = specs
         self.d_total = offset
+        # Forma de la L2 (ver core/loss.py:L2_FORMS). El runner la fija con --l2-form;
+        # todas las cost functions y la pérdida de train la leen de aquí.
+        self.l2_form = "mean"
 
     # ---------- utilidades de indexación ---------- #
 
     def layer_dim(self, k: int) -> int:
         return self.layer_specs[k].size
+
+    def weight_mask(self, k: Optional[int] = None) -> torch.Tensor:
+        """Máscara bool de qué posiciones son pesos (True) y cuáles sesgos (False).
+
+        Con `k` es la de la capa k (longitud `layer_dim(k)`); sin `k`, la de todo el
+        vector plano (longitud `d_total`). Cada capa guarda W (n_in·n_out) y luego b.
+        """
+        specs = self.layer_specs if k is None else [self.layer_specs[k]]
+        parts = []
+        for spec in specs:
+            n_w = spec.n_in * spec.n_out
+            parts.append(torch.ones(n_w, dtype=torch.bool, device=self.device))
+            parts.append(torch.zeros(spec.n_out, dtype=torch.bool, device=self.device))
+        return torch.cat(parts)
+
+    def l2(self, params: torch.Tensor, lambda_l2: float, n_train: int,
+           k: Optional[int] = None) -> torch.Tensor:
+        """L2 de `params` (vector completo, o sólo la capa `k`) con la forma `self.l2_form`."""
+        return l2_penalty(params, lambda_l2, self.d_total, n_train,
+                          form=self.l2_form, weight_mask=self.weight_mask(k))
 
     def split_layer_params(self, flat: torch.Tensor, k: int) -> Tuple[torch.Tensor, torch.Tensor]:
         """De un vector plano (d_total,) extrae (W, b) para la capa k."""
@@ -153,6 +176,8 @@ class MLP:
 
         k_is_last = (k == self.num_layers - 1)
         n_w_k = spec_k.n_in * spec_k.n_out
+        l2_form = self.l2_form
+        w_mask_k = self.weight_mask(k)
 
         def cost_fn(positions: torch.Tensor) -> torch.Tensor:
             # positions: (P, size_k) o (size_k,) si el QDPSO llama individual
@@ -187,7 +212,8 @@ class MLP:
             ce_per = cross_entropy_from_logits(logits, y_exp, dim_classes=-1)
             ce = ce_per.mean(dim=-1)  # (P,)
 
-            l2 = l2_penalty(positions, lambda_l2, d_total, n_train)  # (P,)
+            l2 = l2_penalty(positions, lambda_l2, d_total, n_train,
+                            form=l2_form, weight_mask=w_mask_k)  # (P,)
 
             out = ce + l2
             return out.squeeze(0) if squeeze_out else out
@@ -204,6 +230,8 @@ class MLP:
         # Constantes para la normalización del L2 (ver docstring de l2_penalty).
         d_total = self.d_total
         n_train = X.shape[0]
+        l2_form = self.l2_form
+        w_mask = self.weight_mask()
 
         def cost_fn(positions: torch.Tensor) -> torch.Tensor:
             if positions.dim() == 1:
@@ -227,7 +255,8 @@ class MLP:
 
             y_exp = y.unsqueeze(0).expand(P, -1)
             ce = cross_entropy_from_logits(logits, y_exp, dim_classes=-1).mean(dim=-1)
-            l2 = l2_penalty(positions, lambda_l2, d_total, n_train)
+            l2 = l2_penalty(positions, lambda_l2, d_total, n_train,
+                            form=l2_form, weight_mask=w_mask)
             out = ce + l2
             return out.squeeze(0) if squeeze_out else out
 

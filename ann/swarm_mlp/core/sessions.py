@@ -80,15 +80,19 @@ def evaluate_train_loss(
 ) -> float:
     """CE + L2 sobre train, evaluado con flat_params. Es lo que el QDPSO optimiza.
 
-    L2 normalizado por (d_total · n_train) — ver core/loss.py:l2_penalty.
+    La L2 usa la forma del modelo (`mlp.l2`, ver core/loss.py:L2_FORMS). La CNN no
+    tiene `l2`: usa la forma "mean".
     """
     with torch.no_grad():
         logits = mlp.forward(X_train, flat_params)
         ce = cross_entropy_from_logits(logits, y_train, dim_classes=-1).mean().item()
-        l2 = float(l2_penalty(
-            flat_params, lambda_l2,
-            d_total=mlp.d_total, n_train=X_train.shape[0],
-        ).item())
+        if hasattr(mlp, "l2"):
+            l2 = float(mlp.l2(flat_params, lambda_l2, n_train=X_train.shape[0]).item())
+        else:
+            l2 = float(l2_penalty(
+                flat_params, lambda_l2,
+                d_total=mlp.d_total, n_train=X_train.shape[0],
+            ).item())
     return ce + l2
 
 

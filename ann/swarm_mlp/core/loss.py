@@ -20,13 +20,38 @@ def cross_entropy_from_logits(
     return log_Z - true_logits
 
 
+#: Formas de la penalización L2 (flag `--l2-form` del runner).
+#:   "mean"   (lambda / 2n) · media(θ²) sobre TODOS los parámetros (pesos y sesgos).
+#:            Es la forma histórica del repo: (lambda/2)·||θ||² / (d_total · n_train).
+#:   "sample" (lambda / 2n) · Σ w² sobre los PESOS, sin los sesgos. Es la weight decay
+#:            estándar normalizada por el tamaño de la muestra (Ng, CS229; Nielsen,
+#:            "Neural Networks and Deep Learning", cap. 3; Goodfellow et al., § 7.1.1).
+#:            Los sesgos no se penalizan porque no interactúan multiplicativamente con
+#:            la entrada: penalizarlos no reduce la varianza y sí puede sub-ajustar.
+L2_FORMS = ("mean", "sample")
+
+
 def l2_penalty(
     params: torch.Tensor,
     lambda_l2: float,
     d_total: int,
     n_train: int,
+    form: str = "mean",
+    weight_mask: torch.Tensor = None,
 ) -> torch.Tensor:
-    """L2 normalizado: (lambda / 2) * ||params||² / (d_total * n_train).
+    """Penalización L2. `form` elige la normalización (ver `L2_FORMS`).
+
+    - form="mean":   (lambda / 2) * ||params||² / (d_total * n_train)
+    - form="sample": (lambda / 2) * Σ (params[weight_mask])² / n_train
+      `weight_mask` (bool, misma longitud que la última dimensión de `params`) marca
+      qué posiciones son pesos; si es None se penalizan todas.
+
+    En "sample" la intensidad por peso no depende del tamaño de la red: una red más
+    grande recibe más penalización total, como en la weight decay usual. En "mean"
+    la penalización total queda invariante al tamaño de la red. Con el mismo lambda
+    "sample" es ~d_total veces más fuerte, así que los lambdas NO son comparables.
+
+    Justificación histórica de la forma "mean":
 
     Justificación de la normalización (convención Bishop / Goodfellow / MAP bayesiano):
 
@@ -51,11 +76,17 @@ def l2_penalty(
 
     Si params es (P, d) retorna (P,); si (d,) retorna escalar.
     """
+    if form not in L2_FORMS:
+        raise ValueError(f"form debe ser uno de {L2_FORMS}, se dio {form!r}.")
     if lambda_l2 <= 0:
         if params.dim() == 1:
             return torch.zeros((), dtype=params.dtype, device=params.device)
         return torch.zeros(params.shape[0], dtype=params.dtype, device=params.device)
-    norm_factor = float(d_total * n_train)
-    if params.dim() == 1:
-        return (lambda_l2 / 2.0) * (params ** 2).sum() / norm_factor
-    return (lambda_l2 / 2.0) * (params ** 2).sum(dim=-1) / norm_factor
+    sq = params ** 2
+    if form == "sample":
+        if weight_mask is not None:
+            sq = sq * weight_mask.to(dtype=params.dtype, device=params.device)
+        norm_factor = float(n_train)
+    else:
+        norm_factor = float(d_total * n_train)
+    return (lambda_l2 / 2.0) * sq.sum(dim=-1) / norm_factor

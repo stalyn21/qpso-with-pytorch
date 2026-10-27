@@ -26,6 +26,7 @@ if str(_HERE) not in sys.path:
 
 from core.budget import evals_per_session, iters_for_budget
 from core.data import prepare_dataset, prepare_dataset_kfold, BENCHMARK_DATASETS, PAPER_DATASETS
+from core.loss import L2_FORMS
 from core.mlp import MLP
 from core.sessions import run_sessions
 from core.stats import describe
@@ -89,6 +90,10 @@ def parse_args():
                         "Default 0.05.")
     p.add_argument("--hidden-sizes", type=int, nargs="*", default=None,
                    help="Tamaños de capas ocultas. Default: [3n, 2n, n] con n = n_features")
+    p.add_argument("--l2-form", default="mean", choices=list(L2_FORMS),
+                   help="Forma de la L2. 'mean' (histórica): (lambda/2n)·media(θ²) sobre pesos "
+                        "y sesgos. 'sample': weight decay estándar (lambda/2n)·Σw², sólo pesos. "
+                        "Los lambdas de una y otra NO son comparables (ver core/loss.py).")
     p.add_argument("--lambda-l2", type=float, default=10.0,
                    help="Coeficiente del L2 normalizado (l2 = (lambda/2)·||W||²/(d_total·n_train)). "
                         "Default 10.0 con la nueva normalización; valores razonables ∈ [1.0, 100.0]. "
@@ -156,6 +161,7 @@ def _build_cfg_and_run(
     hidden = args.hidden_sizes if args.hidden_sizes else default_hidden(data["n_features"])
     layer_sizes = [data["n_features"]] + list(hidden) + [data["n_classes"]]
     mlp = MLP(layer_sizes=layer_sizes, device=device, dtype=dtype)
+    mlp.l2_form = args.l2_form
     print(f"🧠 MLP layers: {layer_sizes}   params={mlp.d_total}   swarms={mlp.num_layers}")
 
     budget_kwargs = dict(
@@ -181,6 +187,7 @@ def _build_cfg_and_run(
         "eval_budget": args.eval_budget,
         "planned_evals_per_session": planned_evals,
         "lambda_l2": args.lambda_l2,
+        "l2_form": args.l2_form,
         "optimizer": args.optimizer,
         "g": args.g,
         "alpha": resolve_alpha(args.alpha),
@@ -234,6 +241,9 @@ def _run_tag(args, hidden) -> str:
         hp_tag += "_a" + "-".join(f"{a:g}" for a in args.alpha)
     if args.lambda_l2 != 10.0:
         hp_tag += f"_l2-{args.lambda_l2:g}"
+    # La forma va en el tag sólo cuando no es la histórica: los paths viejos no cambian.
+    if args.l2_form != "mean":
+        hp_tag += f"_l2{args.l2_form}"
     # Con el cluster como porcentaje, dos porcentajes con el mismo P no deben pisarse.
     if args.warm_percent is not None:
         hp_tag += f"_warm{args.warm_percent:g}pct"
@@ -392,6 +402,7 @@ def main():
                 "max_iter": args.max_iter,
                 "eval_budget": args.eval_budget,
                 "lambda_l2": args.lambda_l2,
+                "l2_form": args.l2_form,
                 "optimizer": args.optimizer,
                 "g": args.g,
                 "alpha": resolve_alpha(args.alpha),
@@ -486,6 +497,7 @@ def main():
             "max_iter": args.max_iter,
             "eval_budget": args.eval_budget,
             "lambda_l2": args.lambda_l2,
+            "l2_form": args.l2_form,
             "optimizer": args.optimizer,
             "g": args.g,
             "alpha": resolve_alpha(args.alpha),
