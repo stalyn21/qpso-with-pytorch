@@ -190,7 +190,11 @@ CV_COLUMNS = [
     ("test_acc_std",    lambda c: c["aggregated"]["test_acc"]["std"]),
     ("test_acc_min",    lambda c: c["aggregated"]["test_acc"]["min"]),
     ("test_acc_max",    lambda c: c["aggregated"]["test_acc"]["max"]),
+    ("test_bacc_mean",  _agg("test_balanced_acc", "mean")),
+    ("test_bacc_std",   _agg("test_balanced_acc", "std")),
     ("val_acc_mean",    lambda c: c["aggregated"]["val_acc"]["mean"]),
+    ("val_bacc_mean",   _agg("val_balanced_acc", "mean")),
+    ("selection",       lambda c: _selection(c["config"])),
     ("val_acc_std",     lambda c: c["aggregated"]["val_acc"]["std"]),
     ("train_loss_mean", lambda c: c["aggregated"]["train_loss"]["mean"]),
     ("time_total",      lambda c: c["aggregated"]["total_time"]["mean"] * c["config"]["cv_folds"]),
@@ -234,6 +238,9 @@ MULTI_SEED_COLUMNS = [
     ("optimizer",     lambda r: r["optimizer"]),
     ("ce_param",      lambda r: r["ce_param"]),
     ("reeval_pbest",  lambda r: r["reeval_pbest"]),
+    ("l2",            lambda r: r["l2"]),
+    ("selection",     lambda r: r["selection"]),
+    ("data_seed",     lambda r: r["data_seed"]),
     ("n_seeds",       lambda r: r["n_seeds"]),
     ("n_runs",        lambda r: r["n_runs"]),
     ("test_acc_mean", lambda r: r["test_acc_mean"]),
@@ -241,7 +248,10 @@ MULTI_SEED_COLUMNS = [
     ("test_acc_min",  lambda r: r["test_acc_min"]),
     ("test_acc_max",  lambda r: r["test_acc_max"]),
     ("seed_std",      lambda r: r["seed_std"]),
+    ("test_bacc_mean", lambda r: r["test_bacc_mean"]),
+    ("test_bacc_std", lambda r: r["test_bacc_std"]),
     ("val_acc_mean",  lambda r: r["val_acc_mean"]),
+    ("val_bacc_mean", lambda r: r["val_bacc_mean"]),
     ("train_loss_mean", lambda r: r["train_loss_mean"]),
     ("time_total",    lambda r: r["time_total"]),
 ]
@@ -270,7 +280,19 @@ def _config_key(cv_summary: Dict[str, Any]) -> Tuple:
         # Ablación de T2/T3. Los summaries previos a este flag se corrieron SIN
         # re-evaluación, así que su ausencia equivale a False (no se mezclan con los nuevos).
         cfg.get("reevaluate_pbest", False),
+        # L2, regla de selección y partición: sin esto, dos reglas (o dos lambdas, o
+        # dos data_seeds) bajo el mismo output se promediarían en la MISMA fila.
+        cfg.get("l2_form", "mean"),
+        cfg.get("lambda_l2"),
+        cfg.get("selection_metric", "acc"),
+        cfg.get("selection_se", 0.0),
+        cfg.get("data_seed", 100),
     )
+
+
+def _selection(cfg: Dict[str, Any]) -> str:
+    """Regla de selección (ver core/selection.py). Los resúmenes viejos usaban acc, 0 SE."""
+    return f"{cfg.get('selection_metric', 'acc')}:{cfg.get('selection_se', 0.0):g}se"
 
 
 def _ce_param(cfg: Dict[str, Any]):
@@ -296,10 +318,13 @@ def aggregate_multi_seed(cv_summaries: List[Dict[str, Any]]) -> List[Dict[str, A
             continue  # sólo agrupar cuando hay 2+ seeds para esta config
 
         (tech, ds, hidden, particles, max_iter, n_rounds, cv_folds,
-         optimizer, ce_param, reeval_pbest) = key
+         optimizer, ce_param, reeval_pbest, l2_form, lambda_l2,
+         sel_metric, sel_se, data_seed) = key
 
         # Recolectar TODOS los puntos individuales (n_seeds × n_folds).
         all_test_accs: List[float] = []
+        all_test_bacc: List[float] = []
+        all_val_bacc: List[float] = []
         all_val_accs: List[float] = []
         all_train_losses: List[float] = []
         seed_means: List[float] = []
@@ -313,6 +338,8 @@ def aggregate_multi_seed(cv_summaries: List[Dict[str, Any]]) -> List[Dict[str, A
             fold_times     = [f["total_time"] for f in s["folds"]]
 
             all_test_accs.extend(fold_test_accs)
+            all_test_bacc.extend(f["test_balanced_acc"] for f in s["folds"] if "test_balanced_acc" in f)
+            all_val_bacc.extend(f["val_balanced_acc"] for f in s["folds"] if "val_balanced_acc" in f)
             all_val_accs.extend(fold_val_accs)
             all_train_losses.extend(fold_train)
             seed_means.append(statistics.mean(fold_test_accs))
@@ -330,6 +357,9 @@ def aggregate_multi_seed(cv_summaries: List[Dict[str, Any]]) -> List[Dict[str, A
             "optimizer": optimizer,
             "ce_param": ce_param,
             "reeval_pbest": reeval_pbest,
+            "l2": f"{l2_form}:{lambda_l2:g}" if lambda_l2 is not None else l2_form,
+            "selection": f"{sel_metric}:{sel_se:g}se",
+            "data_seed": data_seed,
             "n_seeds": len(summaries),
             "n_runs": n_runs,
             "test_acc_mean": statistics.mean(all_test_accs),
@@ -339,7 +369,10 @@ def aggregate_multi_seed(cv_summaries: List[Dict[str, Any]]) -> List[Dict[str, A
             # std de los means-per-seed: si es alta, el método es sensible a la
             # inicialización del QDPSO entre corridas (no determinismo importa).
             "seed_std": statistics.stdev(seed_means) if len(seed_means) > 1 else 0.0,
+            "test_bacc_mean": statistics.mean(all_test_bacc) if all_test_bacc else None,
+            "test_bacc_std":  statistics.stdev(all_test_bacc) if len(all_test_bacc) > 1 else None,
             "val_acc_mean":   statistics.mean(all_val_accs),
+            "val_bacc_mean":  statistics.mean(all_val_bacc) if all_val_bacc else None,
             "train_loss_mean": statistics.mean(all_train_losses),
             "time_total": total_time,
             "seeds_used": sorted(seeds_used),
@@ -528,6 +561,186 @@ def plot_comparison_by_dataset(runs: List[Dict[str, Any]], output_path: Path) ->
     return True
 
 
+# ---------- Reporte del paper (tablas con las métricas de core.report) ----------
+#
+# Tres tablas sobre los folds de los cv_summary.json, después de los filtros:
+#   1. Métricas por dataset × técnica (media ± std sobre semillas × folds).
+#   2. Comparaciones pareadas entre técnicas (Wilcoxon por semilla + Holm).
+#   3. Contraste de dos valores de un campo (p. ej. la regla de selección), pareado.
+# La leyenda de métricas (rol y para qué sirve) va al inicio del markdown.
+
+def _pm(d, scale=1.0, digits=3):
+    if d.get("mean") is None:
+        return "—"
+    sd = d.get("std")
+    m = d["mean"] * scale
+    return f"{m:.{digits}f}" + (f" ± {sd * scale:.{digits}f}" if sd is not None else "")
+
+
+def _p(p):
+    if p is None:
+        return "—"
+    return "<0.001" if p < 0.001 else f"{p:.3f}"
+
+
+def _paper_metric_legend(metrics):
+    from core.report import METRICS
+    lines = ["| Métrica | Rol | Mejor | Para qué sirve |", "|---|---|---|---|"]
+    for k in metrics:
+        m = METRICS[k]
+        lines.append(f"| {m.label} | {m.role} | {'mayor' if m.higher_is_better else 'menor'} | {m.description} |")
+    return "\n".join(lines)
+
+
+def paper_report(rows, metrics, primary, unit, contrast, pairs):
+    """Devuelve (markdown, {nombre_csv: (columnas, filas)})."""
+    from core.report import (DATASETS_ORDER, METRICS, TECHNIQUES_ORDER, group, holm,
+                             ordered, paired, summarize, varying_fields)
+    md, csvs = [], {}
+    extra = varying_fields(rows, exclude=("technique", "dataset", "layer_sizes") +
+                           ((contrast,) if contrast else ()))
+    if extra:
+        raise SystemExit(
+            "❌ Las corridas filtradas mezclan configuraciones: "
+            + "; ".join(f"{k} ∈ {v}" for k, v in extra.items())
+            + ".\n   Usa --filter campo=valor (o --contrast campo) para dejar una sola.")
+
+    levels = [None]
+    if contrast:
+        levels = sorted({r.config[contrast] for r in rows}, key=str)
+        if len(levels) != 2:
+            raise SystemExit(f"❌ --contrast {contrast} necesita exactamente 2 valores; hay {levels}.")
+
+    md.append("## Métricas\n\n" + _paper_metric_legend(metrics))
+
+    # 1. Métricas por dataset × técnica (para cada nivel del contraste).
+    cols = ["dataset", "technique"] + ([contrast] if contrast else []) + ["n_seeds", "n"] + \
+           [f"{k}_mean" for k in metrics] + [f"{k}_std" for k in metrics]
+    table, out_rows = [], []
+    head = "| Dataset | Técnica |" + (f" {contrast} |" if contrast else "") + " n |" + \
+           "".join(f" {METRICS[k].label} |" for k in metrics)
+    table.append(head)
+    table.append("|" + "---|" * (head.count("|") - 1))
+    by = group(rows, ("dataset", "technique") + ((contrast,) if contrast else ()))
+    for ds in ordered({k[0] for k in by}, DATASETS_ORDER):
+        for t in ordered({k[1] for k in by if k[0] == ds}, TECHNIQUES_ORDER):
+            for lv in levels:
+                key = (ds, t) + ((lv,) if contrast else ())
+                if key not in by:
+                    continue
+                g = by[key]
+                stats = {k: summarize(g, k) for k in metrics}
+                n = stats[primary]["n"]
+                cells = []
+                for k in metrics:
+                    pct = k.startswith(("test_", "val_", "optimism", "overfit")) and k != "test_ce" and k != "val_ce"
+                    cells.append(_pm(stats[k], 100 if pct else 1, 1 if pct else (0 if k in ("evals", "gpu_mb") else 2 if k == "time" else 3)))
+                table.append(f"| {ds} | {t} |" + (f" {lv} |" if contrast else "") +
+                             f" {stats[primary]['n_seeds']}×{n // max(stats[primary]['n_seeds'], 1)} |" +
+                             "".join(f" {c} |" for c in cells))
+                out_rows.append(dict(dataset=ds, technique=t, **({contrast: lv} if contrast else {}),
+                                     n_seeds=stats[primary]["n_seeds"], n=n,
+                                     **{f"{k}_mean": stats[k]["mean"] for k in metrics},
+                                     **{f"{k}_std": stats[k]["std"] for k in metrics}))
+    md.append("## Métricas por dataset y técnica\n\nMedia ± std muestral sobre semillas × folds. "
+              "Accuracies, optimismo y gap en puntos porcentuales; CE sin escala; tiempo en s por fold.\n\n"
+              + "\n".join(table))
+    csvs["metrics"] = (cols, out_rows)
+
+    # 2. Comparaciones pareadas entre técnicas, por nivel del contraste.
+    m = METRICS[primary]
+    pr_rows, plist = [], []
+    for lv in levels:
+        sub = [r for r in rows if not contrast or r.config[contrast] == lv]
+        by2 = group(sub, ("dataset", "technique"))
+        for ds in ordered({k[0] for k in by2}, DATASETS_ORDER):
+            for a, b in pairs:
+                if (ds, a) in by2 and (ds, b) in by2:
+                    c = paired(by2[(ds, a)], by2[(ds, b)], primary, unit)
+                    if c:
+                        pr_rows.append(dict(level=lv, dataset=ds, comparison=f"{b}−{a}", **c))
+                        plist.append(c["p_wilcoxon"])
+    for r, ph in zip(pr_rows, holm(plist)):
+        r["p_holm"] = ph
+    if pr_rows:
+        t = ["| " + (f"{contrast} | " if contrast else "") + "Dataset | Comparación | Δ media (pts) | IC95 | gana/empata/pierde | p | p Holm |",
+             "|" + "---|" * (7 + bool(contrast))]
+        for r in pr_rows:
+            t.append("| " + (f"{r['level']} | " if contrast else "") +
+                     f"{r['dataset']} | {r['comparison']} | {100 * r['mean']:+.2f} | ±{100 * (r['ci95'] or 0):.2f} | "
+                     f"{r['wins']}/{r['ties']}/{r['losses']} | {_p(r['p_wilcoxon'])} | {_p(r['p_holm'])} |")
+        md.append(f"## Comparaciones pareadas entre técnicas ({m.label})\n\n"
+                  f"Δ = b − a sobre las mismas {'semillas (promedio de folds)' if unit == 'seed' else '(semilla, fold)'}; "
+                  "Wilcoxon de rangos con signo, p corregido por Holm sobre toda la tabla.\n\n" + "\n".join(t))
+        csvs["paired"] = (["level", "dataset", "comparison", "n", "mean", "ci95", "wins", "ties",
+                           "losses", "p_wilcoxon", "p_holm"], pr_rows)
+
+    # 3. Contraste de los dos niveles del campo, por técnica y dataset.
+    if contrast:
+        lo, hi = levels
+        ct_rows, plist = [], []
+        for k in metrics:
+            if METRICS[k].role == "costo":
+                continue
+            by3 = group(rows, ("dataset", "technique", contrast))
+            for ds in ordered({x[0] for x in by3}, DATASETS_ORDER):
+                for t in ordered({x[1] for x in by3 if x[0] == ds}, TECHNIQUES_ORDER):
+                    if (ds, t, lo) in by3 and (ds, t, hi) in by3:
+                        c = paired(by3[(ds, t, lo)], by3[(ds, t, hi)], k, unit)
+                        if c:
+                            ct_rows.append(dict(metric=k, dataset=ds, technique=t, **c))
+                            plist.append(c["p_wilcoxon"])
+        for r, ph in zip(ct_rows, holm(plist)):
+            r["p_holm"] = ph
+        t = ["| Métrica | Dataset | Técnica | Δ media (pts) | IC95 | p | p Holm |", "|---|---|---|---|---|---|---|"]
+        for r in ct_rows:
+            sc = 1 if r["metric"].endswith("_ce") else 100
+            t.append(f"| {METRICS[r['metric']].label} | {r['dataset']} | {r['technique']} | "
+                     f"{sc * r['mean']:+.2f} | ±{sc * (r['ci95'] or 0):.2f} | {_p(r['p_wilcoxon'])} | {_p(r['p_holm'])} |")
+        md.append(f"## Contraste {contrast}: {hi} − {lo}\n\nPareado por "
+                  f"{'semilla' if unit == 'seed' else '(semilla, fold)'}; Holm sobre toda la tabla.\n\n" + "\n".join(t))
+        csvs["contrast"] = (["metric", "dataset", "technique", "n", "mean", "ci95", "wins", "ties",
+                             "losses", "p_wilcoxon", "p_holm"], ct_rows)
+    return "\n\n".join(md) + "\n", csvs
+
+
+def _write_csv(path, columns, rows):
+    with open(path, "w", newline="") as f:
+        w = csv.DictWriter(f, fieldnames=columns, extrasaction="ignore")
+        w.writeheader()
+        for r in rows:
+            w.writerow(r)
+
+
+def run_paper(args):
+    from core.report import (METRICS, PRIMARY_METRIC, apply_filters, load_folds, parse_filters)
+    rows = apply_filters(load_folds(Path(args.output_dir)), parse_filters(args.filter))
+    if args.filter_technique:
+        rows = [r for r in rows if r.config["technique"] == args.filter_technique]
+    if args.filter_dataset:
+        rows = [r for r in rows if r.config["dataset"] == args.filter_dataset]
+    if not rows:
+        raise SystemExit("❌ No hay folds que cumplan los filtros.")
+    metrics = args.metrics or [k for k in METRICS if k not in ("val_ce", "optimism_acc", "gpu_mb")]
+    args.primary = args.primary or PRIMARY_METRIC
+    unknown = [k for k in metrics + [args.primary] if k not in METRICS]
+    if unknown:
+        raise SystemExit(f"❌ Métricas desconocidas: {unknown}. Válidas: {', '.join(METRICS)}")
+    pairs = [tuple(p.split("-", 1)) if p.count("-") == 1 else tuple(p.split(":")) for p in args.pairs]
+    md, csvs = paper_report(rows, metrics, args.primary or PRIMARY_METRIC, args.unit,
+                            args.contrast, pairs)
+    print(md)
+    if not args.no_files:
+        out = Path(args.paper_prefix)
+        out.parent.mkdir(parents=True, exist_ok=True)
+        Path(f"{out}.md").write_text(md)
+        print(f"📁 MD:  {Path(f'{out}.md').resolve()}")
+        for name, (cols, data) in csvs.items():
+            path = Path(f"{out}_{name}.csv")
+            _write_csv(path, cols, data)
+            print(f"📁 CSV: {path.resolve()}")
+
+
 def main():
     p = argparse.ArgumentParser(description="Comparador de corridas re-design")
     p.add_argument("--output-dir", default="./output", help="Directorio raíz donde están las corridas")
@@ -552,7 +765,31 @@ def main():
                    help="Genera learning_curve.png en cada directorio de corrida (single-split y por fold de CV)")
     p.add_argument("--plot-comparison", action="store_true",
                    help="Genera comparison_by_dataset.png con todas las técnicas superpuestas")
+    # Reporte del paper (ver paper_report).
+    p.add_argument("--paper", action="store_true",
+                   help="Tablas del paper: métricas por dataset×técnica, pares de técnicas "
+                        "(Wilcoxon + Holm) y, con --contrast, el contraste de dos configuraciones.")
+    p.add_argument("--filter", nargs="*", default=[], metavar="CAMPO=VALOR",
+                   help="Filtros sobre el config (p. ej. selection_se=1 data_seed=200). "
+                        "Campos: ver core/report.py:CONFIG_FIELDS.")
+    p.add_argument("--metrics", nargs="*", default=None,
+                   help="Métricas de la tabla (core/report.py:METRICS). Default: todas las de reporte, "
+                        "diagnóstico y costo.")
+    p.add_argument("--primary", default=None,
+                   help="Métrica de las comparaciones pareadas (default: test_bacc).")
+    p.add_argument("--unit", default="seed", choices=["seed", "fold"],
+                   help="Unidad pareada: seed (promedio de folds, default; conservador) o fold.")
+    p.add_argument("--contrast", default=None,
+                   help="Campo con 2 valores a contrastar pareado (p. ej. selection_se).")
+    p.add_argument("--pairs", nargs="*", default=["t1-t3", "t2-t3", "t1-t2"],
+                   help="Pares a-b de técnicas; se reporta b − a (default: t1-t3 t2-t3 t1-t2).")
+    p.add_argument("--paper-prefix", default="compare_paper",
+                   help="Prefijo de los archivos del reporte (.md y _<tabla>.csv).")
     args = p.parse_args()
+
+    if args.paper:
+        run_paper(args)
+        return
 
     output_dir = Path(args.output_dir).resolve()
     if not output_dir.exists():

@@ -1,851 +1,609 @@
-"""Visualizaciones para el benchmark CV multi-seed.
+"""Figuras del paper 2 a partir de los `cv_summary.json` (y los `run.json` por fold).
 
-Genera dos variantes de figuras a partir de los `cv_summary.json` bajo `output/`:
+Las métricas, la identidad de una configuración y las comparaciones pareadas vienen
+de `core/report.py`, las mismas que usa `compare.py --paper`: tablas y figuras dicen
+lo mismo.
 
-Se grafican los datasets del paper (`DATASETS_ORDER`) y sólo las corridas de la
-configuración principal: `--n-particles` y un presupuesto, que es `--eval-budget`
-(evaluaciones de fitness por sesión, igual para todas las técnicas) o, si se pasa
-`--max-iter`, un número de iteraciones.
+Figuras (`--figures`, por defecto todas las que los datos permitan):
 
-  **Globales** (un panel por dataset), en `figs/global/`:
-    1. radar_by_dataset.{png,pdf}        - 5 métricas normalizadas [0,1]
-    2. boxplot_by_dataset.{png,pdf}      - distribución test_acc
-    3. pareto_by_dataset.{png,pdf}       - tiempo vs accuracy
+  box          Distribución de la métrica principal (cada punto = un fold) por técnica.
+  forest       Diferencias pareadas entre técnicas (Δ ± IC95 por semilla, Holm).
+  pareto       Costo (tiempo por fold) contra la métrica principal.
+  contrast     Dos valores de un campo (--contrast, p. ej. selection_rule) por técnica:
+               métrica de test y optimismo val−test.
+  convergence  Mejor valor de validación visto contra evaluaciones (o tiempo), desde
+               las trazas de cada fold: mediana e IQR.
+  radar        Resumen normalizado [0, 1]: balanced acc., estabilidad,
+               reproducibilidad, velocidad y honestidad de la validación.
+  sweep        Barrido de un campo (--sweep, p. ej. g) con líneas por técnica y,
+               opcionalmente, estilo de línea por un segundo campo (--sweep-style).
 
-  **Individuales** (una figura por dataset), en `figs/per_dataset/`:
-    4. radar_<dataset>.{png,pdf}
-    5. boxplot_<dataset>.{png,pdf}
-    6. pareto_<dataset>.{png,pdf}
+Las corridas filtradas deben ser UNA configuración por (técnica, dataset), salvo el
+campo de --contrast o --sweep; si no, el script dice qué campos varían.
 
-  **Heatmap** (no aplica per-dataset), en `figs/`:
-    7. sensitivity_heatmap.{png,pdf}     - P × max_iter (si hay datos)
-
-Uso:
-    python visualize.py --output-dir output/paper2      # todo
-    python visualize.py --eval-budget 80240 --n-particles 50
-    python visualize.py --max-iter 200   # corridas a igual número de iteraciones
-    python visualize.py --radar          # solo radar (global + individuales)
-    python visualize.py --boxplot        # solo boxplot
-    python visualize.py --pareto         # solo pareto
-    python visualize.py --sensitivity    # solo heatmap
-    python visualize.py --no-individual  # omitir per-dataset
-    python visualize.py --no-global      # omitir las globales
-    python visualize.py --figs-dir figs/ # otro destino raíz
-    python visualize.py --format both    # PNG y PDF
+Uso (desde ann/swarm_mlp):
+    # Resultados finales con la regla v2 y el contraste de reglas
+    python visualize.py --output-dir output/paper2-final-ds200 --filter selection_rule=bacc:1se
+    python visualize.py --output-dir output/paper2-final-ds200 --contrast selection_rule \\
+        --figures contrast --figs-dir figs/selection
+    # Barridos de sensibilidad (seleccionados con la regla v1: métrica de val)
+    python visualize.py --output-dir output/paper2-1s --figures sweep --sweep lambda_l2 \\
+        --filter l2_form=sample n_particles=50 --sweep-metric val_acc
+    python visualize.py --output-dir output/paper2-1s --figures sweep --sweep g \\
+        --sweep-style max_iter --filter n_particles=75 lambda_l2=0 --sweep-metric val_acc
 """
 import argparse
 import json
-import statistics
 from collections import defaultdict
 from pathlib import Path
-from typing import Any, Dict, List, Tuple
+from typing import Dict, List, Optional, Sequence
 
 import numpy as np
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
-from matplotlib.patches import Patch
+from matplotlib.lines import Line2D
+import matplotlib.patches
+import matplotlib.ticker
+
+from core.report import (
+    DATASETS_ORDER, METRICS, PRIMARY_METRIC, TECHNIQUES_ORDER, FoldRow, apply_filters,
+    group, holm, load_folds, ordered, paired, parse_filters, seed_means, selection_label,
+    summarize, values_of, varying_fields,
+)
+
+# ----------------------------------------------------------------------- estilo
+#
+# Paleta categórica validada (dataviz, scripts/validate_palette.js, --pairs all,
+# superficie clara): las tres primeras ranuras de la paleta de referencia pasan
+# todas las verificaciones. El aqua (T3) queda bajo 3:1 de contraste: por eso cada
+# técnica lleva además su propio marcador y las figuras rotulan directo.
+TECHNIQUE_COLORS = {"t1": "#2a78d6", "t2": "#eb6834", "t3": "#1baf7a",
+                    "t2-jacobi": "#6250d6", "t4": "#e87ba4"}
+TECHNIQUE_MARKERS = {"t1": "o", "t2": "s", "t3": "^", "t2-jacobi": "D", "t4": "v"}
+TECHNIQUE_LABELS = {"t1": "T1 (sequential)", "t2": "T2 (parallel, async)",
+                    "t3": "T3 (concurrent)", "t2-jacobi": "T2-jacobi", "t4": "T4 (single swarm)"}
+DATASET_LABELS = {"iris": "Iris", "breast": "Breast Cancer", "segment": "Segment",
+                  "satimage": "Satimage", "digits": "Digits"}
+
+INK = "#0b0b0b"          # texto principal
+INK_2 = "#52514e"        # texto secundario
+INK_3 = "#8a8984"        # texto tenue
+GRID = "#e4e3df"         # rejilla: un paso sobre la superficie
+SURFACE = "#ffffff"
+
+#: Estilos de línea para el segundo campo de un barrido (codificación secundaria).
+LINESTYLES = ["-", "--", ":", "-."]
 
 
-def setup_paper_style():
-    """Configura matplotlib para producir figuras listas para paper.
-
-    - Tipografía serif (DejaVu Serif disponible en todos los sistemas).
-    - Tamaños consistentes entre figuras.
-    - Líneas/markers más gruesos para legibilidad en print.
-    """
+def setup_style():
     plt.rcParams.update({
         "font.family": "serif",
         "font.serif": ["DejaVu Serif", "Times New Roman", "Times", "serif"],
         "mathtext.fontset": "dejavuserif",
-        "axes.titlesize": 14,
-        "axes.titleweight": "bold",
-        "axes.labelsize": 12,
-        "axes.linewidth": 1.0,
-        "xtick.labelsize": 10,
-        "ytick.labelsize": 10,
-        "legend.fontsize": 10,
-        "legend.frameon": True,
-        "legend.framealpha": 0.92,
-        "figure.titlesize": 15,
-        "figure.titleweight": "bold",
-        "lines.linewidth": 2.0,
-        "lines.markersize": 7,
-        "patch.linewidth": 1.0,
-        "grid.linewidth": 0.6,
-        "grid.alpha": 0.35,
-        "savefig.dpi": 300,
-        "savefig.bbox": "tight",
+        "figure.facecolor": SURFACE, "axes.facecolor": SURFACE, "savefig.facecolor": SURFACE,
+        "text.color": INK, "axes.labelcolor": INK, "axes.edgecolor": INK_3,
+        "xtick.color": INK_2, "ytick.color": INK_2,
+        "axes.titlesize": 12, "axes.titleweight": "bold", "axes.labelsize": 10.5,
+        "xtick.labelsize": 9, "ytick.labelsize": 9, "legend.fontsize": 9,
+        "legend.frameon": False, "figure.titlesize": 13, "figure.titleweight": "bold",
+        "axes.spines.top": False, "axes.spines.right": False, "axes.linewidth": 0.8,
+        "axes.grid": True, "grid.color": GRID, "grid.linewidth": 0.8, "grid.linestyle": "-",
+        "axes.axisbelow": True, "lines.linewidth": 2.0, "lines.solid_capstyle": "round",
+        "lines.solid_joinstyle": "round", "lines.markersize": 7,
+        "savefig.dpi": 300, "savefig.bbox": "tight",
     })
 
 
-# Paleta consistente por técnica (la misma en TODAS las figuras).
-TECHNIQUE_COLORS = {
-    "t1":        "#1f77b4",  # azul
-    "t2":        "#ff7f0e",  # naranja
-    "t2-jacobi": "#d62728",  # rojo
-    "t3":        "#2ca02c",  # verde
-    "t4":        "#9467bd",  # violeta
-}
-TECHNIQUE_LABELS = {
-    "t1":        "T1 (BCD seq)",
-    "t2":        "T2 (async)",
-    "t2-jacobi": "T2-jacobi",
-    "t3":        "T3 (lockstep)",
-    "t4":        "T4 (single)",
-}
-TECHNIQUE_MARKERS = {
-    "t1": "o", "t2": "s", "t2-jacobi": "D", "t3": "^", "t4": "v",
-}
-TECHNIQUES_ORDER = ["t1", "t2", "t2-jacobi", "t3", "t4"]
-
-# Los datasets del paper, de menor a mayor dificultad (core.data.PAPER_DATASETS).
-DATASETS_ORDER = ["iris", "breast", "segment", "satimage", "digits"]
-DATASET_LABELS = {
-    "iris":     "Iris",
-    "breast":   "Breast Cancer",
-    "segment":  "Segment",
-    "satimage": "Satimage",
-    "digits":   "Digits",
-}
-
-# Configuración "principal". Sólo estas corridas aparecen en las figuras
-# radar/boxplot/Pareto (sensitivity sí explora todas las combinaciones). El
-# presupuesto es `eval_budget` (evaluaciones de fitness por sesión) o, si es None,
-# `max_iter`. `main()` la ajusta con --n-particles / --eval-budget / --max-iter.
-MAIN_CONFIG = {"n_particles": 50, "eval_budget": 80240, "max_iter": None}
-
-METRIC_NAMES = ["Accuracy", "Stability", "Reproducibility", "Speed", "Calibration"]
+def _pct(metric: str) -> float:
+    """Escala de la métrica en el eje: puntos porcentuales para accuracies y optimismo."""
+    return 1.0 if metric.endswith("_ce") or metric in ("time", "evals", "gpu_mb") else 100.0
 
 
-# ============================================================================
-# Carga y agregación
-# ============================================================================
-
-def load_cv_summaries(output_dir: Path) -> List[Dict[str, Any]]:
-    """Carga todos los cv_summary.json del output_dir."""
-    summaries = []
-    for p in sorted(output_dir.rglob("cv_summary.json")):
-        try:
-            with open(p) as f:
-                data = json.load(f)
-            data["__path__"] = str(p.parent.relative_to(output_dir))
-            summaries.append(data)
-        except Exception as e:
-            print(f"⚠  No pude leer {p}: {e}")
-    return summaries
+def _axis_label(metric: str) -> str:
+    m = METRICS[metric]
+    return m.label + (" (%)" if _pct(metric) == 100 and not metric.startswith(("optimism", "overfit"))
+                      else " (pts)" if _pct(metric) == 100 else "")
 
 
-def group_by_config(summaries, include_seed: bool = False):
-    """Agrupa por (tech, ds, P, iter[, seed]). Devuelve dict key → lista de summaries."""
-    groups: Dict[Tuple, List[Dict[str, Any]]] = defaultdict(list)
-    for s in summaries:
-        cfg = s["config"]
-        if include_seed:
-            key = (cfg["technique"], cfg["dataset"], cfg["n_particles"],
-                   cfg["max_iter"], cfg["seed"])
-        else:
-            key = (cfg["technique"], cfg["dataset"], cfg["n_particles"], cfg["max_iter"])
-        groups[key].append(s)
-    return groups
+def _save(fig, path: Path, formats: Sequence[str]) -> List[Path]:
+    out = []
+    path.parent.mkdir(parents=True, exist_ok=True)
+    for ext in formats:
+        p = path.with_suffix("." + ext)
+        fig.savefig(p)
+        out.append(p)
+    plt.close(fig)
+    return out
 
 
-def _is_main(cfg) -> bool:
-    if cfg["n_particles"] != MAIN_CONFIG["n_particles"]:
-        return False
-    if MAIN_CONFIG["eval_budget"] is not None:
-        return cfg.get("eval_budget") == MAIN_CONFIG["eval_budget"]
-    return cfg.get("eval_budget") is None and cfg["max_iter"] == MAIN_CONFIG["max_iter"]
+def _titles(fig, title: str, subtitle: str = "", gap_in: float = 0.0, bottom: float = 0.0):
+    """Título y subtítulo arriba sin chocar con los paneles.
+
+    Los márgenes se calculan en pulgadas (no dependen del alto de la figura):
+    0.32" de título, 0.17" por línea de subtítulo y `gap_in` extra (p. ej. una
+    leyenda arriba o los rótulos polares del radar).
+    """
+    h = fig.get_figheight()
+    lines = subtitle.count("\n") + 1 if subtitle else 0
+    header = 0.42 + 0.17 * lines + gap_in
+    fig.tight_layout(rect=(0, bottom, 1, 1 - header / h))
+    fig.suptitle(title, y=1 - 0.06 / h, va="top")
+    if subtitle:
+        fig.text(0.5, 1 - 0.36 / h, subtitle, ha="center", va="top", fontsize=8.5, color=INK_2)
 
 
-def filter_main(summaries):
-    """Devuelve sólo summaries de la config principal y de los datasets del paper."""
-    return [s for s in summaries
-            if _is_main(s["config"]) and s["config"]["dataset"] in DATASETS_ORDER]
-
-
-def group_main(summaries):
-    """Agrupa las corridas de la config principal por (técnica, dataset)."""
-    groups: Dict[Tuple, List[Dict[str, Any]]] = defaultdict(list)
-    for s in filter_main(summaries):
-        groups[(s["config"]["technique"], s["config"]["dataset"])].append(s)
-    return groups
-
-
-def main_config_label() -> str:
-    """Texto de la config principal para títulos y avisos."""
-    if MAIN_CONFIG["eval_budget"] is not None:
-        budget = f"{MAIN_CONFIG['eval_budget']:,} fitness evaluations per session"
-    else:
-        budget = f"{MAIN_CONFIG['max_iter']} iterations"
-    return f"P = {MAIN_CONFIG['n_particles']}, {budget}"
-
-
-def n_classes_of(summaries) -> int:
-    return int(summaries[0]["config"]["layer_sizes"][-1])
-
-
-def dataset_grid(polar: bool = False, panel=(5.0, 5.0)):
-    """Figura con un panel por dataset (3 columnas). Los ejes sobrantes se ocultan."""
-    n = len(DATASETS_ORDER)
-    ncols = min(3, n)
-    nrows = -(-n // ncols)
-    fig, axes = plt.subplots(
-        nrows, ncols, figsize=(panel[0] * ncols, panel[1] * nrows), squeeze=False,
-        subplot_kw={"projection": "polar"} if polar else None,
-    )
-    axes = axes.flatten()
+def _grid(n: int, panel=(3.6, 3.2)):
+    ncols = min(n, 5)
+    nrows = int(np.ceil(n / ncols))
+    fig, axes = plt.subplots(nrows, ncols, figsize=(panel[0] * ncols, panel[1] * nrows), squeeze=False)
+    axes = axes.ravel()
     for ax in axes[n:]:
         ax.set_visible(False)
-    return fig, axes
+    return fig, axes[:n]
 
 
-def get_fold_test_accs(summary):
-    """Extrae los test_acc por fold de un cv_summary."""
-    return [f["test_acc"] for f in summary["folds"]]
+def _tech_legend(fig, techs, y=-0.02, extra=()):
+    handles = [Line2D([], [], color=TECHNIQUE_COLORS[t], marker=TECHNIQUE_MARKERS[t], lw=2,
+                      markersize=7, markeredgecolor=SURFACE, label=TECHNIQUE_LABELS[t])
+               for t in techs] + list(extra)
+    fig.legend(handles=handles, loc="upper center", bbox_to_anchor=(0.5, y),
+               ncol=len(handles), frameon=False)
 
 
-def get_fold_val_accs(summary):
-    return [f["val_acc"] for f in summary["folds"]]
+def _subtitle(rows: Sequence[FoldRow]) -> str:
+    c = rows[0].config
+    rule = selection_label(c["selection_metric"], c["selection_se"])
+    return (f"P = {c['n_particles']}, I = {c['max_iter']} per layer, g = {c['g']}, "
+            f"λ = {c['lambda_l2']:g} ({c['l2_form']}), selection: {rule}, data seed {c['data_seed']}")
 
 
-def get_total_time(summary):
-    """Tiempo total de la CV completa (suma de los K folds)."""
-    return sum(f["total_time"] for f in summary["folds"])
+# ------------------------------------------------------------------------ figuras
 
-
-# ============================================================================
-# 1. Radar / Pentágono
-# ============================================================================
-
-def compute_radar_metrics(
-    summaries: List[Dict[str, Any]],
-    time_max_in_dataset: float,
-    std_cap: float = 0.3,
-    seed_std_cap: float = 0.2,
-    gap_cap: float = 0.2,
-) -> Dict[str, float]:
-    """Computa las 5 métricas normalizadas a [0,1] (1 = ideal).
-
-    - Accuracy:        test_acc_mean (directo)
-    - Stability:       1 - test_acc_std/std_cap (capeado)
-    - Reproducibility: 1 - seed_std/seed_std_cap (capeado)
-    - Speed:           1 - time_mean/time_max_in_dataset
-    - Calibration:     1 - |val_acc_mean - test_acc_mean|/gap_cap (capeado)
-    """
-    all_test, all_val, seed_means, times = [], [], [], []
-    for s in summaries:
-        accs = get_fold_test_accs(s)
-        all_test.extend(accs)
-        all_val.extend(get_fold_val_accs(s))
-        if accs:
-            seed_means.append(statistics.mean(accs))
-        times.append(get_total_time(s))
-
-    test_acc_mean = statistics.mean(all_test) if all_test else 0.0
-    test_acc_std = statistics.stdev(all_test) if len(all_test) > 1 else 0.0
-    val_acc_mean = statistics.mean(all_val) if all_val else 0.0
-    seed_std = statistics.stdev(seed_means) if len(seed_means) > 1 else 0.0
-    time_mean = statistics.mean(times) if times else 0.0
-
-    accuracy = max(0.0, min(1.0, test_acc_mean))
-    stability = max(0.0, 1.0 - min(test_acc_std / std_cap, 1.0))
-    reproducibility = max(0.0, 1.0 - min(seed_std / seed_std_cap, 1.0))
-    speed = (1.0 - min(time_mean / time_max_in_dataset, 1.0)
-             if time_max_in_dataset > 0 else 0.0)
-    speed = max(0.0, min(1.0, speed))
-    gap = abs(val_acc_mean - test_acc_mean)
-    calibration = max(0.0, 1.0 - min(gap / gap_cap, 1.0))
-
-    return {
-        "Accuracy":        accuracy,
-        "Stability":       stability,
-        "Reproducibility": reproducibility,
-        "Speed":           speed,
-        "Calibration":     calibration,
-    }
-
-
-def _compute_time_max_by_dataset(groups) -> Dict[str, float]:
-    time_max_by_ds: Dict[str, float] = defaultdict(float)
-    for (tech, ds), sums in groups.items():
-        for s in sums:
-            time_max_by_ds[ds] = max(time_max_by_ds[ds], get_total_time(s))
-    return time_max_by_ds
-
-
-def _draw_radar_subplot(ax, ds, groups, time_max_by_ds, angles, title_pad=24):
-    """Dibuja el radar de un dataset en un axes polar dado."""
-    ax.set_theta_offset(np.pi / 2)
-    ax.set_theta_direction(-1)
-    ax.set_xticks(angles[:-1])
-    ax.set_xticklabels(METRIC_NAMES, fontsize=12, weight="bold")
-    ax.set_ylim(0, 1.05)
-    ax.set_yticks([0.2, 0.4, 0.6, 0.8, 1.0])
-    ax.set_yticklabels(["0.2", "0.4", "0.6", "0.8", "1.0"],
-                        fontsize=9, color="#555")
-    ax.set_title(DATASET_LABELS[ds], fontsize=15, weight="bold", pad=title_pad)
-    ax.grid(True, alpha=0.4, linewidth=0.7)
-    ax.spines["polar"].set_linewidth(1.2)
-
-    for tech in TECHNIQUES_ORDER:
-        key = (tech, ds)
-        if key not in groups:
-            continue
-        metrics = compute_radar_metrics(groups[key], time_max_by_ds[ds])
-        values = [metrics[m] for m in METRIC_NAMES]
-        values += values[:1]
-        color = TECHNIQUE_COLORS[tech]
-        ax.plot(angles, values, color=color, linewidth=2.5,
-                marker=TECHNIQUE_MARKERS[tech], markersize=8,
-                markeredgecolor="white", markeredgewidth=1.0)
-        ax.fill(angles, values, color=color, alpha=0.13)
-
-
-def plot_radar(summaries: List[Dict[str, Any]], output_path: Path) -> bool:
-    """Radar global: un panel por dataset."""
-    groups = group_main(summaries)
-    if not groups:
-        print(f"⚠  No hay corridas de la config principal ({main_config_label()}).")
-        return False
-
-    time_max_by_ds = _compute_time_max_by_dataset(groups)
-
-    angles = np.linspace(0, 2 * np.pi, len(METRIC_NAMES), endpoint=False).tolist()
-    angles += angles[:1]
-
-    fig, axes = dataset_grid(polar=True, panel=(7.0, 7.0))
-
-    for i, ds in enumerate(DATASETS_ORDER):
-        _draw_radar_subplot(axes[i], ds, groups, time_max_by_ds, angles)
-
-    handles = [Patch(facecolor=TECHNIQUE_COLORS[t], label=TECHNIQUE_LABELS[t],
-                     edgecolor="black", linewidth=0.5)
-               for t in TECHNIQUES_ORDER]
-    fig.legend(handles=handles, loc="lower center", ncol=5, fontsize=11,
-               bbox_to_anchor=(0.5, 0.01), frameon=True, framealpha=0.95,
-               edgecolor="black", fancybox=False)
-    fig.suptitle(
-        "Multi-metric comparison by dataset (normalized [0,1], higher = better)\n"
-        f"{main_config_label()}",
-        fontsize=16, weight="bold", y=0.995
-    )
-    fig.text(0.5, 0.045,
-             "Accuracy = test_acc | Stability = 1−std (cap 0.3) | "
-             "Reproducibility = 1−seed_std (cap 0.2) | "
-             "Speed = 1−time/time_max | Calibration = 1−|val−test| (cap 0.2)",
-             ha="center", fontsize=9, style="italic", color="#555")
-
-    fig.tight_layout(rect=(0, 0.06, 1, 0.97))
-    fig.savefig(output_path, dpi=300, bbox_inches="tight")
-    plt.close(fig)
-    return True
-
-
-def plot_radar_single(summaries, output_path: Path, ds: str) -> bool:
-    """Radar individual: un único dataset."""
-    groups = group_main(summaries)
-    time_max_by_ds = _compute_time_max_by_dataset(groups)
-    if time_max_by_ds.get(ds, 0.0) == 0.0:
-        return False
-
-    angles = np.linspace(0, 2 * np.pi, len(METRIC_NAMES), endpoint=False).tolist()
-    angles += angles[:1]
-
-    fig = plt.figure(figsize=(8.5, 9.0))
-    ax = fig.add_subplot(1, 1, 1, projection="polar")
-    _draw_radar_subplot(ax, ds, groups, time_max_by_ds, angles, title_pad=28)
-
-    handles = [Patch(facecolor=TECHNIQUE_COLORS[t], label=TECHNIQUE_LABELS[t],
-                     edgecolor="black", linewidth=0.5)
-               for t in TECHNIQUES_ORDER]
-    fig.legend(handles=handles, loc="lower center", ncol=5, fontsize=10,
-               bbox_to_anchor=(0.5, 0.01), frameon=True, framealpha=0.95,
-               edgecolor="black", fancybox=False)
-    fig.suptitle(
-        f"Multi-metric comparison — {DATASET_LABELS[ds]} (normalized [0,1])",
-        fontsize=14, weight="bold", y=0.995
-    )
-    fig.text(0.5, 0.06,
-             "Accuracy = test_acc | Stability = 1−std (cap 0.3) | "
-             "Reproducibility = 1−seed_std (cap 0.2)\n"
-             "Speed = 1−time/time_max | Calibration = 1−|val−test| (cap 0.2)",
-             ha="center", fontsize=8.5, style="italic", color="#555")
-
-    fig.tight_layout(rect=(0, 0.10, 1, 0.96))
-    fig.savefig(output_path, dpi=300, bbox_inches="tight")
-    plt.close(fig)
-    return True
-
-
-# ============================================================================
-# 2. Boxplot
-# ============================================================================
-
-def _draw_boxplot_subplot(ax, ds, groups) -> bool:
-    """Dibuja el boxplot de un dataset en un axes dado. Devuelve True si hay datos."""
-    data, labels, colors, means, stds = [], [], [], [], []
-    n_classes = None
-    for tech in TECHNIQUES_ORDER:
-        key = (tech, ds)
-        if key not in groups:
-            continue
-        n_classes = n_classes_of(groups[key])
-        all_accs = []
-        for s in groups[key]:
-            all_accs.extend(get_fold_test_accs(s))
-        if not all_accs:
-            continue
-        data.append(all_accs)
-        labels.append(TECHNIQUE_LABELS[tech])
-        colors.append(TECHNIQUE_COLORS[tech])
-        means.append(statistics.mean(all_accs))
-        stds.append(statistics.stdev(all_accs) if len(all_accs) > 1 else 0.0)
-
-    if not data:
-        ax.set_visible(False)
-        return False
-
-    bp = ax.boxplot(
-        data, tick_labels=labels, patch_artist=True,
-        widths=0.55, showmeans=True,
-        medianprops={"color": "black", "linewidth": 2.0},
-        meanprops={"marker": "D", "markerfacecolor": "white",
-                   "markeredgecolor": "black", "markersize": 8,
-                   "markeredgewidth": 1.5},
-        flierprops={"marker": "o", "markerfacecolor": "white",
-                    "markeredgecolor": "black", "markersize": 6, "alpha": 0.7},
-        whiskerprops={"linewidth": 1.2}, capprops={"linewidth": 1.2},
-    )
-    for patch, color in zip(bp["boxes"], colors):
-        patch.set_facecolor(color)
-        patch.set_alpha(0.55)
-        patch.set_edgecolor("black")
-        patch.set_linewidth(1.3)
-
-    # El eje se ajusta a los datos: con accuracies de 0.8-0.97 un eje [0, 1]
-    # aplasta las cajas y no deja ver las diferencias entre técnicas.
-    lo = min(min(d) for d in data)
-    hi = max(max(d) for d in data)
-    span = max(hi - lo, 0.02)
-    y_min, y_max = max(0.0, lo - 0.30 * span), min(1.0, hi) + 0.08 * span
-    for j, (m, sd) in enumerate(zip(means, stds)):
-        ax.text(j + 1, y_min + 0.04 * (y_max - y_min), f"{m:.3f}±{sd:.3f}",
-                ha="center", fontsize=8.5, color=colors[j], weight="bold")
-
-    ax.set_title(f"{DATASET_LABELS[ds]} ({n_classes} classes, chance = {1 / n_classes:.2f})",
-                 fontsize=14, weight="bold", pad=8)
-    ax.set_ylabel("Test Accuracy", fontsize=12)
-    ax.set_ylim(y_min, y_max)
-
-    ax.grid(True, axis="y", alpha=0.3, linewidth=0.5)
-    ax.set_axisbelow(True)
-    plt.setp(ax.get_xticklabels(), rotation=12, ha="right", fontsize=10)
-    return True
-
-
-def plot_boxplot(summaries: List[Dict[str, Any]], output_path: Path) -> bool:
-    """Boxplot global: un panel por dataset."""
-    groups = group_main(summaries)
-    if not groups:
-        return False
-
-    fig, axes = dataset_grid(panel=(6.5, 5.3))
-
-    any_data = False
-    for i, ds in enumerate(DATASETS_ORDER):
-        if _draw_boxplot_subplot(axes[i], ds, groups):
-            any_data = True
-
-    if not any_data:
-        plt.close(fig)
-        return False
-
-    fig.suptitle(
-        "Test accuracy distribution by technique × dataset\n"
-        f"n = seeds × folds per box; {main_config_label()}",
-        fontsize=16, weight="bold", y=0.995
-    )
-    fig.text(0.5, 0.005,
-             "Box: Q1-Q3 with median (black line). Diamond: mean (annotated as mean±std). "
-             "Circles: outliers. The accuracy axis is zoomed to the data of each panel.",
-             ha="center", fontsize=9, style="italic", color="#555")
-
-    fig.tight_layout(rect=(0, 0.025, 1, 0.97))
-    fig.savefig(output_path, dpi=300, bbox_inches="tight")
-    plt.close(fig)
-    return True
-
-
-def plot_boxplot_single(summaries, output_path: Path, ds: str) -> bool:
-    """Boxplot individual: un único dataset."""
-    groups = group_main(summaries)
-
-    fig, ax = plt.subplots(figsize=(9.0, 6.5))
-    if not _draw_boxplot_subplot(ax, ds, groups):
-        plt.close(fig)
-        return False
-
-    fig.suptitle(
-        f"Test accuracy distribution — {DATASET_LABELS[ds]} "
-        "(n = seeds × folds per box)",
-        fontsize=14, weight="bold", y=0.995
-    )
-    fig.text(0.5, 0.005,
-             "Box: Q1-Q3 with median (black line). Diamond: mean (annotated as mean±std). "
-             "Circles: outliers. The accuracy axis is zoomed to the data of each panel.",
-             ha="center", fontsize=9, style="italic", color="#555")
-
-    fig.tight_layout(rect=(0, 0.035, 1, 0.95))
-    fig.savefig(output_path, dpi=300, bbox_inches="tight")
-    plt.close(fig)
-    return True
-
-
-# ============================================================================
-# 3. Pareto: tiempo vs accuracy
-# ============================================================================
-
-def _draw_pareto_subplot(ax, ds, groups, show_legend=False, show_frontier_label=False) -> bool:
-    """Dibuja el Pareto de un dataset. Devuelve True si hay datos."""
-    tech_means: Dict[str, Tuple[float, float]] = {}
-    has_data = False
-    lo, hi = 1.0, 0.0
-
-    for tech in TECHNIQUES_ORDER:
-        key = (tech, ds)
-        if key not in groups:
-            continue
-        seed_times = []
-        seed_accs = []
-        for s in groups[key]:
-            t = get_total_time(s)
-            accs = get_fold_test_accs(s)
-            if not accs:
+def fig_box(rows, metric, formats, out):
+    """Distribución por fold: caja (IQR + mediana), puntos de cada fold y media."""
+    by = group(rows, ("dataset", "technique"))
+    dss = ordered({k[0] for k in by}, DATASETS_ORDER)
+    techs = ordered({k[1] for k in by}, TECHNIQUES_ORDER)
+    fig, axes = _grid(len(dss))
+    sc = _pct(metric)
+    rng = np.random.default_rng(0)
+    for ax, ds in zip(axes, dss):
+        for i, t in enumerate(techs):
+            v = np.array(values_of(by.get((ds, t), []), metric)) * sc
+            if not v.size:
                 continue
-            acc_mean = statistics.mean(accs)
-            acc_std = statistics.stdev(accs) if len(accs) > 1 else 0.0
-            seed_times.append(t)
-            seed_accs.append(acc_mean)
-            lo, hi = min(lo, acc_mean - acc_std), max(hi, acc_mean + acc_std)
-            ax.errorbar(t, acc_mean, yerr=acc_std, fmt=TECHNIQUE_MARKERS[tech],
-                        color=TECHNIQUE_COLORS[tech], markersize=6, alpha=0.35,
-                        capsize=2, elinewidth=0.7)
-            has_data = True
-
-        if seed_times:
-            t_mean = statistics.mean(seed_times)
-            a_mean = statistics.mean(seed_accs)
-            tech_means[tech] = (t_mean, a_mean)
-            ax.scatter([t_mean], [a_mean], s=220, marker=TECHNIQUE_MARKERS[tech],
-                       color=TECHNIQUE_COLORS[tech], edgecolor="black",
-                       linewidth=1.8, zorder=10, label=TECHNIQUE_LABELS[tech])
-            ax.annotate(
-                TECHNIQUE_LABELS[tech].split(" ")[0],
-                xy=(t_mean, a_mean), xytext=(8, 8),
-                textcoords="offset points",
-                fontsize=10, weight="bold",
-                color=TECHNIQUE_COLORS[tech],
-                bbox=dict(boxstyle="round,pad=0.2", facecolor="white",
-                          edgecolor=TECHNIQUE_COLORS[tech], linewidth=1.0,
-                          alpha=0.85),
-                zorder=11,
-            )
-
-    if not has_data:
-        ax.set_visible(False)
-        return False
-
-    # Eje de accuracy ajustado a los datos (ver el boxplot).
-    span = max(hi - lo, 0.02)
-    y_min, y_max = max(0.0, lo - 0.25 * span), min(1.0, hi) + 0.15 * span
-
-    # Pareto frontier sobre los centroides.
-    if len(tech_means) >= 2:
-        pts = sorted(tech_means.items(), key=lambda kv: kv[1][0])
-        pareto_pts: List[Tuple[str, float, float]] = []
-        best_acc = -1.0
-        for tech_name, (t, a) in pts:
-            if a > best_acc:
-                pareto_pts.append((tech_name, t, a))
-                best_acc = a
-        if len(pareto_pts) >= 2:
-            xs = [t for _, t, _ in pareto_pts]
-            ys = [a for _, _, a in pareto_pts]
-            ax.plot(xs, ys, "--", color="#444", alpha=0.7, linewidth=1.8,
-                    zorder=5, label="Pareto frontier")
-            if show_frontier_label:
-                mid_x = (xs[0] * xs[-1]) ** 0.5
-                mid_y = (ys[0] + ys[-1]) / 2 - 0.10 * (y_max - y_min)
-                ax.annotate(
-                    "Pareto frontier",
-                    xy=(mid_x, mid_y), fontsize=10, style="italic",
-                    color="#333", ha="center",
-                    bbox=dict(boxstyle="round,pad=0.25", facecolor="#f0f0f0",
-                              edgecolor="#888", linewidth=0.8, alpha=0.9),
-                )
-
-    ax.set_title(DATASET_LABELS[ds], fontsize=15, weight="bold", pad=8)
-    ax.set_xlabel("Total CV wall-time (s, log scale)", fontsize=12)
-    ax.set_ylabel("Test Accuracy (mean per seed)", fontsize=12)
-    ax.set_xscale("log")
-    ax.set_ylim(y_min, y_max)
-    ax.grid(True, alpha=0.3, which="both", linewidth=0.5)
-    ax.set_axisbelow(True)
-    if show_legend:
-        ax.legend(fontsize=9, loc="lower left", framealpha=0.92,
-                  edgecolor="black", fancybox=False)
-
-    ax.annotate("← faster", xy=(0.02, 0.98), xycoords="axes fraction",
-                fontsize=8.5, style="italic", color="#666", weight="bold",
-                va="top")
-    ax.annotate("↑ better", xy=(0.98, 0.05), xycoords="axes fraction",
-                fontsize=8.5, style="italic", color="#666", weight="bold",
-                ha="right", va="bottom")
-    return True
+            col = TECHNIQUE_COLORS[t]
+            ax.boxplot([v], positions=[i], widths=0.5, patch_artist=True, showfliers=False,
+                       boxprops=dict(facecolor=col, alpha=0.12, edgecolor=col, linewidth=1.2),
+                       medianprops=dict(color=INK, linewidth=1.6),
+                       whiskerprops=dict(color=col, linewidth=1.2), capprops=dict(color=col, linewidth=1.2))
+            ax.scatter(i + rng.uniform(-0.17, 0.17, v.size), v, s=12, color=col, alpha=0.55,
+                       marker=TECHNIQUE_MARKERS[t], linewidths=0, zorder=3)
+            ax.scatter([i], [v.mean()], s=46, color=SURFACE, edgecolor=INK, linewidths=1.4,
+                       marker="D", zorder=4)
+            ax.annotate(f"{v.mean():.1f}", (i, v.max()), xytext=(0, 6), textcoords="offset points",
+                        ha="center", va="bottom", fontsize=8, color=INK_2)
+        ax.set_xticks(range(len(techs)), [t.upper() for t in techs])
+        ax.set_xlim(-0.6, len(techs) - 0.4)
+        ax.set_title(DATASET_LABELS.get(ds, ds))
+        ax.grid(axis="x", visible=False)
+        ax.margins(y=0.12)
+    axes[0].set_ylabel(_axis_label(metric))
+    mean_key = Line2D([], [], color=SURFACE, marker="D", markeredgecolor=INK, markersize=7,
+                      lw=0, label="mean")
+    _tech_legend(fig, techs, extra=[mean_key])
+    _titles(fig, f"{METRICS[metric].label} by technique (each point = one fold; label = mean)",
+            _subtitle(rows))
+    return _save(fig, out / f"box_{metric}", formats)
 
 
-def plot_pareto(summaries: List[Dict[str, Any]], output_path: Path) -> bool:
-    """Pareto global: un panel por dataset."""
-    groups = group_main(summaries)
-    if not groups:
-        return False
-
-    fig, axes = dataset_grid(panel=(6.5, 5.3))
-
-    for i, ds in enumerate(DATASETS_ORDER):
-        _draw_pareto_subplot(
-            axes[i], ds, groups,
-            show_legend=(i == 0),
-            show_frontier_label=(i == 0),
-        )
-
-    fig.suptitle(
-        f"Pareto: wall-time vs test accuracy by dataset\n{main_config_label()}",
-        fontsize=16, weight="bold", y=0.995
-    )
-    fig.text(0.5, 0.005,
-             "Small markers: individual seeds (error bars = intra-seed fold std). "
-             "Large markers with black edge: per-technique centroid. "
-             "Dashed line: Pareto frontier (non-dominated points). Accuracy axis zoomed to the data.",
-             ha="center", fontsize=9, style="italic", color="#555")
-
-    fig.tight_layout(rect=(0, 0.025, 1, 0.97))
-    fig.savefig(output_path, dpi=300, bbox_inches="tight")
-    plt.close(fig)
-    return True
+def _pairs_table(rows, metric, pairs, unit):
+    by = group(rows, ("dataset", "technique"))
+    res = []
+    for ds in ordered({k[0] for k in by}, DATASETS_ORDER):
+        for a, b in pairs:
+            if (ds, a) in by and (ds, b) in by:
+                c = paired(by[(ds, a)], by[(ds, b)], metric, unit)
+                if c:
+                    res.append(dict(dataset=ds, a=a, b=b, **c))
+    for r, ph in zip(res, holm([r["p_wilcoxon"] for r in res])):
+        r["p_holm"] = ph
+    return res
 
 
-def plot_pareto_single(summaries, output_path: Path, ds: str) -> bool:
-    """Pareto individual: un único dataset."""
-    groups = group_main(summaries)
+def fig_forest(rows, metric, pairs, unit, alpha, formats, out):
+    """Δ = b − a por dataset con IC95; relleno = significativo tras Holm."""
+    res = _pairs_table(rows, metric, pairs, unit)
+    if not res:
+        print("⚠  forest: no hay pares de técnicas comparables.")
+        return []
+    sc = _pct(metric)
+    dss = ordered({r["dataset"] for r in res}, DATASETS_ORDER)
+    shapes = ["o", "s", "^", "D"]
+    fig, ax = plt.subplots(figsize=(8.4, 0.42 * len(res) + 2.2))
+    y, yt, yl = 0, [], []
+    for ds in dss:
+        for j, (a, b) in enumerate(pairs):
+            r = next((x for x in res if x["dataset"] == ds and x["a"] == a and x["b"] == b), None)
+            if r is None:
+                continue
+            m, ci = r["mean"] * sc, (r["ci95"] or 0) * sc
+            sig = r["p_holm"] is not None and r["p_holm"] < alpha
+            ax.errorbar(m, y, xerr=ci, fmt="none", ecolor=INK_2, elinewidth=1.4, capsize=3)
+            ax.scatter([m], [y], s=52, marker=shapes[j % len(shapes)], zorder=3,
+                       facecolor=INK if sig else SURFACE, edgecolor=INK, linewidths=1.4)
+            p = r["p_holm"]
+            ax.annotate(f"{m:+.1f}  (p$_{{Holm}}$ {'<0.001' if p is not None and p < 0.001 else f'{p:.3f}' if p is not None else '—'})",
+                        (1.0, y), xycoords=("axes fraction", "data"), xytext=(6, 0),
+                        textcoords="offset points", va="center", fontsize=8, color=INK_2)
+            yt.append(y)
+            yl.append(f"{DATASET_LABELS.get(ds, ds)}: {b.upper()} − {a.upper()}")
+            y -= 1
+        y -= 0.6
+    ax.axvline(0, color=INK_3, lw=1)
+    ax.set_yticks(yt, yl)
+    ax.grid(axis="y", visible=False)
+    ax.set_xlabel(f"Δ {METRICS[metric].label} ({'pts' if sc == 100 else ''})  ← a better · b better →")
+    handles = [Line2D([], [], marker="o", lw=0, markerfacecolor=INK, markeredgecolor=INK,
+                      label=f"significant (Holm, α = {alpha:g})"),
+               Line2D([], [], marker="o", lw=0, markerfacecolor=SURFACE, markeredgecolor=INK,
+                      label="not significant")]
+    ax.legend(handles=handles, loc="lower center", bbox_to_anchor=(0.5, 1.0), ncol=2)
+    _titles(fig, f"Paired differences in {METRICS[metric].label}",
+            f"Δ = b − a per {'seed (mean of folds)' if unit == 'seed' else 'fold'}: mean ± 95% t-interval. "
+            f"Fill = Wilcoxon signed-rank significant after Holm over the figure (rank test; "
+            f"it can\ndisagree with the t-interval when one seed is an outlier). {_subtitle(rows)}",
+            gap_in=0.0)
+    return _save(fig, out / f"forest_{metric}", formats)
 
-    fig, ax = plt.subplots(figsize=(9.0, 6.5))
-    if not _draw_pareto_subplot(ax, ds, groups,
-                                 show_legend=True, show_frontier_label=True):
-        plt.close(fig)
-        return False
 
-    fig.suptitle(
-        f"Pareto: wall-time vs test accuracy — {DATASET_LABELS[ds]}",
-        fontsize=14, weight="bold", y=0.995
-    )
-    fig.text(0.5, 0.005,
-             "Small markers: individual seeds (error bars = intra-seed fold std). "
-             "Large markers with black edge: per-technique centroid. "
-             "Dashed line: Pareto frontier.",
-             ha="center", fontsize=9, style="italic", color="#555")
+def fig_pareto(rows, metric, cost, formats, out):
+    """Costo medio contra la métrica: media ± IC95 (vertical) y ± std (horizontal)."""
+    by = group(rows, ("dataset", "technique"))
+    dss = ordered({k[0] for k in by}, DATASETS_ORDER)
+    techs = ordered({k[1] for k in by}, TECHNIQUES_ORDER)
+    fig, axes = _grid(len(dss))
+    sc = _pct(metric)
+    for ax, ds in zip(axes, dss):
+        pts = []
+        for t in techs:
+            g = by.get((ds, t))
+            if not g:
+                continue
+            ym, xm = summarize(g, metric), summarize(g, cost)
+            x, y = xm["mean"], ym["mean"] * sc
+            ax.errorbar(x, y, yerr=(ym["ci95"] or 0) * sc, xerr=xm["std"] or 0, fmt="none",
+                        ecolor=TECHNIQUE_COLORS[t], elinewidth=1.2, capsize=2.5, alpha=0.8)
+            ax.scatter([x], [y], s=64, color=TECHNIQUE_COLORS[t], marker=TECHNIQUE_MARKERS[t],
+                       edgecolor=SURFACE, linewidths=2, zorder=3)
+            ax.annotate(t.upper(), (x, y), xytext=(7, 5), textcoords="offset points",
+                        fontsize=8.5, color=INK_2)
+            pts.append((x, y))
+        # Frontera de Pareto (menor costo, mayor métrica).
+        front, best = [], -np.inf
+        for x, y in sorted(pts):
+            if y > best:
+                front.append((x, y))
+                best = y
+        if len(front) > 1:
+            ax.plot(*zip(*front), color=INK_3, lw=1, ls="--", zorder=1)
+        ax.set_title(DATASET_LABELS.get(ds, ds))
+        ax.set_xlabel(METRICS[cost].label)
+        ax.margins(x=0.25, y=0.25)
+    axes[0].set_ylabel(_axis_label(metric))
+    _tech_legend(fig, techs, extra=[Line2D([], [], color=INK_3, lw=1, ls="--", label="Pareto front")])
+    _titles(fig, f"Cost vs {METRICS[metric].label} (mean ± 95% CI; cost ± std)", _subtitle(rows))
+    return _save(fig, out / f"pareto_{metric}_vs_{cost}", formats)
 
-    fig.tight_layout(rect=(0, 0.035, 1, 0.95))
-    fig.savefig(output_path, dpi=300, bbox_inches="tight")
-    plt.close(fig)
-    return True
 
-
-# ============================================================================
-# 4. Sensitivity heatmap (P × max_iter)
-# ============================================================================
-
-def plot_sensitivity(summaries: List[Dict[str, Any]], output_path: Path) -> bool:
-    groups = group_by_config(summaries, include_seed=False)
-
-    parts = sorted({k[2] for k in groups.keys()})
-    iters = sorted({k[3] for k in groups.keys()})
-
-    if len(parts) < 2 and len(iters) < 2:
-        print("⚠  Necesito ≥2 valores distintos en P o max_iter para el heatmap.")
-        print(f"   Encontrado: P={parts}, max_iter={iters}.")
-        return False
-
-    n_techs = len(TECHNIQUES_ORDER)
-    n_ds = len(DATASETS_ORDER)
-    fig, axes = plt.subplots(n_techs, n_ds,
-                              figsize=(3.2 * n_ds, 2.8 * n_techs),
-                              squeeze=False)
-
-    last_im = None
-    for i, tech in enumerate(TECHNIQUES_ORDER):
-        for j, ds in enumerate(DATASETS_ORDER):
+def fig_contrast(rows, field, metrics, unit, alpha, formats, out):
+    """Pesa (dumbbell) entre los dos valores de `field`: hueco = primero, lleno = segundo."""
+    levels = sorted({r.config[field] for r in rows}, key=str)
+    if len(levels) != 2:
+        print(f"⚠  contrast: {field} necesita 2 valores; hay {levels}.")
+        return []
+    lo, hi = levels
+    by = group(rows, ("dataset", "technique", field))
+    dss = ordered({k[0] for k in by}, DATASETS_ORDER)
+    techs = ordered({k[1] for k in by}, TECHNIQUES_ORDER)
+    # Holm sobre todas las pruebas de la figura.
+    tests = []
+    for mt in metrics:
+        for ds in dss:
+            for t in techs:
+                if (ds, t, lo) in by and (ds, t, hi) in by:
+                    c = paired(by[(ds, t, lo)], by[(ds, t, hi)], mt, unit)
+                    if c:
+                        tests.append(((mt, ds, t), c["p_wilcoxon"]))
+    padj = dict(zip([k for k, _ in tests], holm([p for _, p in tests])))
+    fig, axes = plt.subplots(len(metrics), len(dss), figsize=(3.3 * len(dss), 3.0 * len(metrics)),
+                             squeeze=False)
+    for i, mt in enumerate(metrics):
+        sc = _pct(mt)
+        for j, ds in enumerate(dss):
             ax = axes[i, j]
-            data = np.full((len(iters), len(parts)), np.nan)
-            for ii, it in enumerate(iters):
-                for jj, P in enumerate(parts):
-                    key = (tech, ds, P, it)
-                    if key in groups:
-                        all_accs = []
-                        for s in groups[key]:
-                            all_accs.extend(get_fold_test_accs(s))
-                        if all_accs:
-                            data[ii, jj] = statistics.mean(all_accs)
-
-            im = ax.imshow(data, cmap="RdYlGn", vmin=0.4, vmax=1.0,
-                           aspect="auto", origin="lower")
-            last_im = im
-            ax.set_xticks(range(len(parts)))
-            ax.set_xticklabels(parts, fontsize=8)
-            ax.set_yticks(range(len(iters)))
-            ax.set_yticklabels(iters, fontsize=8)
-
+            for x, t in enumerate(techs):
+                if (ds, t, lo) not in by or (ds, t, hi) not in by:
+                    continue
+                a = summarize(by[(ds, t, lo)], mt)["mean"] * sc
+                b = summarize(by[(ds, t, hi)], mt)["mean"] * sc
+                col = TECHNIQUE_COLORS[t]
+                ax.plot([x, x], [a, b], color=col, lw=2, zorder=2)
+                ax.scatter([x], [a], s=48, facecolor=SURFACE, edgecolor=col, linewidths=1.8,
+                           marker=TECHNIQUE_MARKERS[t], zorder=3)
+                ax.scatter([x], [b], s=48, color=col, edgecolor=SURFACE, linewidths=1.5,
+                           marker=TECHNIQUE_MARKERS[t], zorder=4)
+                p = padj.get((mt, ds, t))
+                if p is not None and p < alpha:
+                    ax.annotate("*", (x, max(a, b)), xytext=(0, 4), textcoords="offset points",
+                                ha="center", fontsize=12, color=INK)
+            ax.set_xticks(range(len(techs)), [t.upper() for t in techs])
+            ax.set_xlim(-0.6, len(techs) - 0.4)
+            ax.grid(axis="x", visible=False)
+            if mt.startswith("optimism"):
+                ax.axhline(0, color=INK_3, lw=1)
             if i == 0:
-                ax.set_title(DATASET_LABELS[ds], fontsize=11, weight="bold")
+                ax.set_title(DATASET_LABELS.get(ds, ds))
             if j == 0:
-                ax.set_ylabel(f"{TECHNIQUE_LABELS[tech]}\nmax_iter",
-                              fontsize=9, weight="bold")
-            if i == n_techs - 1:
-                ax.set_xlabel("n_particles", fontsize=9)
-
-            for ii in range(len(iters)):
-                for jj in range(len(parts)):
-                    val = data[ii, jj]
-                    if not np.isnan(val):
-                        text_color = "white" if val < 0.6 else "black"
-                        ax.text(jj, ii, f"{val:.3f}", ha="center", va="center",
-                                color=text_color, fontsize=7)
-
-    if last_im is not None:
-        cbar_ax = fig.add_axes([0.92, 0.15, 0.015, 0.7])
-        fig.colorbar(last_im, cax=cbar_ax, label="Test accuracy mean")
-
-    fig.suptitle(
-        "Sensitivity analysis: P × max_iter (filas = técnicas, columnas = datasets)",
-        fontsize=14, weight="bold", y=0.995
-    )
-    fig.tight_layout(rect=(0, 0, 0.9, 0.96))
-    fig.savefig(output_path, dpi=300, bbox_inches="tight")
-    plt.close(fig)
-    return True
+                ax.set_ylabel(_axis_label(mt))
+            ax.margins(y=0.25)
+    lab = lambda v: selection_label(*v.split(":")[0:1], float(v.split(":")[1][:-2])) \
+        if field == "selection_rule" else f"{field} = {v}"
+    extra = [Line2D([], [], marker="o", lw=0, markerfacecolor=SURFACE, markeredgecolor=INK_2, label=lab(lo)),
+             Line2D([], [], marker="o", lw=0, markerfacecolor=INK_2, markeredgecolor=INK_2, label=lab(hi)),
+             Line2D([], [], lw=0, marker="$*$", color=INK, markersize=9,
+                    label=f"significant (Holm, α = {alpha:g})")]
+    _tech_legend(fig, techs, extra=extra)
+    sub = [r for r in rows if r.config[field] == hi]
+    _titles(fig, f"Effect of {field}: {lab(lo)} → {lab(hi)}",
+            f"Means over seeds × folds; * = paired Wilcoxon per {unit}, Holm over the figure. "
+            + _subtitle(sub).split(", selection")[0])
+    return _save(fig, out / f"contrast_{field}", formats)
 
 
-# ============================================================================
-# CLI
-# ============================================================================
+def _trace(run_path: Path, x_col: int, y_col: int, best_is_max: bool):
+    with open(run_path) as f:
+        tr = json.load(f)["sessions"][0]["trace"]
+    if not tr:
+        return None
+    a = np.asarray(tr, dtype=float)
+    x, y = a[:, x_col], a[:, y_col]
+    y = np.maximum.accumulate(y) if best_is_max else np.minimum.accumulate(y)
+    return x, y
+
+
+def fig_convergence(rows, x_axis, y_metric, formats, out, n_grid=120):
+    """Mejor valor de validación visto hasta x (evaluaciones o segundos): mediana e IQR."""
+    # Columnas de la traza (core/budget.py:TRACE_COLUMNS): evals, seconds, val_acc, val_ce.
+    x_col = {"evals": 0, "time": 1}[x_axis]
+    y_col, best_max, sc = {"acc": (2, True, 100.0), "ce": (3, False, 1.0)}[y_metric]
+    by = group([r for r in rows if r.run_path], ("dataset", "technique"))
+    if not by:
+        print("⚠  convergence: no hay run.json por fold.")
+        return []
+    dss = ordered({k[0] for k in by}, DATASETS_ORDER)
+    techs = ordered({k[1] for k in by}, TECHNIQUES_ORDER)
+    fig, axes = _grid(len(dss))
+    for ax, ds in zip(axes, dss):
+        traces = {t: [tr for r in by.get((ds, t), []) if (tr := _trace(r.run_path, x_col, y_col, best_max))]
+                  for t in techs}
+        xmax = max((tr[0][-1] for ts in traces.values() for tr in ts), default=0)
+        if xmax <= 0:
+            continue
+        grid = np.linspace(0, xmax, n_grid)
+        for t, ts in traces.items():
+            if not ts:
+                continue
+            # Valor vigente en cada punto de la grilla (escalón); NaN después del final.
+            mat = np.full((len(ts), n_grid), np.nan)
+            for k, (x, y) in enumerate(ts):
+                idx = np.searchsorted(x, grid, side="right") - 1
+                ok = (idx >= 0) & (grid <= x[-1])
+                mat[k, ok] = y[idx[ok]] * sc
+            valid = np.sum(~np.isnan(mat), axis=0) >= max(1, len(ts) // 2)
+            mat[:, ~valid] = 0.0   # columnas sin datos suficientes: se enmascaran abajo
+            med = np.where(valid, np.nanmedian(mat, axis=0), np.nan)
+            q1, q3 = (np.where(valid, np.nanpercentile(mat, q, axis=0), np.nan) for q in (25, 75))
+            col = TECHNIQUE_COLORS[t]
+            ax.fill_between(grid, q1, q3, color=col, alpha=0.12, linewidth=0)
+            ax.plot(grid, med, color=col, lw=2)
+            last = np.where(~np.isnan(med))[0]
+            if last.size:
+                e = last[-1]
+                ax.scatter([grid[e]], [med[e]], s=40, color=col, marker=TECHNIQUE_MARKERS[t],
+                           edgecolor=SURFACE, linewidths=1.5, zorder=3)
+        ax.set_title(DATASET_LABELS.get(ds, ds))
+        ax.set_xlabel("Fitness evaluations" if x_axis == "evals" else "Wall-clock time (s)")
+        if x_axis == "evals":
+            ax.xaxis.set_major_formatter(matplotlib.ticker.FuncFormatter(
+                lambda v, _: f"{v / 1000:.0f}K" if v else "0"))
+    axes[0].set_ylabel(f"Best validation {'accuracy (%)' if y_metric == 'acc' else 'cross-entropy'} so far")
+    band = matplotlib.patches.Patch(color=INK_3, alpha=0.25, label="IQR across seeds × folds")
+    _tech_legend(fig, techs, extra=[Line2D([], [], color=INK_2, lw=2, label="median"), band])
+    _titles(fig, f"Convergence: best validation {y_metric} seen vs "
+                 f"{'evaluations' if x_axis == 'evals' else 'time'}",
+            _subtitle(rows) + ". Curve = best candidate checked so far, not the selected model.")
+    return _save(fig, out / f"convergence_{y_metric}_vs_{x_axis}", formats)
+
+
+RADAR_AXES = ["Balanced acc.", "Stability", "Reproducibility", "Speed", "Honest validation"]
+
+
+def fig_radar(rows, metric, caps, formats, out):
+    """Resumen normalizado por dataset (1 = ideal). Las cotas son parámetros (`--radar-caps`)."""
+    std_cap, seed_cap, opt_cap = caps
+    by = group(rows, ("dataset", "technique"))
+    dss = ordered({k[0] for k in by}, DATASETS_ORDER)
+    techs = ordered({k[1] for k in by}, TECHNIQUES_ORDER)
+    ang = np.linspace(0, 2 * np.pi, len(RADAR_AXES), endpoint=False).tolist()
+    ang += ang[:1]
+    fig, axes = plt.subplots(1, len(dss), figsize=(3.9 * len(dss), 4.2), subplot_kw=dict(polar=True),
+                             squeeze=False)
+    for ax, ds in zip(axes[0], dss):
+        tmin = min(summarize(by[(ds, t)], "time")["mean"] for t in techs if (ds, t) in by)
+        for t in techs:
+            g = by.get((ds, t))
+            if not g:
+                continue
+            s = summarize(g, metric)
+            opt = summarize(g, "optimism_bacc" if metric.endswith("bacc") else "optimism_acc")["mean"] or 0
+            vals = [s["mean"],
+                    1 - min((s["std"] or 0) / std_cap, 1),
+                    1 - min((s["seed_std"] or 0) / seed_cap, 1),
+                    tmin / summarize(g, "time")["mean"],
+                    1 - min(abs(opt) / opt_cap, 1)]
+            vals += vals[:1]
+            col = TECHNIQUE_COLORS[t]
+            ax.plot(ang, vals, color=col, lw=2, marker=TECHNIQUE_MARKERS[t], markersize=6,
+                    markeredgecolor=SURFACE)
+            ax.fill(ang, vals, color=col, alpha=0.05)
+        ax.set_theta_offset(np.pi / 2)
+        ax.set_theta_direction(-1)
+        ax.set_xticks(ang[:-1], RADAR_AXES, fontsize=8.5)
+        ax.set_ylim(0, 1)
+        ax.set_yticks([0.25, 0.5, 0.75, 1.0], ["", "0.5", "", "1"], fontsize=7, color=INK_3)
+        ax.set_title(DATASET_LABELS.get(ds, ds), pad=30)
+    _tech_legend(fig, techs, y=0.06)
+    _titles(fig, "Summary per dataset (normalized, 1 = ideal)", f"Balanced acc. = test mean; Stability = 1 − std/{std_cap:g}; "
+             f"Reproducibility = 1 − std of seed means/{seed_cap:g}; Speed = fastest time / time; "
+             f"Honest validation = 1 − |val − test|/{opt_cap:g}", gap_in=0.15, bottom=0.08)
+    return _save(fig, out / f"radar_{metric}", formats)
+
+
+def fig_sweep(rows, field, style_field, metric, formats, out):
+    """Métrica media ± IC95 (sobre semillas) contra los valores de `field`."""
+    styles = [None]
+    if style_field:
+        styles = sorted({r.config[style_field] for r in rows}, key=lambda v: (v is None, v))
+    by = group(rows, ("dataset", "technique", field) + ((style_field,) if style_field else ()))
+    dss = ordered({k[0] for k in by}, DATASETS_ORDER)
+    techs = ordered({k[1] for k in by}, TECHNIQUES_ORDER)
+    xs = sorted({k[2] for k in by})
+    numeric = all(isinstance(x, (int, float)) for x in xs)
+    # λ incluye el 0: eje simbólico (log con 0 no existe).
+    pos = (lambda v: xs.index(v)) if (not numeric or (field == "lambda_l2")) else (lambda v: v)
+    fig, axes = _grid(len(dss))
+    sc = _pct(metric)
+    for ax, ds in zip(axes, dss):
+        for t in techs:
+            for si, st in enumerate(styles):
+                pts = []
+                for x in xs:
+                    key = (ds, t, x) + ((st,) if style_field else ())
+                    if key in by:
+                        sm = list(seed_means(by[key], metric).values())
+                        if sm:
+                            m = np.mean(sm) * sc
+                            ci = (1.96 * np.std(sm, ddof=1) / np.sqrt(len(sm)) * sc) if len(sm) > 1 else 0
+                            pts.append((pos(x), m, ci))
+                if not pts:
+                    continue
+                px, pm, pc = map(np.array, zip(*pts))
+                col = TECHNIQUE_COLORS[t]
+                ax.fill_between(px, pm - pc, pm + pc, color=col, alpha=0.10, linewidth=0)
+                ax.plot(px, pm, color=col, ls=LINESTYLES[si % len(LINESTYLES)], lw=2,
+                        marker=TECHNIQUE_MARKERS[t], markersize=6, markeredgecolor=SURFACE)
+                b = int(np.argmax(pm))
+                ax.scatter([px[b]], [pm[b]], s=110, facecolor="none", edgecolor=INK, linewidths=1.2, zorder=4)
+        if pos(xs[0]) == 0 and not numeric or field == "lambda_l2":
+            ax.set_xticks(range(len(xs)), [f"{x:g}" if isinstance(x, float) else str(x) for x in xs])
+        ax.set_title(DATASET_LABELS.get(ds, ds))
+        ax.set_xlabel(field)
+    axes[0].set_ylabel(_axis_label(metric))
+    extra = [Line2D([], [], color=INK_2, ls=LINESTYLES[i % len(LINESTYLES)], lw=2,
+                    label=f"{style_field} = {s}") for i, s in enumerate(styles)] if style_field else []
+    extra.append(Line2D([], [], lw=0, marker="o", markerfacecolor="none", markeredgecolor=INK,
+                        markersize=10, label="best mean"))
+    _tech_legend(fig, techs, extra=extra)
+    c = rows[0].config
+    fixed = {k: c[k] for k in ("n_particles", "max_iter", "g", "lambda_l2", "l2_form", "selection_rule")
+             if k not in (field, style_field)}
+    _titles(fig, f"Sensitivity to {field}: {METRICS[metric].label} (mean ± 95% CI over seeds; "
+                 f"ring = best mean)", ", ".join(f"{k} = {v}" for k, v in fixed.items()))
+    return _save(fig, out / (f"sweep_{field}" + (f"_by_{style_field}" if style_field else "") + f"_{metric}"),
+                 formats)
+
+
+# ---------------------------------------------------------------------------- CLI
+
+FIGURES = ["box", "forest", "pareto", "contrast", "convergence", "radar", "sweep"]
+
 
 def main():
-    parser = argparse.ArgumentParser(
-        description="Visualizaciones para el benchmark CV multi-seed"
-    )
-    parser.add_argument("--output-dir", default="./output",
-                        help="Directorio raíz con cv_summary.json (default: ./output)")
-    parser.add_argument("--figs-dir", default="./figs",
-                        help="Donde guardar las figuras (default: ./figs)")
-    parser.add_argument("--format", default="png", choices=["png", "pdf", "both"],
-                        help="Formato (default: png; 'both' genera PNG y PDF)")
-    parser.add_argument("--radar", action="store_true", help="Sólo radar")
-    parser.add_argument("--boxplot", action="store_true", help="Sólo boxplot")
-    parser.add_argument("--pareto", action="store_true", help="Sólo Pareto")
-    parser.add_argument("--sensitivity", action="store_true",
-                        help="Sólo heatmap P × iter")
-    parser.add_argument("--n-particles", type=int, default=MAIN_CONFIG["n_particles"],
-                        help="Partículas de la config principal (default: %(default)s)")
-    parser.add_argument("--eval-budget", type=int, default=MAIN_CONFIG["eval_budget"],
-                        help="Presupuesto de evaluaciones por sesión de la config "
-                             "principal (default: %(default)s)")
-    parser.add_argument("--max-iter", type=int, default=None,
-                        help="Graficar corridas a igual número de iteraciones "
-                             "(sin --eval-budget) en lugar de a presupuesto igual")
-    parser.add_argument("--no-global", action="store_true",
-                        help="Omitir versiones globales (un panel por dataset)")
-    parser.add_argument("--no-individual", action="store_true",
-                        help="Omitir versiones individuales (una por dataset)")
-    args = parser.parse_args()
+    p = argparse.ArgumentParser(description="Figuras del paper 2 (ver docstring).")
+    p.add_argument("--output-dir", default="./output", help="Raíz con los cv_summary.json")
+    p.add_argument("--figs-dir", default="./figs", help="Destino de las figuras")
+    p.add_argument("--format", default="png", choices=["png", "pdf", "both"])
+    p.add_argument("--figures", nargs="*", default=None, choices=FIGURES,
+                   help="Figuras a generar (default: todas las aplicables)")
+    p.add_argument("--filter", nargs="*", default=[], metavar="CAMPO=VALOR",
+                   help="Filtros del config (core/report.py:CONFIG_FIELDS y selection_rule)")
+    p.add_argument("--metric", default=PRIMARY_METRIC, help="Métrica principal (core/report.py:METRICS)")
+    p.add_argument("--cost", default="time", choices=["time", "evals", "gpu_mb"], help="Eje de costo del Pareto")
+    p.add_argument("--pairs", nargs="*", default=["t1-t3", "t2-t3", "t1-t2"],
+                   help="Pares a-b de técnicas para el forest (Δ = b − a)")
+    p.add_argument("--unit", default="seed", choices=["seed", "fold"], help="Unidad pareada")
+    p.add_argument("--alpha", type=float, default=0.05, help="Nivel de significancia (Holm)")
+    p.add_argument("--contrast", default=None, help="Campo con 2 valores para la figura contrast")
+    p.add_argument("--contrast-metrics", nargs="*", default=["test_bacc", "optimism_bacc"])
+    p.add_argument("--trace-x", default="evals", choices=["evals", "time"])
+    p.add_argument("--trace-metric", default="acc", choices=["acc", "ce"])
+    p.add_argument("--radar-caps", nargs=3, type=float, default=[0.15, 0.10, 0.10],
+                   metavar=("STD", "SEED_STD", "OPTIMISM"), help="Cotas de normalización del radar")
+    p.add_argument("--sweep", default=None, help="Campo barrido (p. ej. g, n_particles, lambda_l2)")
+    p.add_argument("--sweep-style", default=None, help="Segundo campo, como estilo de línea (p. ej. max_iter)")
+    p.add_argument("--sweep-metric", default="val_acc",
+                   help="Métrica del barrido (default val_acc: los barridos eligen por validación)")
+    args = p.parse_args()
 
-    MAIN_CONFIG["n_particles"] = args.n_particles
-    if args.max_iter is not None:
-        MAIN_CONFIG.update(eval_budget=None, max_iter=args.max_iter)
-    else:
-        MAIN_CONFIG["eval_budget"] = args.eval_budget
+    for m in [args.metric, args.sweep_metric] + args.contrast_metrics:
+        if m not in METRICS:
+            raise SystemExit(f"❌ Métrica desconocida {m!r}. Válidas: {', '.join(METRICS)}")
+    setup_style()
+    rows = apply_filters(load_folds(Path(args.output_dir)), parse_filters(args.filter))
+    if not rows:
+        raise SystemExit("❌ No hay folds que cumplan los filtros.")
+    formats = ["png", "pdf"] if args.format == "both" else [args.format]
+    out = Path(args.figs_dir)
+    pairs = [tuple(x.split("-", 1)) for x in args.pairs]
 
-    no_specific = not any([args.radar, args.boxplot, args.pareto, args.sensitivity])
-    do_all = no_specific
-
-    figs_dir = Path(args.figs_dir).resolve()
-    global_dir = figs_dir / "global"
-    per_ds_dir = figs_dir / "per_dataset"
-    figs_dir.mkdir(parents=True, exist_ok=True)
-    if not args.no_global:
-        global_dir.mkdir(parents=True, exist_ok=True)
-    if not args.no_individual:
-        per_ds_dir.mkdir(parents=True, exist_ok=True)
-
-    extensions = ["png", "pdf"] if args.format == "both" else [args.format]
-
-    setup_paper_style()
-
-    output_dir = Path(args.output_dir).resolve()
-    print(f"📂 Cargando corridas desde: {output_dir}")
-    summaries = load_cv_summaries(output_dir)
-    print(f"📊 {len(summaries)} cv_summary.json encontrados.")
-    print(f"🎯 Config principal: {main_config_label()}")
-    print(f"🎨 Estilo: paper (serif, dpi=300)\n")
-
-    if not summaries:
-        print("❌ No hay datos para visualizar.")
-        return
-
-    n_ok = 0
-
-    def _save_global(plot_fn, name, label):
-        nonlocal n_ok
-        if args.no_global:
-            return
-        for ext in extensions:
-            path = global_dir / f"{name}.{ext}"
-            if plot_fn(summaries, path):
-                print(f"✅ {label:<14} {path.relative_to(figs_dir)}")
-                n_ok += 1
-
-    def _save_per_dataset(plot_single_fn, prefix, label):
-        nonlocal n_ok
-        if args.no_individual:
-            return
-        for ds in DATASETS_ORDER:
-            for ext in extensions:
-                path = per_ds_dir / f"{prefix}_{ds}.{ext}"
-                if plot_single_fn(summaries, path, ds):
-                    print(f"   ↳ {label} {ds:<7}  {path.relative_to(figs_dir)}")
-                    n_ok += 1
-
-    if do_all or args.radar:
-        _save_global(plot_radar, "radar_by_dataset", "Radar (global):")
-        _save_per_dataset(plot_radar_single, "radar", "radar")
-
-    if do_all or args.boxplot:
-        _save_global(plot_boxplot, "boxplot_by_dataset", "Boxplot (global):")
-        _save_per_dataset(plot_boxplot_single, "boxplot", "boxplot")
-
-    if do_all or args.pareto:
-        _save_global(plot_pareto, "pareto_by_dataset", "Pareto (global):")
-        _save_per_dataset(plot_pareto_single, "pareto", "pareto")
-
-    if do_all or args.sensitivity:
-        # El sensitivity no aplica per-dataset (ya tiene filas/columnas internas).
-        for ext in extensions:
-            path = figs_dir / f"sensitivity_heatmap.{ext}"
-            if plot_sensitivity(summaries, path):
-                print(f"✅ {'Sensitivity:':<14} {path.relative_to(figs_dir)}")
-                n_ok += 1
-
-    print(f"\n📈 {n_ok} figura(s) generada(s) en {figs_dir}")
+    figs = args.figures or [f for f in FIGURES
+                            if (f != "contrast" or args.contrast) and (f != "sweep" or args.sweep)]
+    free = {"contrast": args.contrast, "sweep": args.sweep}
+    written = []
+    for f in figs:
+        loose = [x for x in ((free["contrast"],) if f == "contrast" else
+                             (args.sweep, args.sweep_style) if f == "sweep" else ()) if x]
+        extra = varying_fields(rows, exclude=("technique", "dataset", "layer_sizes", *loose))
+        if extra:
+            print(f"⚠  {f}: las corridas mezclan configuraciones ("
+                  + "; ".join(f"{k} ∈ {v}" for k, v in extra.items())
+                  + "). Usa --filter" + (" o --contrast/--sweep" if not loose else "") + ". Se omite.")
+            continue
+        if f == "box":
+            written += fig_box(rows, args.metric, formats, out)
+        elif f == "forest":
+            written += fig_forest(rows, args.metric, pairs, args.unit, args.alpha, formats, out)
+        elif f == "pareto":
+            written += fig_pareto(rows, args.metric, args.cost, formats, out)
+        elif f == "contrast":
+            if not args.contrast:
+                print("⚠  contrast necesita --contrast CAMPO. Se omite.")
+                continue
+            written += fig_contrast(rows, args.contrast, args.contrast_metrics, args.unit, args.alpha,
+                                    formats, out)
+        elif f == "convergence":
+            written += fig_convergence(rows, args.trace_x, args.trace_metric, formats, out)
+        elif f == "radar":
+            written += fig_radar(rows, args.metric, args.radar_caps, formats, out)
+        elif f == "sweep":
+            if not args.sweep:
+                print("⚠  sweep necesita --sweep CAMPO. Se omite.")
+                continue
+            written += fig_sweep(rows, args.sweep, args.sweep_style, args.sweep_metric, formats, out)
+    for w in written:
+        print(f"📈 {w}")
 
 
 if __name__ == "__main__":
