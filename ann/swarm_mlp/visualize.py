@@ -64,7 +64,8 @@ TECHNIQUE_MARKERS = {"t1": "o", "t2": "s", "t3": "^", "t2-jacobi": "D", "t4": "v
 TECHNIQUE_LABELS = {"t1": "T1 (sequential)", "t2": "T2 (parallel, async)",
                     "t3": "T3 (concurrent)", "t2-jacobi": "T2-jacobi", "t4": "T4 (single swarm)"}
 DATASET_LABELS = {"iris": "Iris", "breast": "Breast Cancer", "segment": "Segment",
-                  "satimage": "Satimage", "digits": "Digits"}
+                  "satimage": "Satimage", "digits": "Digits", "mnist": "MNIST",
+                  "fmnist": "Fashion-MNIST", "mcw": "Multiclass Weather"}
 
 INK = "#0b0b0b"          # texto principal
 INK_2 = "#52514e"        # texto secundario

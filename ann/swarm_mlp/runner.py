@@ -25,6 +25,8 @@ if str(_HERE) not in sys.path:
     sys.path.insert(0, str(_HERE))
 
 from core.budget import evals_per_session, iters_for_budget
+from core.cnn import CNN_SIZES, TinyCNN
+from core.images import IMAGE_DATASETS, prepare_image_dataset
 from core.data import prepare_dataset, prepare_dataset_kfold, BENCHMARK_DATASETS, PAPER_DATASETS
 from core.loss import L2_FORMS
 from core.selection import SELECTION_METRICS
@@ -55,9 +57,26 @@ def parse_args():
     p = argparse.ArgumentParser(description="Multi-swarm MLP via QDPSO (PyTorch)")
     p.add_argument("--technique", required=True, choices=sorted(TECHNIQUES.keys()))
     p.add_argument("--dataset", required=True,
-                   choices=sorted(set(BENCHMARK_DATASETS) | set(PAPER_DATASETS)),
-                   help="Suite del paper: " + ", ".join(PAPER_DATASETS)
-                        + ". Extra (fuera del paper): " + ", ".join(BENCHMARK_DATASETS) + ".")
+                   choices=sorted(set(BENCHMARK_DATASETS) | set(PAPER_DATASETS) | set(IMAGE_DATASETS)),
+                   help="MLP, suite del paper: " + ", ".join(PAPER_DATASETS)
+                        + ". MLP extra: " + ", ".join(BENCHMARK_DATASETS)
+                        + ". CNN (imágenes, --model cnn): " + ", ".join(IMAGE_DATASETS) + ".")
+    p.add_argument("--model", default="mlp", choices=["mlp", "cnn"],
+                   help="Red a entrenar. 'cnn' = core/cnn.py:TinyCNN, sólo con datasets de imágenes.")
+    p.add_argument("--cnn-size", default="small", choices=sorted(CNN_SIZES),
+                   help="(cnn) Tamaño con nombre (core/cnn.py:CNN_SIZES): "
+                        + "; ".join(f"{k} = canales {v['channels']}, cabeza {v['head']}"
+                                    for k, v in CNN_SIZES.items()) + ".")
+    p.add_argument("--fitness-samples", type=int, default=2000,
+                   help="(cnn) Imágenes del train oficial sobre las que los enjambres evalúan "
+                        "la función de costo (estratificadas por data_seed; 0 = todo el resto). "
+                        "Es el 'train' de la corrida.")
+    p.add_argument("--val-size", type=int, default=5000,
+                   help="(cnn) Imágenes de validación, sacadas del train oficial (estratificadas).")
+    p.add_argument("--match-evals-of", default=None, choices=sorted(TECHNIQUES),
+                   help="Presupuesto de evaluaciones = el que gasta esta técnica con --max-iter "
+                        "y las mismas partículas; la técnica corrida recibe las iteraciones que "
+                        "le alcanzan (p. ej. T4 con --match-evals-of t3 compara a igual costo).")
     p.add_argument("--n-sessions", type=int, default=15,
                    help="Sesiones internas con cadena monótona inter-sesión y selección por val. "
                         "En modo CV (--cv-folds K), se ejecutan POR FOLD (recomendado N=1 para CV).")
@@ -147,6 +166,17 @@ def parse_args():
     p.add_argument("--patience", type=int, default=100)
     p.add_argument("--output-dir", default=str(_HERE / "output"))
     args = p.parse_args()
+    if args.model == "cnn":
+        if args.dataset not in IMAGE_DATASETS:
+            p.error(f"--model cnn requiere un dataset de imágenes: {', '.join(IMAGE_DATASETS)}.")
+        if args.cv_folds > 1:
+            p.error("--model cnn usa el test oficial: no admite --cv-folds (usar --data-seed).")
+        if args.hidden_sizes:
+            p.error("--hidden-sizes es del MLP; la CNN usa --cnn-size.")
+    elif args.dataset in IMAGE_DATASETS:
+        p.error(f"{args.dataset} es un dataset de imágenes: usar --model cnn.")
+    if args.match_evals_of and args.eval_budget is not None:
+        p.error("--match-evals-of y --eval-budget son excluyentes.")
     if args.selection_se < 0:
         p.error(f"--selection-se debe ser >= 0 (se dio {args.selection_se}).")
     if args.warm_percent is not None:
@@ -166,15 +196,38 @@ def default_hidden(n_features: int):
     return [3 * n_features, 2 * n_features, n_features]
 
 
+def _prepare(args, device, dtype, data_seed):
+    """Datos de un split: tabulares (MLP) o imágenes con test oficial (CNN)."""
+    if args.model == "cnn":
+        return prepare_image_dataset(args.dataset, device=device, dtype=dtype, data_seed=data_seed,
+                                     val_size=args.val_size, fitness_samples=args.fitness_samples)
+    return prepare_dataset(args.dataset, device=device, dtype=dtype, data_seed=data_seed)
+
+
+def _build_model(args, data, device, dtype):
+    """MLP `[n, oculta..., clases]` o TinyCNN del tamaño pedido, con la forma de L2."""
+    if args.model == "cnn":
+        size = CNN_SIZES[args.cnn_size]
+        model = TinyCNN(in_channels=data["in_channels"], image_size=data["image_size"],
+                        channels=size["channels"], head=size["head"],
+                        n_classes=data["n_classes"], device=device, dtype=dtype)
+        print(f"🧠 CNN {args.cnn_size} {size}: params={model.d_total}   "
+              f"enjambres={[s.size for s in model.layer_specs]}")
+    else:
+        hidden = args.hidden_sizes if args.hidden_sizes else default_hidden(data["n_features"])
+        model = MLP(layer_sizes=[data["n_features"]] + list(hidden) + [data["n_classes"]],
+                    device=device, dtype=dtype)
+        print(f"🧠 MLP layers: {model.layer_sizes}   params={model.d_total}   swarms={model.num_layers}")
+    model.l2_form = args.l2_form
+    return model
+
+
 def _build_cfg_and_run(
     *, args, device, dtype, data, output_dir, data_seed,
 ):
-    """Construye el MLP y la cfg para un split dado y ejecuta run_sessions."""
-    hidden = args.hidden_sizes if args.hidden_sizes else default_hidden(data["n_features"])
-    layer_sizes = [data["n_features"]] + list(hidden) + [data["n_classes"]]
-    mlp = MLP(layer_sizes=layer_sizes, device=device, dtype=dtype)
-    mlp.l2_form = args.l2_form
-    print(f"🧠 MLP layers: {layer_sizes}   params={mlp.d_total}   swarms={mlp.num_layers}")
+    """Construye el modelo y la cfg para un split dado y ejecuta run_sessions."""
+    mlp = _build_model(args, data, device, dtype)
+    layer_sizes = list(mlp.layer_sizes)
 
     budget_kwargs = dict(
         n_particles=args.n_particles, n_layers=mlp.num_layers,
@@ -182,11 +235,17 @@ def _build_cfg_and_run(
         reevaluate_pbest=args.reevaluate_pbest,
     )
     max_iter = args.max_iter
-    if args.eval_budget is not None:
-        max_iter = iters_for_budget(args.technique, args.eval_budget, **budget_kwargs)
+    eval_budget = args.eval_budget
+    if args.match_evals_of:
+        # Mismo presupuesto que la técnica de referencia con --max-iter (p. ej. T4 vs T3).
+        eval_budget = evals_per_session(args.match_evals_of, args.max_iter, **budget_kwargs)
+    if eval_budget is not None:
+        max_iter = iters_for_budget(args.technique, eval_budget, **budget_kwargs)
     planned_evals = evals_per_session(args.technique, max_iter, **budget_kwargs)
     print(f"💰 max_iter={max_iter}  →  {planned_evals} evaluaciones de fitness por sesión"
-          + (f"  (presupuesto {args.eval_budget})" if args.eval_budget is not None else ""))
+          + (f"  (presupuesto {eval_budget}"
+             + (f" = el de {args.match_evals_of} con {args.max_iter} it" if args.match_evals_of else "")
+             + ")" if eval_budget is not None else ""))
 
     cfg = {
         "technique": args.technique,
@@ -196,8 +255,14 @@ def _build_cfg_and_run(
         "n_rounds": args.n_rounds,
         "n_particles": args.n_particles,
         "max_iter": max_iter,
-        "eval_budget": args.eval_budget,
+        "eval_budget": eval_budget,
+        "match_evals_of": args.match_evals_of,
+        "reference_max_iter": args.max_iter,
         "planned_evals_per_session": planned_evals,
+        "model": args.model,
+        "cnn_size": args.cnn_size if args.model == "cnn" else None,
+        "fitness_samples": int(data["X_train"].shape[0]),
+        "val_size": int(data["X_val"].shape[0]),
         "lambda_l2": args.lambda_l2,
         "l2_form": args.l2_form,
         "selection_metric": args.selection_metric,
@@ -238,7 +303,10 @@ def _run_tag(args, hidden) -> str:
     las celdas del factorial tengan paths inequívocos: sin esto una corrida qpsoo
     sobrescribiría a su equivalente qdpsoo.
     """
-    hidden_tag = "-".join(map(str, hidden))
+    # Arquitectura: capas ocultas del MLP, o el tamaño con nombre de la CNN más las
+    # imágenes de fitness (cambian el costo y el resultado).
+    arch_tag = (f"cnn-{args.cnn_size}_fit{args.fitness_samples}_val{args.val_size}"
+                if args.model == "cnn" else "hid" + "-".join(map(str, hidden)))
     rounds_tag = (f"_rounds{args.n_rounds}"
                   if args.technique in ("t1", "t2-jacobi") and args.n_rounds > 1 else "")
     opt_tag = optimizer_tag({"optimizer": args.optimizer})
@@ -266,9 +334,11 @@ def _run_tag(args, hidden) -> str:
         hp_tag += f"_sel{args.selection_metric}{args.selection_se:g}se"
     # Con presupuesto de evaluaciones, `max_iter` depende de la técnica y de la red:
     # lo que identifica a la corrida es el presupuesto.
+    # Con --match-evals-of, el presupuesto es el de la técnica de referencia con max_iter.
     budget_tag = (f"evals{args.eval_budget}" if args.eval_budget is not None
+                  else f"evalsof-{args.match_evals_of}-iters{args.max_iter}" if args.match_evals_of
                   else f"iters{args.max_iter}")
-    return (f"hid{hidden_tag}_{budget_tag}_part{args.n_particles}"
+    return (f"{arch_tag}_{budget_tag}_part{args.n_particles}"
             f"{rounds_tag}_{opt_tag}{hp_tag}{reeval_tag}_seed{args.seed}")
 
 
@@ -352,7 +422,7 @@ def main():
         # -- Un solo data_seed: comportamiento clásico, mismo output dir. --
         if len(data_seeds) == 1:
             ds = data_seeds[0]
-            data = prepare_dataset(args.dataset, device=device, dtype=dtype, data_seed=ds)
+            data = _prepare(args, device, dtype, ds)
             print(f"📊 Dataset {args.dataset}: {data['n_features']} features, {data['n_classes']} clases")
             print(f"📊 Splits: train={data['X_train'].shape[0]}  "
                   f"val={data['X_val'].shape[0]}  test={data['X_test'].shape[0]}")
@@ -369,7 +439,7 @@ def main():
         # -- Varios data_seed: splits 70/15/15 repetidos (protocolo del paper). --
         # Una corrida completa (N sesiones + ganadora por val) por semilla de split;
         # agregado media ± std sobre los splits en splits_summary.json.
-        probe = prepare_dataset(args.dataset, device=device, dtype=dtype, data_seed=data_seeds[0])
+        probe = _prepare(args, device, dtype, data_seeds[0])
         n_features = probe["n_features"]
         n_classes = probe["n_classes"]
         hidden = hidden_for_tag if hidden_for_tag else default_hidden(n_features)
@@ -386,7 +456,7 @@ def main():
             print('═' * 70)
 
             data_split = (probe if i == 0 else
-                          prepare_dataset(args.dataset, device=device, dtype=dtype, data_seed=ds))
+                          _prepare(args, device, dtype, ds))
             print(f"📊 Splits dseed {ds}: "
                   f"train={data_split['X_train'].shape[0]}  "
                   f"val={data_split['X_val'].shape[0]}  "
@@ -398,6 +468,7 @@ def main():
                 data=data_split, output_dir=split_dir, data_seed=ds,
             )
 
+            last_cfg = result["config"]
             split_summaries.append({
                 "data_seed": ds,
                 **_run_summary(result),
@@ -417,8 +488,8 @@ def main():
                 "n_sessions_per_split": args.n_sessions,
                 "n_rounds": args.n_rounds,
                 "n_particles": args.n_particles,
-                "max_iter": args.max_iter,
-                "eval_budget": args.eval_budget,
+                "max_iter": last_cfg["max_iter"],
+                "eval_budget": last_cfg["eval_budget"],
                 "lambda_l2": args.lambda_l2,
                 "l2_form": args.l2_form,
                 "selection_metric": args.selection_metric,
@@ -428,7 +499,11 @@ def main():
                 "alpha": resolve_alpha(args.alpha),
                 "reevaluate_pbest": args.reevaluate_pbest,
                 "seed": args.seed,
-                "layer_sizes": [n_features] + list(hidden) + [n_classes],
+                "layer_sizes": last_cfg["layer_sizes"],
+                "model": args.model,
+                "cnn_size": last_cfg["cnn_size"],
+                "fitness_samples": last_cfg["fitness_samples"],
+                "match_evals_of": args.match_evals_of,
                 "device": str(device),
             },
             "splits": split_summaries,
@@ -514,8 +589,9 @@ def main():
             "n_sessions_per_fold": args.n_sessions,
             "n_rounds": args.n_rounds,
             "n_particles": args.n_particles,
-            "max_iter": args.max_iter,
-            "eval_budget": args.eval_budget,
+            "max_iter": result["config"]["max_iter"],
+            "eval_budget": result["config"]["eval_budget"],
+            "match_evals_of": args.match_evals_of,
             "lambda_l2": args.lambda_l2,
             "l2_form": args.l2_form,
             "selection_metric": args.selection_metric,

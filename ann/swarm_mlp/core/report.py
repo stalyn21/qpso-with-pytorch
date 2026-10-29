@@ -3,8 +3,9 @@
 Una sola definición de cada métrica, de cómo se identifica una configuración y de
 cómo se comparan las técnicas, para que tablas y figuras digan lo mismo.
 
-Unidad de dato: un FOLD de una corrida K-fold (`cv_summary.json` → `folds`). Una
-corrida = (configuración, semilla); cada semilla aporta K folds.
+Unidad de dato: un FOLD de una corrida K-fold (`cv_summary.json` → `folds`), o una
+corrida de partición única (`run.json` fuera de cv*/ y splits*/: la CNN, que usa el
+test oficial; cuenta como fold 0). Una corrida = (configuración, semilla).
 
 Comparaciones pareadas: dos técnicas se comparan sobre las MISMAS (semilla, fold).
 Por defecto se promedian los folds de cada semilla y se compara por semilla
@@ -23,7 +24,7 @@ import numpy as np
 from core.stats import describe, paired_comparison
 
 TECHNIQUES_ORDER = ["t1", "t2", "t2-jacobi", "t3", "t4"]
-DATASETS_ORDER = ["iris", "breast", "segment", "satimage", "digits"]
+DATASETS_ORDER = ["iris", "breast", "segment", "satimage", "digits", "mnist", "fmnist", "mcw"]
 
 
 # --------------------------------------------------------------------------- métricas
@@ -120,7 +121,17 @@ CONFIG_FIELDS: Dict[str, Any] = {
     "selection_metric": "acc",
     "selection_se": 0.0,
     "data_seed": 100,
+    # CNN (paper 2, parte B). Los resúmenes del MLP no los traen.
+    "model": "mlp",
+    "cnn_size": None,
+    "fitness_samples": None,
+    "match_evals_of": None,
 }
+
+#: Campos que PUEDEN diferir entre técnicas en una misma comparación: a igual
+#: número de evaluaciones (`--match-evals-of`), T4 recibe otras iteraciones que T3.
+#: Dentro de una misma (técnica, dataset) tienen que ser únicos igual que el resto.
+TECHNIQUE_DEPENDENT = ("max_iter", "eval_budget", "match_evals_of")
 
 
 #: Campos derivados: combinan varios campos en uno, para filtrar o contrastar.
@@ -166,9 +177,42 @@ class FoldRow:
         return self.values.get(metric)
 
 
+def _fold_from_run(run: Dict[str, Any]) -> Dict[str, Any]:
+    """Campos de un fold (como en cv_summary) a partir de un run.json de partición única."""
+    w = run["winner_by_val"]
+    return {
+        "test_balanced_acc": w.get("final_test_balanced_acc"), "test_acc": w["final_test_acc"],
+        "test_macro_f1": w.get("final_test_macro_f1"), "test_ce": w.get("final_test_ce"),
+        "val_balanced_acc": w.get("val_balanced_acc"), "val_acc": w["val_acc"],
+        "val_ce": w.get("val_ce"), "train_acc": w.get("train_acc"),
+        "total_time": run["total_time"], "fitness_evals": run.get("total_fitness_evals"),
+        "gpu_peak_mb": run.get("gpu_peak_mb"),
+    }
+
+
+def _is_grouped(path: Path, root: Path) -> bool:
+    """True si el run.json está dentro de una corrida K-fold o de splits repetidos."""
+    return any(p.startswith(("cv", "splits")) and p[len("cv" if p.startswith("cv") else "splits"):].isdigit()
+               for p in path.relative_to(root).parts[:-1])
+
+
 def load_folds(output_dir: Path) -> List[FoldRow]:
-    """Una fila por fold de cada `cv_summary.json` bajo `output_dir`."""
+    """Una fila por fold de cada `cv_summary.json` y una por cada run.json suelto."""
     rows = []
+    root = Path(output_dir)
+    for path in sorted(root.rglob("run.json")):
+        if _is_grouped(path, root):
+            continue
+        with open(path) as f:
+            run = json.load(f)
+        cfg = run["config"]
+        if cfg.get("n_sessions", 1) and "winner_by_val" not in run:
+            continue
+        fold = _fold_from_run(run)
+        rows.append(FoldRow(
+            config=config_of(cfg), seed=int(cfg["seed"]), fold=0,
+            values={k: m.getter(fold) for k, m in METRICS.items()}, run_path=path,
+        ))
     for path in sorted(Path(output_dir).rglob("cv_summary.json")):
         with open(path) as f:
             summary = json.load(f)
@@ -230,19 +274,30 @@ def varying_fields(rows: Sequence[FoldRow], exclude: Sequence[str] = ("technique
     """Campos de configuración que toman más de un valor entre `rows`.
 
     Excluir un campo derivado excluye también sus componentes, y los derivados
-    nunca se reportan (sus componentes ya lo hacen).
+    nunca se reportan (sus componentes ya lo hacen). Los campos de
+    `TECHNIQUE_DEPENDENT` pueden variar entre técnicas, pero no dentro de una
+    misma (técnica, dataset).
     """
     exclude = set(exclude)
     for d, parts in DERIVED_FIELDS.items():
         if d in exclude:
             exclude.update(parts)
     exclude.update(DERIVED_FIELDS)
-    vals = defaultdict(set)
+    across, within = defaultdict(set), defaultdict(set)
     for r in rows:
+        cell = (r.config["technique"], r.config["dataset"])
         for k, v in r.config.items():
-            if k not in exclude:
-                vals[k].add(v)
-    return {k: sorted(v, key=lambda x: (x is None, str(x))) for k, v in vals.items() if len(v) > 1}
+            if k in exclude:
+                continue
+            if k in TECHNIQUE_DEPENDENT:
+                within[(k, cell)].add(v)
+            else:
+                across[k].add(v)
+    out = {k: v for k, v in across.items() if len(v) > 1}
+    for (k, cell), v in within.items():
+        if len(v) > 1:
+            out[f"{k} ({cell[0]}, {cell[1]})"] = v
+    return {k: sorted(v, key=lambda x: (x is None, str(x))) for k, v in out.items()}
 
 
 def group(rows: Iterable[FoldRow], by: Sequence[str]) -> Dict[Tuple, List[FoldRow]]:
