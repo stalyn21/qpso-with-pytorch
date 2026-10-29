@@ -17,8 +17,8 @@ Implementación lockstep (Gauss-Seidel back-to-front):
            - Avanzar el swarm un paso (kernel_update + boundary + update_best).
            - Actualizar `current[layer k]` con el nuevo gBest → el siguiente swarm en
              ESTA iteración ya ve esta actualización (Gauss-Seidel).
-        c. Evaluar el modelo combinado en val. Guardar snapshot si mejoró.
-    3. Devolver el mejor snapshot por val.
+        c. Evaluar el modelo combinado en val y ofrecerlo como candidato.
+    3. Devolver el candidato elegido por la regla de core.selection.
 
 Por qué Gauss-Seidel back-to-front: el swarm de salida se entrena primero contra el
 contexto más antiguo (entrada del paso previo); cuando le toca a entrada, ya tiene el
@@ -34,7 +34,7 @@ from typing import Any, Dict
 import torch
 
 from core.mlp import MLP
-from core.metrics import selection_key
+from core.selection import Selector, val_score
 from swarm.optimizer_factory import build_swarm_optimizer, swap_cost_fn
 from swarm.warm_start import warm_start_cluster
 
@@ -98,10 +98,12 @@ def run_session_t3(
         swarms.append(opt)
 
     # Snapshot inicial: evaluamos val con el combinado de gBests iniciales (post warm-start).
-    # Criterio (core.metrics.selection_key): más val_acc y, con la misma, menos val_ce.
-    best_combined = _combine_gbests(params_init, swarms, mlp)
-    best_key = selection_key(mlp, best_combined, X_val, y_val)
-    iter_at_best = 0
+    # Candidatos: el combinado inicial y el de cada iteración (regla de core.selection).
+    n_classes = data["n_classes"]
+    selector = Selector.from_cfg(cfg, data)
+    combined0 = _combine_gbests(params_init, swarms, mlp)
+    selector.offer(val_score(mlp, combined0, X_val, y_val, n_classes), combined0,
+                   {"iter_at_best": 0})
 
     # Métricas por capa (gBest final de cada swarm + tiempo)
     layer_iter_times = [0.0] * mlp.num_layers
@@ -138,12 +140,9 @@ def run_session_t3(
                 layer_iter_times[k] += time.time() - t0
                 layer_train_loss[k] = float(opt.gbest_value)
 
-            # c) Evaluar el modelo combinado completo en val
-            key = selection_key(mlp, current, X_val, y_val)
-            if key < best_key:
-                best_key = key
-                best_combined = current.clone()
-                iter_at_best = it + 1
+            # c) Evaluar el modelo combinado completo en val y ofrecerlo.
+            selector.offer(val_score(mlp, current, X_val, y_val, n_classes), current.clone(),
+                           {"iter_at_best": it + 1})
 
     session_time = time.time() - session_start
 
@@ -175,8 +174,12 @@ def run_session_t3(
               f"train_loss={layer_train_loss[k]:.4E}  "
               f"iters={cfg['max_iter']}  acumulado={layer_iter_times[k]:.2f}s")
 
-    best_val_acc, best_val_ce = 1.0 - best_key[0], best_key[1]
-    print(f"    🔁 lockstep: best_val: acc={best_val_acc:.4f} ce={best_val_ce:.4f} en iter {iter_at_best}/{cfg['max_iter']}  "
+    best_combined, score_best, sel_info = selector.choose()
+    iter_at_best = sel_info["iter_at_best"]
+    best_val_acc, best_val_ce = score_best.acc, score_best.ce
+    print(f"    🔁 lockstep: best_val: acc={best_val_acc:.4f} bacc={score_best.bacc:.4f} ce={best_val_ce:.4f} "
+          f"en iter {iter_at_best}/{cfg['max_iter']} "
+          f"(franja: no dominados {sel_info['n_tied_nondominated']}/{sel_info['n_candidates']})  "
           f"warm-cluster=K{k_seeded_eff}/σ{noise_scale}  "
           f"⏱ sesión={session_time:.2f}s")
 
@@ -186,5 +189,7 @@ def run_session_t3(
         "session_time": session_time,
         "best_val_acc_during_session": float(best_val_acc),
         "best_val_ce_during_session": float(best_val_ce),
+        "best_val_bacc_during_session": float(score_best.bacc),
         "iter_at_best": int(iter_at_best),
+        "selection": sel_info,
     }

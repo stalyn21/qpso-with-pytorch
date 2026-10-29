@@ -23,7 +23,7 @@ from typing import Any, Dict
 
 import torch
 
-from core.metrics import selection_key
+from core.selection import Selector, val_score
 from core.mlp import MLP
 from qpso_torch import CallbackEvent
 from swarm.optimizer_factory import build_swarm_optimizer
@@ -79,22 +79,16 @@ def run_session_t1(
             # el QDPSO, pero la consistencia conceptual es valiosa).
             frozen_snapshot = current.clone()
 
-            val_best = {
-                "params": current[spec.offset : spec.offset + spec.size].clone(),
-                "key": (float("inf"), float("inf")),
-                "iter_at_best": 0,
-            }
+            # Candidatos de esta capa: la red completa con el gbest de la capa k sobre
+            # el contexto congelado. Se elige con la regla de core.selection al terminar.
+            selector = Selector.from_cfg(cfg, data)
 
-            def make_callback(val_best_ref, spec_ref, frozen_ref):
+            def make_callback(selector_ref, spec_ref, frozen_ref):
                 def on_new_best(opt):
                     candidate = frozen_ref.clone()
                     candidate[spec_ref.offset : spec_ref.offset + spec_ref.size] = opt.gbest
-                    # Criterio: más val_acc y, con la misma, menos val_ce.
-                    key = selection_key(mlp, candidate, X_val, y_val)
-                    if key < val_best_ref["key"]:
-                        val_best_ref["key"] = key
-                        val_best_ref["params"] = opt.gbest.clone()
-                        val_best_ref["iter_at_best"] = opt.iters
+                    score = val_score(mlp, candidate, X_val, y_val, data["n_classes"])
+                    selector_ref.offer(score, opt.gbest.clone(), {"iter_at_best": opt.iters})
                 return on_new_best
 
             layer_start = time.time()
@@ -113,13 +107,20 @@ def run_session_t1(
 
                 opt.callbacks.register(
                     CallbackEvent.ON_NEW_BEST,
-                    make_callback(val_best, spec, frozen_snapshot),
+                    make_callback(selector, spec, frozen_snapshot),
                 )
                 result = opt.optimize()
             layer_time = time.time() - layer_start
 
-            # Propagar el mejor segmento (por val) al vector combinado.
-            current[spec.offset : spec.offset + spec.size] = val_best["params"]
+            # Propagar el segmento elegido (por val) al vector combinado.
+            if selector.n_candidates == 0:
+                # Sin mejoras del gbest (no ocurre con el QDPSO actual): se mide el
+                # contexto tal cual y la capa conserva su segmento.
+                selector.offer(val_score(mlp, frozen_snapshot, X_val, y_val, data["n_classes"]),
+                               current[spec.offset : spec.offset + spec.size].clone(),
+                               {"iter_at_best": 0})
+            seg_best, score_best, sel_info = selector.choose()
+            current[spec.offset : spec.offset + spec.size] = seg_best
 
             per_layer.append({
                 "round": round_idx,
@@ -129,9 +130,11 @@ def run_session_t1(
                 "n_out": spec.n_out,
                 "dim": dim_k,
                 "final_train_loss": float(result.best_value),
-                "val_best_acc": float(1.0 - val_best["key"][0]),
-                "val_best_ce": float(val_best["key"][1]),
-                "iter_at_val_best": int(val_best["iter_at_best"]),
+                "val_best_acc": float(score_best.acc),
+                "val_best_bacc": float(score_best.bacc),
+                "val_best_ce": float(score_best.ce),
+                "iter_at_val_best": int(sel_info["iter_at_best"]),
+                "selection": sel_info,
                 "iterations_run": int(result.iterations),
                 "converged": bool(result.converged),
                 "convergence_reason": result.convergence_reason,
@@ -141,7 +144,8 @@ def run_session_t1(
             print(f"    [r{round_idx}] capa {k} ({position_label}) "
                   f"[{spec.n_in}→{spec.n_out}, dim={dim_k}]: "
                   f"train_loss={float(result.best_value):.4E}  "
-                  f"val_best: acc={1.0 - val_best['key'][0]:.4f} ce={val_best['key'][1]:.4f}  "
+                  f"val_best: acc={score_best.acc:.4f} bacc={score_best.bacc:.4f} ce={score_best.ce:.4f} "
+                  f"(franja: no dominados {sel_info['n_tied_nondominated']}/{sel_info['n_candidates']})  "
                   f"iters={result.iterations}  {layer_time:.2f}s")
 
     return {

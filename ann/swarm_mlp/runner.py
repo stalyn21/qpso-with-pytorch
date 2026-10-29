@@ -27,6 +27,7 @@ if str(_HERE) not in sys.path:
 from core.budget import evals_per_session, iters_for_budget
 from core.data import prepare_dataset, prepare_dataset_kfold, BENCHMARK_DATASETS, PAPER_DATASETS
 from core.loss import L2_FORMS
+from core.selection import SELECTION_METRICS
 from core.mlp import MLP
 from core.sessions import run_sessions
 from core.stats import describe
@@ -94,6 +95,15 @@ def parse_args():
                    help="Forma de la L2. 'mean' (histórica): (lambda/2n)·media(θ²) sobre pesos "
                         "y sesgos. 'sample': weight decay estándar (lambda/2n)·Σw², sólo pesos. "
                         "Los lambdas de una y otra NO son comparables (ver core/loss.py).")
+    p.add_argument("--selection-metric", default="acc", choices=list(SELECTION_METRICS),
+                   help="Métrica principal para elegir parámetros en validación: 'acc' "
+                        "(accuracy, histórica) o 'bacc' (balanced accuracy = media del recall "
+                        "por clase). Ver core/selection.py.")
+    p.add_argument("--selection-se", type=float, default=0.0,
+                   help="Tolerancia de la regla de selección en errores estándar: empatan los "
+                        "candidatos con métrica >= mejor - k·SE (Agresti-Coull) y entre ellos "
+                        "gana la menor val CE. 0 = regla histórica (máximo exacto); 1 = regla "
+                        "de 1 SE.")
     p.add_argument("--lambda-l2", type=float, default=10.0,
                    help="Coeficiente del L2 normalizado (l2 = (lambda/2)·||W||²/(d_total·n_train)). "
                         "Default 10.0 con la nueva normalización; valores razonables ∈ [1.0, 100.0]. "
@@ -137,6 +147,8 @@ def parse_args():
     p.add_argument("--patience", type=int, default=100)
     p.add_argument("--output-dir", default=str(_HERE / "output"))
     args = p.parse_args()
+    if args.selection_se < 0:
+        p.error(f"--selection-se debe ser >= 0 (se dio {args.selection_se}).")
     if args.warm_percent is not None:
         if not 0 <= args.warm_percent <= 100:
             p.error(f"--warm-percent debe estar entre 0 y 100 (se dio {args.warm_percent}).")
@@ -188,6 +200,8 @@ def _build_cfg_and_run(
         "planned_evals_per_session": planned_evals,
         "lambda_l2": args.lambda_l2,
         "l2_form": args.l2_form,
+        "selection_metric": args.selection_metric,
+        "selection_se": args.selection_se,
         "optimizer": args.optimizer,
         "g": args.g,
         "alpha": resolve_alpha(args.alpha),
@@ -247,6 +261,9 @@ def _run_tag(args, hidden) -> str:
     # Con el cluster como porcentaje, dos porcentajes con el mismo P no deben pisarse.
     if args.warm_percent is not None:
         hp_tag += f"_warm{args.warm_percent:g}pct"
+    # Regla de selección: sólo cuando no es la histórica (acc, 0 SE).
+    if args.selection_metric != "acc" or args.selection_se != 0:
+        hp_tag += f"_sel{args.selection_metric}{args.selection_se:g}se"
     # Con presupuesto de evaluaciones, `max_iter` depende de la técnica y de la red:
     # lo que identifica a la corrida es el presupuesto.
     budget_tag = (f"evals{args.eval_budget}" if args.eval_budget is not None
@@ -265,6 +282,7 @@ def _run_summary(result):
         "test_macro_f1": winner["final_test_macro_f1"],
         "test_balanced_acc": winner["final_test_balanced_acc"],
         "val_acc":   winner["val_acc"],
+        "val_balanced_acc": winner.get("val_balanced_acc"),
         "val_ce":    winner["val_ce"],
         "val_cost":  winner["val_cost"],
         "train_loss": winner["train_loss"],
@@ -282,7 +300,7 @@ def _run_summary(result):
 #: (media, std MUESTRAL, IC95, mediana, cuartiles, min, max).
 _AGGREGATED = (
     "test_acc", "test_ce", "test_cost", "test_macro_f1", "test_balanced_acc",
-    "val_acc", "train_loss", "train_acc", "total_time", "time_to_winner",
+    "val_acc", "val_balanced_acc", "train_loss", "train_acc", "total_time", "time_to_winner",
     "fitness_evals", "fitness_evals_to_winner",
 )
 
@@ -403,6 +421,8 @@ def main():
                 "eval_budget": args.eval_budget,
                 "lambda_l2": args.lambda_l2,
                 "l2_form": args.l2_form,
+                "selection_metric": args.selection_metric,
+                "selection_se": args.selection_se,
                 "optimizer": args.optimizer,
                 "g": args.g,
                 "alpha": resolve_alpha(args.alpha),
@@ -498,6 +518,8 @@ def main():
             "eval_budget": args.eval_budget,
             "lambda_l2": args.lambda_l2,
             "l2_form": args.l2_form,
+            "selection_metric": args.selection_metric,
+            "selection_se": args.selection_se,
             "optimizer": args.optimizer,
             "g": args.g,
             "alpha": resolve_alpha(args.alpha),

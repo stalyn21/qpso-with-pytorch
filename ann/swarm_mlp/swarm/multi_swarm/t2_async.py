@@ -42,7 +42,7 @@ from typing import Any, Dict, List, Optional
 
 import torch
 
-from core.metrics import selection_key
+from core.selection import Selector, val_score
 from core.mlp import MLP
 from swarm.optimizer_factory import SwarmOptimizer, build_swarm_optimizer, swap_cost_fn
 from swarm.warm_start import warm_start_cluster
@@ -64,6 +64,7 @@ def _async_layer_worker(
     cfg: Dict[str, Any],
     k: int,
     opt: SwarmOptimizer,
+    selector: Selector,
     cuda_stream: Optional["torch.cuda.Stream"] = None,
 ) -> Dict[str, Any]:
     """Worker async para la capa k. Avanza max_iter steps lock-free.
@@ -74,16 +75,14 @@ def _async_layer_worker(
         2. Construye cost_fn vs `frozen` y la inyecta en el opt persistente.
         3. Avanza un paso del QDPSO (kernel_update + boundary + update_best).
         4. Escribe `current[layer_k] = opt.gbest` — visible para los otros threads.
-        5. Si gbest mejoró: evalúa val con un snapshot ad-hoc + el nuevo gbest;
-           si es el mejor modelo que ESTE worker ha visto, guarda el snapshot
-           COMPLETO (todas las capas), no sólo su segmento.
+        5. Si gbest mejoró: evalúa val con un snapshot ad-hoc + el nuevo gbest y
+           ofrece ese modelo COMPLETO (todas las capas) al `selector` compartido.
 
-    El worker devuelve su mejor modelo completo. `run_session_t2_async` elige
-    entre los de todos los workers: así el modelo retornado es siempre uno que se
-    evaluó tal cual en val. (Antes se recombinaba el mejor segmento de cada capa,
-    cada uno medido contra un contexto distinto: una combinación nunca evaluada.)
-    Cada worker escribe sólo su propio registro, así que la selección no agrega
-    locks ni estado compartido.
+    Todos los workers ofrecen al mismo `selector` (core.selection, con lock), que
+    elige al final entre los candidatos de todas las capas: así el modelo
+    retornado es siempre uno que se evaluó tal cual en val. (Antes se recombinaba
+    el mejor segmento de cada capa, cada uno medido contra un contexto distinto:
+    una combinación nunca evaluada.)
     """
     spec = mlp.layer_specs[k]
     X_train, y_train = data["X_train"], data["y_train"]
@@ -92,13 +91,8 @@ def _async_layer_worker(
     max_iter = int(cfg["max_iter"])
     reevaluate_pbest = bool(cfg.get("reevaluate_pbest", True))
 
-    # Mejor modelo COMPLETO visto por este worker (criterio: core.metrics.selection_key,
-    # más val_acc y, con la misma, menos val_ce).
-    val_best = {
-        "params": None,
-        "key": (float("inf"), float("inf")),
-        "iter_at_best": 0,
-    }
+    n_classes = data["n_classes"]
+    n_offered = 0
 
     def _step():
         # 1. Lectura lock-free del estado global.
@@ -123,11 +117,8 @@ def _async_layer_worker(
         # Eval val con snapshot ad-hoc + gbest fresco de esta capa.
         candidate = current.clone()
         candidate[spec.offset : spec.offset + spec.size] = opt.gbest
-        key = selection_key(mlp, candidate, X_val, y_val)
-        if key < val_best["key"]:
-            val_best["key"] = key
-            val_best["params"] = candidate
-            val_best["iter_at_best"] = step + 1
+        score = val_score(mlp, candidate, X_val, y_val, n_classes)
+        selector.offer(score, candidate, {"layer": k, "iter_at_best": step + 1})
 
     layer_start = time.time()
 
@@ -136,15 +127,14 @@ def _async_layer_worker(
         for step in range(max_iter):
             if _step():
                 _track_best(step)
+                n_offered += 1
 
     layer_time = time.time() - layer_start
 
     return {
         "k": k,
         "spec": spec,
-        "best_params": val_best["params"],
-        "val_best_key": val_best["key"],
-        "iter_at_val_best": val_best["iter_at_best"],
+        "n_offered": n_offered,
         "final_train_loss": float(opt.gbest_value),
         "iterations_run": int(opt.iters),
         "layer_time": layer_time,
@@ -203,6 +193,12 @@ def run_session_t2_async(
         if use_cuda else [None] * mlp.num_layers
     )
 
+    # Selector compartido por todos los workers. `params_init` entra primero para que
+    # la sesión nunca devuelva algo peor en val que su arranque (y gana los empates).
+    selector = Selector.from_cfg(cfg, data)
+    selector.offer(val_score(mlp, params_init, data["X_val"], data["y_val"], data["n_classes"]),
+                   params_init.clone(), {"layer": None, "iter_at_best": 0})
+
     submission_order = list(range(mlp.num_layers - 1, -1, -1))
     session_start = time.time()
 
@@ -212,7 +208,7 @@ def run_session_t2_async(
                 k: pool.submit(
                     _async_layer_worker,
                     mlp=mlp, data=data, current=current,
-                    cfg=cfg, k=k, opt=opts[k],
+                    cfg=cfg, k=k, opt=opts[k], selector=selector,
                     cuda_stream=streams[k],
                 )
                 for k in submission_order
@@ -228,22 +224,10 @@ def run_session_t2_async(
 
     session_time = time.time() - session_start
 
-    # Elegir el mejor modelo COMPLETO entre el punto de partida y el mejor de cada
-    # worker (más val_acc; con la misma, menos val_ce). `params_init` entra como
-    # candidato para que la sesión nunca devuelva algo peor en val que su arranque.
-    # El orden de los candidatos (init, luego capa 0..N-1) fija el desempate final.
-    best_key = selection_key(mlp, params_init, data["X_val"], data["y_val"])
-    params_best = params_init.clone()
-    winner_layer = None
-    iter_at_best = 0
-    for r in sorted(results, key=lambda x: x["k"]):
-        if r["best_params"] is None:
-            continue
-        if r["val_best_key"] < best_key:
-            best_key = r["val_best_key"]
-            params_best = r["best_params"]
-            winner_layer = r["k"]
-            iter_at_best = r["iter_at_val_best"]
+    # Regla de selección (core.selection) sobre los candidatos de todos los workers.
+    params_best, score_best, sel_info = selector.choose()
+    winner_layer = sel_info["layer"]
+    iter_at_best = sel_info["iter_at_best"]
 
     # Métricas: speedup vs costo secuencial-equivalente.
     seq_equiv = sum(r["layer_time"] for r in results)
@@ -260,9 +244,7 @@ def run_session_t2_async(
             "n_out": spec.n_out,
             "dim": spec.size,
             "final_train_loss": r["final_train_loss"],
-            "val_best_acc": float(1.0 - r["val_best_key"][0]),
-            "val_best_ce": float(r["val_best_key"][1]),
-            "iter_at_val_best": int(r["iter_at_val_best"]),
+            "candidates_offered": int(r["n_offered"]),
             "iterations_run": r["iterations_run"],
             "layer_time": float(r["layer_time"]),
         })
@@ -273,13 +255,14 @@ def run_session_t2_async(
         print(f"    capa {k} ({info['position']}) "
               f"[{info['n_in']}→{info['n_out']}, dim={info['dim']}]: "
               f"train_loss={info['final_train_loss']:.4E}  "
-              f"val_best: acc={info['val_best_acc']:.4f} ce={info['val_best_ce']:.4f}  "
+              f"candidatos={info['candidates_offered']}  "
               f"iters={info['iterations_run']}  "
               f"{info['layer_time']:.2f}s")
 
     winner_label = "params_init" if winner_layer is None else f"capa {winner_layer}"
-    best_val_acc, best_val_ce = 1.0 - best_key[0], best_key[1]
-    print(f"    🔀 async lock-free: best_val: acc={best_val_acc:.4f} ce={best_val_ce:.4f} "
+    best_val_acc, best_val_ce = score_best.acc, score_best.ce
+    print(f"    🔀 async lock-free: best_val: acc={best_val_acc:.4f} bacc={score_best.bacc:.4f} "
+          f"ce={best_val_ce:.4f} (franja: no dominados {sel_info['n_tied_nondominated']}/{sel_info['n_candidates']}) "
           f"(snapshot de {winner_label}, iter {iter_at_best})   "
           f"paralelo={session_time:.2f}s   "
           f"Σ secuencial={seq_equiv:.2f}s   speedup≈{speedup:.2f}×")
@@ -289,7 +272,9 @@ def run_session_t2_async(
         "per_layer": per_layer,
         "best_val_acc_during_session": float(best_val_acc),
         "best_val_ce_during_session": float(best_val_ce),
+        "best_val_bacc_during_session": float(score_best.bacc),
         "iter_at_best": int(iter_at_best),
+        "selection": sel_info,
         "session_time": session_time,
         "parallel_wall_time": session_time,
         "sequential_equivalent_time": seq_equiv,

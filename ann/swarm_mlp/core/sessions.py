@@ -1,8 +1,10 @@
 """Infraestructura común de sesiones:
 - Loop de sesiones con selección por VAL (nunca por test).
-- Criterio de selección (el mismo que usan las técnicas, `core.metrics.selection_key`):
-  mayor accuracy de validación y, con la misma accuracy, menor cross-entropy de
-  validación. El MSE entre etiquetas enteras se sigue reportando, pero NO decide.
+- Criterio de selección (el mismo que usan las técnicas, `core.selection.Selector`):
+  regla de k errores estándar sobre la métrica principal de validación (acc o
+  balanced acc); entre los empatados, menor cross-entropy de validación. Con
+  acc y k = 0 es la regla histórica. El MSE entre etiquetas enteras se sigue
+  reportando, pero NO decide.
 - Cadena inter-sesión: el `params_init` de la sesión k+1 es SIEMPRE el mejor global
   hasta ahora (no el de la sesión inmediata anterior). Una sesión peor no envenena
   la cadena.
@@ -21,9 +23,8 @@ import torch
 
 from core.budget import METER, TRACE_COLUMNS
 from core.mlp import MLP
-from core.metrics import (
-    SELECTION_CRITERION, accuracy, classification_metrics, confusion_matrix, mse_int,
-)
+from core.metrics import accuracy, classification_metrics, confusion_matrix, mse_int
+from core.selection import Selector, val_score
 from core.loss import cross_entropy_from_logits, l2_penalty
 from core.provenance import collect_provenance
 
@@ -36,7 +37,7 @@ TechniqueFn = Callable[..., Dict[str, Any]]
 class SessionResult:
     session: int
     seed: int
-    val_acc: float           # criterio de selección primario (mayor es mejor)
+    val_acc: float           # accuracy de validación (métrica principal si selection_metric=acc)
     val_ce: float            # desempate: cross-entropy de validación (menor es mejor)
     val_cost: float          # reporte: MSE entre etiquetas enteras; NO usado para selección
     train_loss: float        # reporte: CE + L2 sobre train con params_best
@@ -49,6 +50,7 @@ class SessionResult:
     per_layer: list = field(default_factory=list)
     session_time: float = 0.0
     train_acc: float = 0.0          # reporte: accuracy sobre el conjunto de fitness
+    val_balanced_acc: float = 0.0   # métrica principal si selection_metric=bacc
     val_macro_f1: float = 0.0
     test_macro_f1: float = 0.0
     test_balanced_acc: float = 0.0
@@ -60,6 +62,7 @@ class SessionResult:
     selection_time: float = 0.0     # segundos de session_time gastados en eso
     gpu_peak_mb: float = 0.0        # memoria pico de GPU durante la sesión (0 en CPU)
     trace: list = field(default_factory=list)   # puntos [fitness_evals, seconds, val_acc, val_ce]
+    selection: dict = field(default_factory=dict)  # diagnóstico de la regla dentro de la técnica
 
 
 def evaluate_full(mlp: MLP, flat_params: torch.Tensor, X: torch.Tensor, y: torch.Tensor):
@@ -145,9 +148,10 @@ def run_sessions(
 
     sessions: List[SessionResult] = []
     best_idx = 0
-    # Clave de selección (1 - val_acc, val_ce): gana la menor, comparada como tupla.
-    best_key = (float("inf"), float("inf"))
     best_params = params_init.clone()
+    # Selección entre sesiones con la misma regla que dentro de las técnicas.
+    session_selector = Selector.from_cfg(cfg, data)
+    criterion = session_selector.criterion
 
     total_start = time.time()
 
@@ -174,27 +178,25 @@ def run_sessions(
                        if device.type == "cuda" else 0.0)
 
         params_k = tech_out["params_best"]
-        val_acc, val_ce, val_cost, _ = evaluate_full(mlp, params_k, data["X_val"], data["y_val"])
-        key = (1.0 - val_acc, val_ce)
 
-        # Guard A — no-regresión: si la salida de la técnica es PEOR (por el criterio
-        # de selección) que el contexto inicial de la sesión, descartamos el resultado
-        # y caemos a params_init. Esto evita que una sesión catastrófica produzca
-        # peores params que los del contexto de partida (la cadena monótona ya protege
-        # el best global, pero el reporte por sesión queda más limpio).
-        val_acc_init, val_ce_init, val_cost_init, _ = evaluate_full(
-            mlp, params_init, data["X_val"], data["y_val"]
-        )
-        key_init = (1.0 - val_acc_init, val_ce_init)
-        guard_triggered = False
-        if key_init < key:
-            print(f"  ⚠ Guard A activado: técnica produjo val ACC={val_acc:.4f} CE={val_ce:.4f}, "
-                  f"peor que params_init (ACC={val_acc_init:.4f} CE={val_ce_init:.4f}). "
-                  f"Fallback a params_init.")
+        # Guard A — no-regresión: la salida de la técnica y params_init compiten con la
+        # regla de selección (la salida entra primero y gana los empates). Si gana
+        # params_init, descartamos el resultado. Evita que una sesión catastrófica
+        # produzca peores params que los del contexto de partida (la cadena monótona
+        # ya protege el best global, pero el reporte por sesión queda más limpio).
+        guard = Selector.from_cfg(cfg, data)
+        score_k = val_score(mlp, params_k, data["X_val"], data["y_val"], data["n_classes"])
+        score_init = val_score(mlp, params_init, data["X_val"], data["y_val"], data["n_classes"])
+        guard.offer(score_k, "technique")
+        guard.offer(score_init, "init")
+        guard_triggered = guard.choose()[0] == "init"
+        if guard_triggered:
+            print(f"  ⚠ Guard A activado: técnica produjo val ACC={score_k.acc:.4f} "
+                  f"BACC={score_k.bacc:.4f} CE={score_k.ce:.4f}, peor que params_init "
+                  f"(ACC={score_init.acc:.4f} BACC={score_init.bacc:.4f} CE={score_init.ce:.4f}) "
+                  f"según {criterion}. Fallback a params_init.")
             params_k = params_init.clone()
-            val_acc, val_ce, val_cost = val_acc_init, val_ce_init, val_cost_init
-            key = key_init
-            guard_triggered = True
+        val_acc, val_ce, val_cost, _ = evaluate_full(mlp, params_k, data["X_val"], data["y_val"])
 
         test_acc, test_ce, test_cost, y_test_pred_k = evaluate_full(
             mlp, params_k, data["X_test"], data["y_test"])
@@ -209,7 +211,8 @@ def run_sessions(
 
         val_test_acc_gap = val_acc - test_acc                       # diagnóstico, no selección
 
-        print(f"  val: ACC={val_acc:.4f}  CE={val_ce:.4f}  MSE={val_cost:.4f}  "
+        print(f"  val: ACC={val_acc:.4f}  BACC={val_cls['balanced_acc']:.4f}  "
+              f"CE={val_ce:.4f}  MSE={val_cost:.4f}  "
               f"train_loss={train_loss:.4f}  ||θ||²={l2_norm_sq:.2f}   │   "
               f"test: ACC={test_acc:.4f}  CE={test_ce:.4f}  MSE={test_cost:.4f}   │   "
               f"gap(val-test)={val_test_acc_gap:+.4f}"
@@ -229,6 +232,7 @@ def run_sessions(
             per_layer=tech_out.get("per_layer", []),
             session_time=float(session_time),
             train_acc=float(train_acc),
+            val_balanced_acc=val_cls["balanced_acc"],
             val_macro_f1=val_cls["macro_f1"],
             test_macro_f1=test_cls["macro_f1"],
             test_balanced_acc=test_cls["balanced_acc"],
@@ -238,14 +242,19 @@ def run_sessions(
             selection_time=float(cost["selection_time"]),
             gpu_peak_mb=float(gpu_peak_mb),
             trace=cost["trace"],
+            selection=tech_out.get("selection", {}),
         ))
 
-        # Selección entre sesiones: mayor val_acc; con la misma, menor val_ce.
-        # Un empate exacto (p. ej. tras el fallback del Guard A) conserva la anterior.
-        if key < best_key:
-            best_key = key
-            best_idx = k
-            best_params = params_k.clone()
+        # Selección entre sesiones con la regla de selección. Un empate exacto
+        # (p. ej. tras el fallback del Guard A) conserva la anterior.
+        session_selector.offer(
+            val_score(mlp, params_k, data["X_val"], data["y_val"], data["n_classes"]),
+            params_k.clone(), {"session": k},
+        )
+        prev_idx = best_idx if k > 0 else None
+        best_params, _, sess_info = session_selector.choose()
+        best_idx = sess_info["session"]
+        if best_idx != prev_idx:
             print(f"  ✨ nueva mejor sesión "
                   f"(val ACC={val_acc:.4f}, CE={val_ce:.4f}, train={train_loss:.4f})")
 
@@ -262,9 +271,10 @@ def run_sessions(
     final_test_acc, final_test_ce, final_test_cost, y_test_pred = evaluate_full(
         mlp, best_params, data["X_test"], data["y_test"]
     )
-    final_val_acc, final_val_ce, final_val_cost, _ = evaluate_full(
+    final_val_acc, final_val_ce, final_val_cost, y_val_pred = evaluate_full(
         mlp, best_params, data["X_val"], data["y_val"]
     )
+    final_val_cls = classification_metrics(data["y_val"], y_val_pred, data["n_classes"])
 
     cm = confusion_matrix(data["y_test"], y_test_pred, data["n_classes"])
 
@@ -276,8 +286,11 @@ def run_sessions(
 
     winner = {
         "session": int(best_idx),
-        "selection_criterion": SELECTION_CRITERION,
+        "selection_criterion": criterion,
+        "selection_metric": session_selector.metric,
+        "selection_se": session_selector.n_se,
         "val_acc": float(final_val_acc),
+        "val_balanced_acc": float(final_val_cls["balanced_acc"]),
         "val_ce": float(final_val_ce),
         "val_cost": float(final_val_cost),
         "train_loss": float(final_train_loss),
@@ -299,6 +312,7 @@ def run_sessions(
     learning_curve = {
         "session_idx":       [s.session for s in sessions],
         "val_acc":           [s.val_acc for s in sessions],
+        "val_balanced_acc":  [s.val_balanced_acc for s in sessions],
         "val_ce":            [s.val_ce for s in sessions],
         "val_mse":           [s.val_cost for s in sessions],
         "test_acc":          [s.test_acc for s in sessions],
@@ -337,8 +351,9 @@ def run_sessions(
     np.save(output_dir / "gbest.npy", best_params.detach().cpu().numpy())
 
     print("\n" + "═" * 70)
-    print(f"🏆 Ganadora: sesión {best_idx}   (criterio: mayor val ACC, desempate menor val CE)")
-    print(f"   val  ACC={final_val_acc:.4f}  CE={final_val_ce:.4f}  MSE={final_val_cost:.4f}   (criterio de selección)")
+    print(f"🏆 Ganadora: sesión {best_idx}   (criterio: {criterion})")
+    print(f"   val  ACC={final_val_acc:.4f}  BACC={final_val_cls['balanced_acc']:.4f}  "
+          f"CE={final_val_ce:.4f}  MSE={final_val_cost:.4f}   (criterio de selección)")
     print(f"   test ACC={final_test_acc:.4f}  CE={final_test_ce:.4f}  MSE={final_test_cost:.4f}   (final, no sesgado)")
     print(f"⏱  Tiempo total: {total_time:.2f}s   "
           f"evaluaciones de fitness: {result_dict['total_fitness_evals']} "
