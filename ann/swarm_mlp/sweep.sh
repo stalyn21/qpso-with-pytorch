@@ -18,6 +18,11 @@
 #   G_VALUES="1.0 1.2 1.4 1.6 1.8 2.0" ITERS_LIST="100 200" ./sweep.sh  # g × iteraciones
 #   PARTICLES="25 50 75 100" ./sweep.sh                            # partículas
 #   SEL_METRIC=bacc SEL_SE=1 DATA_SEED=200 ./sweep.sh             # regla de 1 SE, otra partición
+#   OPTIMIZER=qpsoo ALPHAS="1.5,0.5 1.0,0.5 0.75" ./sweep.sh       # QPSO: barrido de alpha
+#
+# OPTIMIZER: qdpsoo (default; barre G_VALUES) o qpsoo (barre ALPHAS, ignora G_VALUES).
+# ALPHAS: lista separada por espacios; cada elemento es "max,min" (decaimiento lineal
+# de max a min a lo largo de las iteraciones) o un solo valor (alpha constante).
 #
 # SEL_METRIC / SEL_SE: regla de selección por validación (core/selection.py). Por
 # defecto acc y 0 = regla histórica. DATA_SEED: semilla de la partición de los datos
@@ -29,6 +34,8 @@ OUT=${OUT:-output/paper2-1s}
 PARTICLES=${PARTICLES:-"50"}
 ITERS_LIST=${ITERS_LIST:-"100"}
 G_VALUES=${G_VALUES:-"1.13"}
+OPTIMIZER=${OPTIMIZER:-qdpsoo}
+ALPHAS=${ALPHAS:-"1.0,0.5"}
 L2_FORM=${L2_FORM:-mean}
 LAMBDAS=${LAMBDAS:-"10"}
 WARM_PCT=${WARM_PCT:-30}
@@ -41,7 +48,12 @@ SEL_METRIC=${SEL_METRIC:-acc}
 SEL_SE=${SEL_SE:-0}
 DATA_SEED=${DATA_SEED:-100}
 
-echo "OUT=$OUT PARTICLES=[$PARTICLES] ITERS_LIST=[$ITERS_LIST] G_VALUES=[$G_VALUES]"
+case "$OPTIMIZER" in
+  qdpsoo) COEFS=$G_VALUES; COEF_NAME=g ;;
+  qpsoo)  COEFS=$ALPHAS;   COEF_NAME=a ;;
+  *) echo "OPTIMIZER desconocido: $OPTIMIZER (qdpsoo | qpsoo)" >&2; exit 2 ;;
+esac
+echo "OUT=$OUT PARTICLES=[$PARTICLES] ITERS_LIST=[$ITERS_LIST] OPTIMIZER=$OPTIMIZER $COEF_NAME=[$COEFS]"
 echo "L2_FORM=$L2_FORM LAMBDAS=[$LAMBDAS] WARM_PCT=$WARM_PCT PATIENCE=${PATIENCE:-=iteraciones}"
 echo "SEEDS=[$SEEDS] DATASETS=[$DATASETS] TECHNIQUES=[$TECHNIQUES] FOLDS=$FOLDS"
 echo "SEL_METRIC=$SEL_METRIC SEL_SE=$SEL_SE DATA_SEED=$DATA_SEED"
@@ -49,19 +61,24 @@ for seed in $SEEDS; do
   for ds in $DATASETS; do
     for p in $PARTICLES; do
       for it in $ITERS_LIST; do
-        for g in $G_VALUES; do
+        for coef in $COEFS; do
+          if [ "$OPTIMIZER" = qdpsoo ]; then
+            opt_args=(--optimizer qdpsoo --g "$coef")
+          else
+            opt_args=(--optimizer qpsoo --alpha ${coef//,/ })
+          fi
           for lam in $LAMBDAS; do
             for t in $TECHNIQUES; do
               pat=${PATIENCE:-$it}
               t0=$(date +%s)
               python runner.py --technique "$t" --dataset "$ds" --cv-folds "$FOLDS" \
                 --n-sessions 1 --n-rounds 1 --n-particles "$p" --warm-percent "$WARM_PCT" \
-                --max-iter "$it" --patience "$pat" --g "$g" \
+                --max-iter "$it" --patience "$pat" "${opt_args[@]}" \
                 --l2-form "$L2_FORM" --lambda-l2 "$lam" \
                 --selection-metric "$SEL_METRIC" --selection-se "$SEL_SE" --data-seed "$DATA_SEED" \
                 --seed "$seed" --output-dir "$OUT" \
-                > /dev/null || echo "FALLO seed=$seed $ds P=$p I=$it g=$g l2=$lam $t"
-              echo "seed=$seed $ds P=$p I=$it g=$g l2=$L2_FORM:$lam sel=$SEL_METRIC:$SEL_SE $t $(( $(date +%s) - t0 ))s"
+                > /dev/null || echo "FALLO seed=$seed $ds P=$p I=$it $COEF_NAME=$coef l2=$lam $t"
+              echo "seed=$seed $ds P=$p I=$it $COEF_NAME=$coef l2=$L2_FORM:$lam sel=$SEL_METRIC:$SEL_SE $t $(( $(date +%s) - t0 ))s"
             done
           done
         done
