@@ -32,6 +32,7 @@ from core.images import (CV_IMAGE_DATASETS, DEFAULT_IMAGE_SIZE, IMAGE_DATASETS, 
 from core.data import prepare_dataset, prepare_dataset_kfold, BENCHMARK_DATASETS, PAPER_DATASETS
 from core.bounds import BOUNDS_MODES
 from core.loss import L2_FORMS
+from core.presets import PRESETS
 from core.selection import SELECTION_METRICS
 from core.mlp import MLP
 from core.sessions import run_sessions
@@ -56,8 +57,13 @@ TECHNIQUES = {
 }
 
 
-def parse_args():
+def parse_args(argv=None):
     p = argparse.ArgumentParser(description="Multi-swarm MLP via QDPSO (PyTorch)")
+    p.add_argument("--preset", default=None, choices=sorted(PRESETS),
+                   help="Fija los defaults de un protocolo (core/presets.py); un flag dado a "
+                        "mano gana siempre. 'paper2' = " + ", ".join(
+                            f"{k}={v}" for k, v in PRESETS["paper2"].items())
+                        + ". Sin preset, los defaults son los históricos.")
     p.add_argument("--technique", required=True, choices=sorted(TECHNIQUES.keys()))
     p.add_argument("--dataset", required=True,
                    choices=sorted(set(BENCHMARK_DATASETS) | set(PAPER_DATASETS) | set(IMAGE_DATASETS)),
@@ -195,7 +201,22 @@ def parse_args():
     p.add_argument("--tol", type=float, default=1e-12)
     p.add_argument("--patience", type=int, default=100)
     p.add_argument("--output-dir", default=str(_HERE / "output"))
-    args = p.parse_args()
+    p.add_argument("--edge-tol", type=float, default=1e-3,
+                   help="Diagnóstico (no cambia el entrenamiento): un parámetro cuenta como "
+                        "pegado al borde de su caja si está a menos de edge_tol·(ancho/2) de "
+                        "ella. Con [-1, 1] y 1e-3 es |w| >= 0.999. Ver core/diagnostics.py.")
+
+    # El preset cambia los defaults antes del parseo final, así los flags explícitos ganan.
+    pre = argparse.ArgumentParser(add_help=False)
+    pre.add_argument("--preset", default=None, choices=sorted(PRESETS))
+    preset = pre.parse_known_args(argv)[0].preset
+    if preset is not None:
+        dests = {a.dest for a in p._actions}
+        unknown = set(PRESETS[preset]) - dests
+        if unknown:
+            raise ValueError(f"preset {preset!r} con claves que el runner no tiene: {sorted(unknown)}")
+        p.set_defaults(**PRESETS[preset])
+    args = p.parse_args(argv)
     if args.model == "cnn":
         if args.dataset not in IMAGE_DATASETS:
             p.error(f"--model cnn requiere un dataset de imágenes: {', '.join(IMAGE_DATASETS)}.")
@@ -219,6 +240,8 @@ def parse_args():
         p.error("--image-size es de la CNN (--model cnn).")
     if args.match_evals_of and args.eval_budget is not None:
         p.error("--match-evals-of y --eval-budget son excluyentes.")
+    if not 0 <= args.edge_tol < 1:
+        p.error(f"--edge-tol debe estar en [0, 1) (se dio {args.edge_tol}).")
     if args.selection_se < 0:
         p.error(f"--selection-se debe ser >= 0 (se dio {args.selection_se}).")
     if args.warm_percent is not None:
@@ -357,6 +380,8 @@ def _build_cfg_and_run(
         "warm_noise": args.warm_noise,
         "cv_folds": args.cv_folds,
         "fold_idx": data.get("fold_idx", None),
+        "preset": args.preset,
+        "edge_tol": args.edge_tol,
     }
 
     return run_sessions(

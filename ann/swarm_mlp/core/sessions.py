@@ -23,6 +23,7 @@ import torch
 
 from core.bounds import layer_range
 from core.budget import METER, TRACE_COLUMNS
+from core.diagnostics import format_param_stats, param_stats
 from core.mlp import MLP
 from core.metrics import accuracy, classification_metrics, confusion_matrix, mse_int
 from core.selection import Selector, val_score
@@ -64,6 +65,7 @@ class SessionResult:
     gpu_peak_mb: float = 0.0        # memoria pico de GPU durante la sesión (0 en CPU)
     trace: list = field(default_factory=list)   # puntos [fitness_evals, seconds, val_acc, val_ce]
     selection: dict = field(default_factory=dict)  # diagnóstico de la regla dentro de la técnica
+    param_stats: dict = field(default_factory=dict)  # escala y borde por capa (core/diagnostics.py)
 
 
 def evaluate_full(mlp: MLP, flat_params: torch.Tensor, X: torch.Tensor, y: torch.Tensor):
@@ -209,6 +211,7 @@ def run_sessions(
             mlp, params_k, data["X_train"], data["y_train"], cfg["lambda_l2"]
         )
         l2_norm_sq = l2_norm_squared(params_k)
+        stats_k = param_stats(mlp, params_k, cfg)
 
         val_test_acc_gap = val_acc - test_acc                       # diagnóstico, no selección
 
@@ -221,6 +224,7 @@ def run_sessions(
         print(f"  costo: {cost['fitness_evals']} evaluaciones de fitness  "
               f"⏱ {session_time:.2f}s (selección {cost['selection_time']:.2f}s)"
               + (f"  GPU pico {gpu_peak_mb:.0f} MB" if device.type == "cuda" else ""))
+        print(f"  {format_param_stats(stats_k)}")
 
         sessions.append(SessionResult(
             session=k, seed=session_seed,
@@ -244,6 +248,7 @@ def run_sessions(
             gpu_peak_mb=float(gpu_peak_mb),
             trace=cost["trace"],
             selection=tech_out.get("selection", {}),
+            param_stats=stats_k,
         ))
 
         # Selección entre sesiones con la regla de selección. Un empate exacto
@@ -304,6 +309,7 @@ def run_sessions(
         "fitness_evals_to_winner": int(sum(s.fitness_evals for s in to_winner)),
         "time_to_winner": float(sum(s.session_time for s in to_winner)),
         "test_confusion_matrix": cm,
+        "param_stats": param_stats(mlp, best_params, cfg),
     }
 
     # Persistencia
