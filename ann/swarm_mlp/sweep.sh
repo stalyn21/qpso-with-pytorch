@@ -28,6 +28,10 @@
 # defecto acc y 0 = regla histórica. DATA_SEED: semilla de la partición de los datos
 # (folds, val y test); --seed sólo cambia la inicialización. El directorio de salida
 # NO incluye DATA_SEED: usar un OUT distinto por partición.
+#
+# GAINS: lista de "none" y/o "layer" (ganancia por capa, core/gain.py); GAIN_RANGE es
+# el rango de s. T1_INCUMBENT=1 agrega --t1-incumbent (sólo afecta a T1). Ejemplo:
+#   GAINS="none layer" L2_FORM=sample LAMBDAS="0 0.1 0.3 1 3" ./sweep.sh
 # Corre en serie para que los tiempos de pared sean comparables.
 set -u
 OUT=${OUT:-output/paper2-1s}
@@ -47,6 +51,11 @@ FOLDS=${FOLDS:-5}
 SEL_METRIC=${SEL_METRIC:-acc}
 SEL_SE=${SEL_SE:-0}
 DATA_SEED=${DATA_SEED:-100}
+GAINS=${GAINS:-none}
+GAIN_RANGE=${GAIN_RANGE:-"0.1 2"}
+T1_INCUMBENT=${T1_INCUMBENT:-0}
+inc_args=()
+[ "$T1_INCUMBENT" = 1 ] && inc_args=(--t1-incumbent)
 
 case "$OPTIMIZER" in
   qdpsoo) COEFS=$G_VALUES; COEF_NAME=g ;;
@@ -57,6 +66,7 @@ echo "OUT=$OUT PARTICLES=[$PARTICLES] ITERS_LIST=[$ITERS_LIST] OPTIMIZER=$OPTIMI
 echo "L2_FORM=$L2_FORM LAMBDAS=[$LAMBDAS] WARM_PCT=$WARM_PCT PATIENCE=${PATIENCE:-=iteraciones}"
 echo "SEEDS=[$SEEDS] DATASETS=[$DATASETS] TECHNIQUES=[$TECHNIQUES] FOLDS=$FOLDS"
 echo "SEL_METRIC=$SEL_METRIC SEL_SE=$SEL_SE DATA_SEED=$DATA_SEED"
+echo "GAINS=[$GAINS] GAIN_RANGE=[$GAIN_RANGE] T1_INCUMBENT=$T1_INCUMBENT"
 for seed in $SEEDS; do
   for ds in $DATASETS; do
     for p in $PARTICLES; do
@@ -68,6 +78,7 @@ for seed in $SEEDS; do
             opt_args=(--optimizer qpsoo --alpha ${coef//,/ })
           fi
           for lam in $LAMBDAS; do
+           for gain in $GAINS; do
             for t in $TECHNIQUES; do
               pat=${PATIENCE:-$it}
               t0=$(date +%s)
@@ -76,10 +87,12 @@ for seed in $SEEDS; do
                 --max-iter "$it" --patience "$pat" "${opt_args[@]}" \
                 --l2-form "$L2_FORM" --lambda-l2 "$lam" \
                 --selection-metric "$SEL_METRIC" --selection-se "$SEL_SE" --data-seed "$DATA_SEED" \
+                --layer-gain "$gain" --gain-range $GAIN_RANGE "${inc_args[@]}" \
                 --seed "$seed" --output-dir "$OUT" \
-                > /dev/null || echo "FALLO seed=$seed $ds P=$p I=$it $COEF_NAME=$coef l2=$lam $t"
-              echo "seed=$seed $ds P=$p I=$it $COEF_NAME=$coef l2=$L2_FORM:$lam sel=$SEL_METRIC:$SEL_SE $t $(( $(date +%s) - t0 ))s"
+                > /dev/null || echo "FALLO seed=$seed $ds P=$p I=$it $COEF_NAME=$coef l2=$lam gain=$gain $t"
+              echo "seed=$seed $ds P=$p I=$it $COEF_NAME=$coef l2=$L2_FORM:$lam sel=$SEL_METRIC:$SEL_SE gain=$gain $t $(( $(date +%s) - t0 ))s"
             done
+           done
           done
         done
       done

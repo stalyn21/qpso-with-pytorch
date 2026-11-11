@@ -11,10 +11,15 @@ Por capa k (y para el modelo completo en `total`):
   la caja de la capa (`core.bounds.layer_range`), a menos de `edge_tol`·(ancho / 2).
   Con la caja [−1, 1] y edge_tol = 1e-3 es |w| ≥ 0.999.
 - `low`, `high`: la caja de la capa.
+- Con ganancia por capa (`core/gain.py`): `gain` = s de la capa y `w_sq_mean_eff` =
+  s²·`w_sq_mean`, la escala de los pesos que usa la red. `w_sq_mean` y el borde se
+  miden sobre W crudo, que es lo que está en la caja. Sin ganancia, `gain` es None y
+  `w_sq_mean_eff` = `w_sq_mean`.
 
-Pesos y sesgos se separan con `model.weight_mask(k)`, así que sirve igual para el
-MLP y para la CNN.
+Pesos, sesgos y ganancias se separan con las máscaras del modelo, así que sirve
+igual para el MLP y para la CNN.
 """
+import math
 from typing import Any, Dict
 
 import torch
@@ -27,18 +32,22 @@ def param_stats(model, flat: torch.Tensor, cfg: Dict[str, Any]) -> Dict[str, Any
     edge_tol = float(cfg["edge_tol"])
     layers = []
     tot = {"n_weights": 0, "n_biases": 0, "w_sq_sum": 0.0, "b_sq_sum": 0.0,
-           "w_edge": 0, "b_edge": 0}
+           "w_sq_eff_sum": 0.0, "w_edge": 0, "b_edge": 0}
     with torch.no_grad():
         for k, spec in enumerate(model.layer_specs):
             seg = flat[spec.offset : spec.offset + spec.size].double()
             mask = model.weight_mask(k).to(seg.device)
+            bmask = model.bias_mask(k).to(seg.device)
+            gmask = model.gain_mask(k).to(seg.device)
             low, high = layer_range(model, cfg, k)
             margin = edge_tol * (high - low) / 2.0
             at_edge = (seg <= low + margin) | (seg >= high - margin)
-            w, b = seg[mask], seg[~mask]
+            w, b = seg[mask], seg[bmask]
             n_w, n_b = int(w.numel()), int(b.numel())
             w_sq, b_sq = float((w ** 2).sum()), float((b ** 2).sum())
-            w_edge, b_edge = int(at_edge[mask].sum()), int(at_edge[~mask].sum())
+            w_edge, b_edge = int(at_edge[mask].sum()), int(at_edge[bmask].sum())
+            gain = math.exp(float(seg[gmask][0])) if bool(gmask.any()) else None
+            w_sq_eff = w_sq * (gain ** 2 if gain is not None else 1.0)
             layers.append({
                 "layer": k,
                 "n_weights": n_w,
@@ -49,7 +58,10 @@ def param_stats(model, flat: torch.Tensor, cfg: Dict[str, Any]) -> Dict[str, Any
                 "b_edge_frac": b_edge / n_b if n_b else 0.0,
                 "low": float(low),
                 "high": float(high),
+                "gain": gain,
+                "w_sq_mean_eff": w_sq_eff / n_w if n_w else 0.0,
             })
+            tot["w_sq_eff_sum"] += w_sq_eff
             tot["n_weights"] += n_w
             tot["n_biases"] += n_b
             tot["w_sq_sum"] += w_sq
@@ -61,6 +73,7 @@ def param_stats(model, flat: torch.Tensor, cfg: Dict[str, Any]) -> Dict[str, Any
         "n_weights": n_w,
         "n_biases": n_b,
         "w_sq_mean": tot["w_sq_sum"] / n_w if n_w else 0.0,
+        "w_sq_mean_eff": tot["w_sq_eff_sum"] / n_w if n_w else 0.0,
         "b_sq_mean": tot["b_sq_sum"] / n_b if n_b else 0.0,
         "w_edge_frac": tot["w_edge"] / n_w if n_w else 0.0,
         "b_edge_frac": tot["b_edge"] / n_b if n_b else 0.0,
@@ -72,4 +85,9 @@ def format_param_stats(stats: Dict[str, Any]) -> str:
     """Una línea para la consola: media de w² y fracción de pesos en el borde por capa."""
     w_sq = "/".join(f"{l['w_sq_mean']:.3f}" for l in stats["layers"])
     edge = "/".join(f"{l['w_edge_frac']:.3f}" for l in stats["layers"])
-    return f"pesos por capa: media w²={w_sq}  en el borde={edge}"
+    line = f"pesos por capa: media w²={w_sq}  en el borde={edge}"
+    if stats["layers"] and stats["layers"][0]["gain"] is not None:
+        gains = "/".join(f"{l['gain']:.3f}" for l in stats["layers"])
+        eff = "/".join(f"{l['w_sq_mean_eff']:.3f}" for l in stats["layers"])
+        line += f"  ganancia s={gains}  media (s·w)²={eff}"
+    return line

@@ -50,6 +50,9 @@ SEL_METRIC=${SEL_METRIC:-bacc}
 SEL_SE=${SEL_SE:-1}
 DATA_SEED=${DATA_SEED:-100}
 VARIANTS=${VARIANTS:-"none,none,fixed"}
+# Ganancia por capa (core/gain.py): lista de "none" y/o "layer"; GAIN_RANGE = rango de s.
+GAINS=${GAINS:-none}
+GAIN_RANGE=${GAIN_RANGE:-"0.1 2"}
 BOUNDS_SCALE=${BOUNDS_SCALE:-2.449489742783178}
 MONITOR=${MONITOR:-1}
 MONITOR_INTERVAL=${MONITOR_INTERVAL:-1.0}
@@ -59,7 +62,7 @@ echo "OUT=$OUT SIZES=[$SIZES] DATASETS=[$DATASETS] TECHNIQUES=[$TECHNIQUES] SEED
 echo "PARTICLES=[$PARTICLES] ITERS_LIST=[$ITERS_LIST] G_VALUES=[$G_VALUES] FITNESS_LIST=[$FITNESS_LIST]"
 echo "CV_DATASETS=[$CV_DATASETS] CV_FOLDS=$CV_FOLDS IMAGE_SIZE=${IMAGE_SIZE:-default}"
 echo "VAL_SIZE=$VAL_SIZE L2=$L2_FORM:[$LAMBDAS] WARM_PCT=$WARM_PCT PATIENCE=$PATIENCE MATCH_T4=$MATCH_T4"
-echo "VARIANTS=[$VARIANTS] BOUNDS_SCALE=$BOUNDS_SCALE"
+echo "VARIANTS=[$VARIANTS] BOUNDS_SCALE=$BOUNDS_SCALE GAINS=[$GAINS] GAIN_RANGE=[$GAIN_RANGE]"
 echo "SEL=$SEL_METRIC:$SEL_SE DATA_SEED=$DATA_SEED MONITOR=$MONITOR($MONITOR_INTERVAL s) -> $RES_DIR"
 for seed in $SEEDS; do
   for ds in $DATASETS; do
@@ -84,12 +87,13 @@ for seed in $SEEDS; do
               for lam in $LAMBDAS; do
                for var in $VARIANTS; do
                 IFS=, read -r in_norm act_norm b_mode <<< "$var"
+               for gain in $GAINS; do
                 for t in $TECHNIQUES; do
                   match=()
                   [ "$t" = "t4" ] && match=(--match-evals-of "$MATCH_T4")
                   mon=()
                   if [ "$MONITOR" = "1" ]; then
-                    label="${t}_${ds}${ds_tag}_${size}_fit${fit}_P${p}_I${it}_g${g}_l2-${lam}_in-${in_norm}_act-${act_norm}_b-${b_mode}_seed${seed}"
+                    label="${t}_${ds}${ds_tag}_${size}_fit${fit}_P${p}_I${it}_g${g}_l2-${lam}_in-${in_norm}_act-${act_norm}_b-${b_mode}_gain-${gain}_seed${seed}"
                     mon=(python monitor.py --out "$RES_DIR/$label" --interval "$MONITOR_INTERVAL" \
                          --disk-path "$OUT" --)
                   fi
@@ -101,11 +105,13 @@ for seed in $SEEDS; do
                     --l2-form "$L2_FORM" --lambda-l2 "$lam" \
                     --input-norm "$in_norm" --act-norm "$act_norm" \
                     --bounds-mode "$b_mode" --bounds-scale "$BOUNDS_SCALE" \
+                    --layer-gain "$gain" --gain-range $GAIN_RANGE \
                     --selection-metric "$SEL_METRIC" --selection-se "$SEL_SE" --data-seed "$DATA_SEED" \
                     --seed "$seed" --output-dir "$OUT" \
-                    > /dev/null || echo "FALLO seed=$seed $ds $size fit=$fit P=$p I=$it g=$g l2=$lam $var $t"
-                  echo "seed=$seed $ds$ds_tag $size fit=$fit P=$p I=$it g=$g l2=$L2_FORM:$lam $var $t $(( $(date +%s) - t0 ))s"
+                    > /dev/null || echo "FALLO seed=$seed $ds $size fit=$fit P=$p I=$it g=$g l2=$lam $var gain=$gain $t"
+                  echo "seed=$seed $ds$ds_tag $size fit=$fit P=$p I=$it g=$g l2=$L2_FORM:$lam $var gain=$gain $t $(( $(date +%s) - t0 ))s"
                 done
+               done
                done
               done
             done

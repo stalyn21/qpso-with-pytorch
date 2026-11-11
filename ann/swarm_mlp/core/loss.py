@@ -38,6 +38,8 @@ def l2_penalty(
     n_train: int,
     form: str = "mean",
     weight_mask: torch.Tensor = None,
+    mean_mask: torch.Tensor = None,
+    gain_index: torch.Tensor = None,
 ) -> torch.Tensor:
     """Penalización L2. `form` elige la normalización (ver `L2_FORMS`).
 
@@ -74,6 +76,14 @@ def l2_penalty(
     son constantes y aportan una contribución constante al L2 que no afecta
     el gradiente local.
 
+    Ganancia por capa (`core/gain.py`):
+    - `gain_index` (long, misma longitud que `params`): para cada posición, el índice
+      de la coordenada u = ln s que la escala, o -1. Esas posiciones se penalizan como
+      pesos efectivos: (s·w)² = exp(2u)·w².
+    - `mean_mask` (bool): en la forma "mean", qué posiciones entran (pesos y sesgos,
+      no las ganancias). None = todas, como antes. En "mean", `d_total` es el número
+      de pesos y sesgos de la red, sin las ganancias.
+
     Si params es (P, d) retorna (P,); si (d,) retorna escalar.
     """
     if form not in L2_FORMS:
@@ -83,10 +93,18 @@ def l2_penalty(
             return torch.zeros((), dtype=params.dtype, device=params.device)
         return torch.zeros(params.shape[0], dtype=params.dtype, device=params.device)
     sq = params ** 2
+    if gain_index is not None:
+        gi = gain_index.to(device=params.device)
+        scaled = gi >= 0
+        if bool(scaled.any()):
+            u = params[..., gi.clamp(min=0)]
+            sq = sq * torch.where(scaled, torch.exp(2.0 * u), torch.ones_like(u))
     if form == "sample":
         if weight_mask is not None:
             sq = sq * weight_mask.to(dtype=params.dtype, device=params.device)
         norm_factor = float(n_train)
     else:
+        if mean_mask is not None:
+            sq = sq * mean_mask.to(dtype=params.dtype, device=params.device)
         norm_factor = float(d_total * n_train)
     return (lambda_l2 / 2.0) * sq.sum(dim=-1) / norm_factor

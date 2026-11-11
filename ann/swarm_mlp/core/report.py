@@ -135,10 +135,13 @@ CONFIG_FIELDS: Dict[str, Any] = {
     "bounds_mode": "fixed",
     "bounds": (-1.0, 1.0),
     "bounds_scale": None,
+    # Ganancia por capa (2026-11-11, core/gain.py). Con ganancia, `config_of` le suma
+    # el rango (p. ej. "layer[0.1,2]"), así se contrasta con un solo campo.
+    "layer_gain": "none",
 }
 
 #: Campos cuyo None equivale al default (ver CONFIG_FIELDS).
-_NONE_IS_DEFAULT = ("input_norm", "act_norm", "bounds_mode")
+_NONE_IS_DEFAULT = ("input_norm", "act_norm", "bounds_mode", "layer_gain")
 
 #: Campos que PUEDEN diferir entre técnicas en una misma comparación: a igual
 #: número de evaluaciones (`--match-evals-of`), T4 recibe otras iteraciones que T3.
@@ -162,6 +165,8 @@ def config_of(cfg: Dict[str, Any]) -> Dict[str, Any]:
     for k in _NONE_IS_DEFAULT:
         if out[k] is None:
             out[k] = CONFIG_FIELDS[k]
+    if out["layer_gain"] != "none" and cfg.get("gain_range") is not None:
+        out["layer_gain"] = "{}[{:g},{:g}]".format(out["layer_gain"], *cfg["gain_range"])
     # El factor de contracción-expansión que aplica según el optimizador.
     if out["optimizer"] == "qpsoo":
         out["g"] = None

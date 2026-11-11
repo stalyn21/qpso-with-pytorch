@@ -62,3 +62,18 @@ def test_formula_matches_real_count(tech, tmp_path):
     res = runner._build_cfg_and_run(args=args, device=torch.device("cpu"), dtype=torch.float64,
                                     data=data, output_dir=tmp_path / tech, data_seed=100)
     assert res["sessions"][0]["fitness_evals"] == res["config"]["planned_evals_per_session"]
+
+
+@pytest.mark.parametrize("tech", ["t1", "t3", "t4"])
+def test_formula_matches_real_count_with_gain(tech, tmp_path):
+    import runner
+    args = runner.parse_args([
+        "--technique", tech, "--dataset", "iris", "--preset", "paper2", "--layer-gain", "layer",
+        "--lambda-l2", "0.3", "--n-particles", "6", "--max-iter", "3", "--patience", "1000",
+        "--device", "cpu", "--dtype", "float64", "--output-dir", str(tmp_path)])
+    data = runner._prepare(args, torch.device("cpu"), torch.float64, 100)
+    res = runner._build_cfg_and_run(args=args, device=torch.device("cpu"), dtype=torch.float64,
+                                    data=data, output_dir=tmp_path / tech, data_seed=100)
+    assert res["sessions"][0]["fitness_evals"] == res["config"]["planned_evals_per_session"]
+    assert res["config"]["layer_gain"] == "layer"
+    assert all(l["gain"] is not None for l in res["winner_by_val"]["param_stats"]["layers"])

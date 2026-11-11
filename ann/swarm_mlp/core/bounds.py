@@ -10,9 +10,15 @@ Modos (`cfg["bounds_mode"]`, CLI `--bounds-mode`):
   en pesos que saturan o hacen explotar las activaciones.
 
 fan_in = n_in en una densa (MLP o cabeza de la CNN) y n_in·k·k en una conv.
+
+Con ganancia por capa (`core/gain.py`) la última coordenada de cada capa es u = ln s y
+busca en [ln s_min, ln s_max] (`cfg["gain_range"]`); `layer_range` sigue siendo la
+caja de pesos y sesgos.
 """
 import math
 from typing import Any, Dict, List, Optional, Tuple
+
+from core.gain import log_gain_range
 
 BOUNDS_MODES = ("fixed", "fanin")
 
@@ -40,5 +46,9 @@ def dim_bounds(model, cfg: Dict[str, Any], k: Optional[int] = None) -> List[Tupl
     layers = range(model.num_layers) if k is None else [k]
     out: List[Tuple[float, float]] = []
     for j in layers:
-        out.extend([layer_range(model, cfg, j)] * model.layer_specs[j].size)
+        spec = model.layer_specs[j]
+        gain = bool(getattr(spec, "gain", False))
+        out.extend([layer_range(model, cfg, j)] * (spec.size - int(gain)))
+        if gain:
+            out.append(log_gain_range(cfg["gain_range"]))
     return out

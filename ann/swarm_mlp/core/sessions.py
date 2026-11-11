@@ -125,14 +125,21 @@ def init_params_from_swarms(
 
     Cada capa se muestrea uniforme en su rango de búsqueda (`core.bounds`): con
     `bounds_mode="fixed"` es el mismo rango para todas, igual que antes.
+
+    Con ganancia por capa, u = 0 (s = 1). Pesos y sesgos salen de los mismos números
+    aleatorios que sin ganancia, así una corrida con y sin ganancia arranca de la
+    misma red.
     """
     g = torch.Generator(device="cpu").manual_seed(int(seed))
     segments = []
     for k in range(mlp.num_layers):
-        dim_k = mlp.layer_specs[k].size
+        spec = mlp.layer_specs[k]
+        gain = int(getattr(spec, "gain", False))
         low, high = layer_range(mlp, cfg, k)
-        r = torch.rand(dim_k, generator=g, dtype=torch.float64)
+        r = torch.rand(spec.size - gain, generator=g, dtype=torch.float64)
         segments.append(r * (high - low) + low)
+        if gain:
+            segments.append(torch.zeros(1, dtype=torch.float64))
     flat = torch.cat(segments)
     return flat.to(device=device, dtype=dtype)
 

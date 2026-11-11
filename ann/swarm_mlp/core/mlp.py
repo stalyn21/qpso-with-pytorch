@@ -12,6 +12,7 @@ from dataclasses import dataclass
 from typing import Callable, List, Optional, Tuple
 import torch
 
+from .gain import segment_gain_index, segment_masks
 from .loss import cross_entropy_from_logits, l2_penalty
 
 
@@ -22,7 +23,8 @@ class LayerSpec:
     n_out: int
     activation: str      # 'tanh', 'relu', 'identity'
     offset: int          # offset en el vector plano de parámetros
-    size: int            # W (n_in*n_out) + b (n_out)
+    size: int            # W (n_in*n_out) + b (n_out) + 1 si tiene ganancia
+    gain: bool = False   # última coordenada = u, con W_eff = exp(u)·W (core/gain.py)
 
 
 def _activation(z: torch.Tensor, kind: str) -> torch.Tensor:
@@ -49,6 +51,7 @@ class MLP:
         activations: Optional[List[str]] = None,
         device: torch.device = torch.device("cpu"),
         dtype: torch.dtype = torch.float32,
+        layer_gain: bool = False,
     ):
         if len(layer_sizes) < 2:
             raise ValueError("layer_sizes necesita al menos entrada y salida")
@@ -66,19 +69,24 @@ class MLP:
             )
         self.activations = list(activations)
 
+        self.layer_gain = bool(layer_gain)
         specs: List[LayerSpec] = []
         offset = 0
+        n_net = 0
         for i in range(self.num_layers):
             n_in = layer_sizes[i]
             n_out = layer_sizes[i + 1]
-            size = n_in * n_out + n_out
+            size = n_in * n_out + n_out + int(self.layer_gain)
             specs.append(
                 LayerSpec(idx=i, n_in=n_in, n_out=n_out,
-                          activation=activations[i], offset=offset, size=size)
+                          activation=activations[i], offset=offset, size=size,
+                          gain=self.layer_gain)
             )
             offset += size
+            n_net += n_in * n_out + n_out
         self.layer_specs = specs
-        self.d_total = offset
+        self.d_total = offset          # largo del vector plano (con las ganancias)
+        self.n_net = n_net             # pesos + sesgos (normalización de la L2 "mean")
         # Forma de la L2 (ver core/loss.py:L2_FORMS). El runner la fija con --l2-form;
         # todas las cost functions y la pérdida de train la leen de aquí.
         self.l2_form = "mean"
@@ -88,33 +96,60 @@ class MLP:
     def layer_dim(self, k: int) -> int:
         return self.layer_specs[k].size
 
+    def _masks(self, k: Optional[int], which: int) -> torch.Tensor:
+        """Máscara bool (0 = pesos, 1 = sesgos, 2 = ganancias) de la capa k o de todo el
+        vector. Cada capa guarda W (n_in·n_out), luego b y, si tiene ganancia, u."""
+        specs = self.layer_specs if k is None else [self.layer_specs[k]]
+        return torch.cat([segment_masks(s.n_in * s.n_out, s.n_out, s.gain, self.device)[which]
+                          for s in specs])
+
     def weight_mask(self, k: Optional[int] = None) -> torch.Tensor:
-        """Máscara bool de qué posiciones son pesos (True) y cuáles sesgos (False).
+        """Máscara bool de qué posiciones son pesos (True). Sesgos y ganancias: False.
 
         Con `k` es la de la capa k (longitud `layer_dim(k)`); sin `k`, la de todo el
-        vector plano (longitud `d_total`). Cada capa guarda W (n_in·n_out) y luego b.
+        vector plano (longitud `d_total`).
+        """
+        return self._masks(k, 0)
+
+    def bias_mask(self, k: Optional[int] = None) -> torch.Tensor:
+        return self._masks(k, 1)
+
+    def gain_mask(self, k: Optional[int] = None) -> torch.Tensor:
+        return self._masks(k, 2)
+
+    def l2_kwargs(self, k: Optional[int] = None) -> dict:
+        """Máscaras e índice de ganancia para `l2_penalty` (capa k o vector completo).
+
+        Con `k`, los índices son relativos al segmento de la capa (lo que ve su enjambre).
         """
         specs = self.layer_specs if k is None else [self.layer_specs[k]]
-        parts = []
-        for spec in specs:
-            n_w = spec.n_in * spec.n_out
-            parts.append(torch.ones(n_w, dtype=torch.bool, device=self.device))
-            parts.append(torch.zeros(spec.n_out, dtype=torch.bool, device=self.device))
-        return torch.cat(parts)
+        gain_index = torch.cat([
+            segment_gain_index(s.n_in * s.n_out, s.n_out, s.gain,
+                               s.offset if k is None else 0, self.device) for s in specs])
+        return {"weight_mask": self.weight_mask(k),
+                "mean_mask": ~self.gain_mask(k) if self.layer_gain else None,
+                "gain_index": gain_index if self.layer_gain else None}
 
     def l2(self, params: torch.Tensor, lambda_l2: float, n_train: int,
            k: Optional[int] = None) -> torch.Tensor:
-        """L2 de `params` (vector completo, o sólo la capa `k`) con la forma `self.l2_form`."""
-        return l2_penalty(params, lambda_l2, self.d_total, n_train,
-                          form=self.l2_form, weight_mask=self.weight_mask(k))
+        """L2 de `params` (vector completo, o sólo la capa `k`) con la forma `self.l2_form`.
+        Con ganancia, sobre los pesos efectivos (s·W)."""
+        return l2_penalty(params, lambda_l2, self.n_net, n_train,
+                          form=self.l2_form, **self.l2_kwargs(k))
+
+    def _wb(self, seg: torch.Tensor, spec: LayerSpec) -> Tuple[torch.Tensor, torch.Tensor]:
+        """seg: (..., size) → W efectivo (..., n_in, n_out) y b (..., n_out)."""
+        n_w = spec.n_in * spec.n_out
+        lead = seg.shape[:-1]
+        W = seg[..., :n_w].reshape(*lead, spec.n_in, spec.n_out)
+        if spec.gain:
+            W = W * torch.exp(seg[..., -1]).reshape(*lead, 1, 1)
+        return W, seg[..., n_w : n_w + spec.n_out]
 
     def split_layer_params(self, flat: torch.Tensor, k: int) -> Tuple[torch.Tensor, torch.Tensor]:
-        """De un vector plano (d_total,) extrae (W, b) para la capa k."""
+        """De un vector plano (d_total,) extrae (W efectivo, b) para la capa k."""
         spec = self.layer_specs[k]
-        seg = flat[spec.offset : spec.offset + spec.size]
-        W = seg[: spec.n_in * spec.n_out].reshape(spec.n_in, spec.n_out)
-        b = seg[spec.n_in * spec.n_out :]
-        return W, b
+        return self._wb(flat[spec.offset : spec.offset + spec.size], spec)
 
     # ---------- forward estándar ---------- #
 
@@ -155,7 +190,7 @@ class MLP:
         """
         spec_k = self.layer_specs[k]
         # Constantes para la normalización del L2 (ver docstring de l2_penalty).
-        d_total = self.d_total
+        n_net = self.n_net
         n_train = X.shape[0]
 
         # Pre-cómputo de activaciones antes de la capa k (una sola vez).
@@ -175,9 +210,8 @@ class MLP:
             frozen_post.append((W_j.detach(), b_j.detach(), self.layer_specs[j].activation, is_last))
 
         k_is_last = (k == self.num_layers - 1)
-        n_w_k = spec_k.n_in * spec_k.n_out
         l2_form = self.l2_form
-        w_mask_k = self.weight_mask(k)
+        l2_kw = self.l2_kwargs(k)
 
         def cost_fn(positions: torch.Tensor) -> torch.Tensor:
             # positions: (P, size_k) o (size_k,) si el QDPSO llama individual
@@ -188,8 +222,7 @@ class MLP:
                 squeeze_out = False
 
             P = positions.shape[0]
-            W_batch = positions[:, :n_w_k].reshape(P, spec_k.n_in, spec_k.n_out)
-            b_batch = positions[:, n_w_k:]  # (P, n_out)
+            W_batch, b_batch = self._wb(positions, spec_k)   # (P, n_in, n_out), (P, n_out)
 
             # Levantar capa k a (P, B, n_out)
             # einsum('bi,pij->pbj', a_before, W_batch)
@@ -212,8 +245,8 @@ class MLP:
             ce_per = cross_entropy_from_logits(logits, y_exp, dim_classes=-1)
             ce = ce_per.mean(dim=-1)  # (P,)
 
-            l2 = l2_penalty(positions, lambda_l2, d_total, n_train,
-                            form=l2_form, weight_mask=w_mask_k)  # (P,)
+            l2 = l2_penalty(positions, lambda_l2, n_net, n_train,
+                            form=l2_form, **l2_kw)  # (P,)
 
             out = ce + l2
             return out.squeeze(0) if squeeze_out else out
@@ -228,10 +261,10 @@ class MLP:
     ) -> Callable[[torch.Tensor], torch.Tensor]:
         """Cost fn para un swarm único optimizando TODOS los parámetros (para T4)."""
         # Constantes para la normalización del L2 (ver docstring de l2_penalty).
-        d_total = self.d_total
+        n_net = self.n_net
         n_train = X.shape[0]
         l2_form = self.l2_form
-        w_mask = self.weight_mask()
+        l2_kw = self.l2_kwargs()
 
         def cost_fn(positions: torch.Tensor) -> torch.Tensor:
             if positions.dim() == 1:
@@ -244,9 +277,7 @@ class MLP:
             h = X.unsqueeze(0).expand(P, -1, -1)
             logits = None
             for k, spec in enumerate(self.layer_specs):
-                seg = positions[:, spec.offset : spec.offset + spec.size]
-                W = seg[:, : spec.n_in * spec.n_out].reshape(P, spec.n_in, spec.n_out)
-                b = seg[:, spec.n_in * spec.n_out :]
+                W, b = self._wb(positions[:, spec.offset : spec.offset + spec.size], spec)
                 z = torch.bmm(h, W) + b.unsqueeze(1)
                 if k == self.num_layers - 1:
                     logits = z
@@ -255,8 +286,8 @@ class MLP:
 
             y_exp = y.unsqueeze(0).expand(P, -1)
             ce = cross_entropy_from_logits(logits, y_exp, dim_classes=-1).mean(dim=-1)
-            l2 = l2_penalty(positions, lambda_l2, d_total, n_train,
-                            form=l2_form, weight_mask=w_mask)
+            l2 = l2_penalty(positions, lambda_l2, n_net, n_train,
+                            form=l2_form, **l2_kw)
             out = ce + l2
             return out.squeeze(0) if squeeze_out else out
 

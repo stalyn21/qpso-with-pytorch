@@ -31,6 +31,7 @@ from core.images import (CV_IMAGE_DATASETS, DEFAULT_IMAGE_SIZE, IMAGE_DATASETS, 
                           prepare_image_dataset, prepare_image_dataset_kfold)
 from core.data import prepare_dataset, prepare_dataset_kfold, BENCHMARK_DATASETS, PAPER_DATASETS
 from core.bounds import BOUNDS_MODES
+from core.gain import GAIN_MODES, validate_gain_range
 from core.loss import L2_FORMS
 from core.presets import PRESETS
 from core.selection import SELECTION_METRICS
@@ -188,6 +189,14 @@ def parse_args(argv=None):
     p.add_argument("--bounds-scale", type=float, default=math.sqrt(6),
                    help="(--bounds-mode fanin) Constante c del rango ±c/sqrt(fan_in). "
                         "Default √6 ≈ 2.449 (uniforme de He); 1 = init por defecto de PyTorch.")
+    p.add_argument("--layer-gain", default="none", choices=GAIN_MODES,
+                   help="'layer' = cada capa suma una coordenada u y la red usa W_eff = exp(u)·W "
+                        "(core/gain.py). Arranca en s = 1; la L2 se aplica a los pesos "
+                        "efectivos. Default 'none' (comportamiento previo).")
+    p.add_argument("--gain-range", type=float, nargs=2, default=[0.1, 2.0],
+                   metavar=("S_MIN", "S_MAX"),
+                   help="(--layer-gain layer) Rango de la ganancia s; el enjambre busca "
+                        "u = ln s uniforme en [ln S_MIN, ln S_MAX]. Default 0.1 2.")
     p.add_argument("--seed", type=int, default=42, help="Semilla base (se deriva una distinta por sesión)")
     p.add_argument("--data-seed", type=int, nargs="+", default=[100],
                    help="Semilla(s) del split de datos. Un valor (default 100) = split fijo. "
@@ -240,6 +249,11 @@ def parse_args(argv=None):
         p.error("--image-size es de la CNN (--model cnn).")
     if args.match_evals_of and args.eval_budget is not None:
         p.error("--match-evals-of y --eval-budget son excluyentes.")
+    if args.layer_gain != "none":
+        try:
+            validate_gain_range(args.gain_range)
+        except ValueError as e:
+            p.error(str(e))
     if not 0 <= args.edge_tol < 1:
         p.error(f"--edge-tol debe estar en [0, 1) (se dio {args.edge_tol}).")
     if args.selection_se < 0:
@@ -295,13 +309,14 @@ def _build_model(args, data, device, dtype):
         model = TinyCNN(in_channels=data["in_channels"], image_size=data["image_size"],
                         channels=size["channels"], head=size["head"],
                         n_classes=data["n_classes"], device=device, dtype=dtype,
-                        act_norm=args.act_norm, norm_eps=args.norm_eps)
+                        act_norm=args.act_norm, norm_eps=args.norm_eps,
+                        layer_gain=args.layer_gain == "layer")
         print(f"🧠 CNN {args.cnn_size} {size}: params={model.d_total}   "
               f"enjambres={[s.size for s in model.layer_specs]}")
     else:
         hidden = args.hidden_sizes if args.hidden_sizes else default_hidden(data["n_features"])
         model = MLP(layer_sizes=[data["n_features"]] + list(hidden) + [data["n_classes"]],
-                    device=device, dtype=dtype)
+                    device=device, dtype=dtype, layer_gain=args.layer_gain == "layer")
         print(f"🧠 MLP layers: {model.layer_sizes}   params={model.d_total}   swarms={model.num_layers}")
     model.l2_form = args.l2_form
     return model
@@ -382,6 +397,11 @@ def _build_cfg_and_run(
         "fold_idx": data.get("fold_idx", None),
         "preset": args.preset,
         "edge_tol": args.edge_tol,
+        "layer_gain": args.layer_gain,
+        "gain_range": tuple(args.gain_range) if args.layer_gain != "none" else None,
+        # Dónde está cada capa en gbest.npy: con ganancia, el segmento es [W, b, u].
+        "param_layout": [{"offset": s.offset, "size": s.size,
+                          "gain": bool(getattr(s, "gain", False))} for s in mlp.layer_specs],
     }
 
     return run_sessions(
@@ -419,6 +439,8 @@ def _run_tag(args, hidden) -> str:
                   if args.technique in ("t2", "t3") and not args.reevaluate_pbest else "")
     if args.technique == "t1" and args.t1_incumbent:
         reeval_tag += "_inc"
+    if args.layer_gain != "none":
+        reeval_tag += "_gain{:g}-{:g}".format(*args.gain_range)
     # Hiperparámetros barridos en el análisis de sensibilidad: sin esto, dos valores
     # de g (o de alpha, o de lambda) escribirían en el mismo directorio.
     hp_tag = ""
@@ -612,6 +634,9 @@ def main():
                 "g": args.g,
                 "alpha": resolve_alpha(args.alpha),
                 "reevaluate_pbest": args.reevaluate_pbest,
+                "t1_incumbent": last_cfg["t1_incumbent"],
+                "layer_gain": last_cfg["layer_gain"],
+                "gain_range": last_cfg["gain_range"],
                 "seed": args.seed,
                 "layer_sizes": last_cfg["layer_sizes"],
                 "model": args.model,
@@ -708,6 +733,11 @@ def main():
             "g": args.g,
             "alpha": resolve_alpha(args.alpha),
             "reevaluate_pbest": args.reevaluate_pbest,
+            # Campos del reporte que el run.json ya tiene: sin ellos, corridas K-fold que
+            # difieren sólo en esto caerían en el mismo grupo.
+            "t1_incumbent": result["config"]["t1_incumbent"],
+            "layer_gain": result["config"]["layer_gain"],
+            "gain_range": result["config"]["gain_range"],
             "seed": args.seed,
             "data_seed": cv_data_seed,
             "layer_sizes": [n_features] + list(hidden) + [n_classes],

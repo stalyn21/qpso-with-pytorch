@@ -12,15 +12,15 @@ LAMBDA = 0.7
 P = 5
 
 
-def _mlp(l2_form):
-    m = MLP([4, 6, 5, 3], dtype=DT)
+def _mlp(l2_form, gain=False):
+    m = MLP([4, 6, 5, 3], dtype=DT, layer_gain=gain)
     m.l2_form = l2_form
     return m, torch.randn(11, 4, dtype=DT), torch.randint(0, 3, (11,))
 
 
-def _cnn(l2_form, head, act_norm, max_elems=1.2e8):
+def _cnn(l2_form, head, act_norm, max_elems=1.2e8, gain=False):
     m = TinyCNN(in_channels=2, image_size=12, channels=(2, 3), n_classes=4, head=head,
-                act_norm=act_norm, dtype=DT, max_elems=max_elems)
+                act_norm=act_norm, dtype=DT, max_elems=max_elems, layer_gain=gain)
     m.l2_form = l2_form
     return m, torch.randn(9, 2, 12, 12, dtype=DT), torch.randint(0, 4, (9,))
 
@@ -34,6 +34,10 @@ def _models():
                 out.append((f"cnn-{head}-{norm}", form, _cnn(form, head, norm)))
         # max_elems mínimo: fuerza un chunk por imagen
         out.append(("cnn-chunked", form, _cnn(form, "flatten", "none", max_elems=1)))
+        # Ganancia por capa (core/gain.py)
+        out.append(("mlp-gain", form, _mlp(form, gain=True)))
+        out.append(("cnn-gain", form, _cnn(form, "flatten", "none", gain=True)))
+        out.append(("cnn-gain-chunked", form, _cnn(form, "gap", "layer", max_elems=1, gain=True)))
     return out
 
 

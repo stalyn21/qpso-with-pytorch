@@ -32,6 +32,7 @@ from typing import Callable, Dict, List, Optional, Sequence, Tuple
 import torch
 import torch.nn.functional as F
 
+from .gain import segment_gain_index, segment_masks
 from .loss import cross_entropy_from_logits, l2_penalty
 
 
@@ -61,7 +62,13 @@ class CNNLayerSpec:
     n_out: int       # canales de salida (conv) o clases (fc)
     ksize: int       # tamaño del kernel (conv); 0 en fc
     offset: int      # offset en el vector plano de parámetros
-    size: int        # pesos + bias
+    size: int        # pesos + bias + 1 si tiene ganancia
+    gain: bool = False   # última coordenada = u, con W_eff = exp(u)·W (core/gain.py)
+
+    @property
+    def n_weights(self) -> int:
+        k2 = self.ksize * self.ksize if self.kind == "conv" else 1
+        return self.n_out * self.n_in * k2
 
 
 class TinyCNN:
@@ -80,6 +87,7 @@ class TinyCNN:
         max_elems: float = 1.2e8,
         act_norm: str = "none",
         norm_eps: float = 1e-5,
+        layer_gain: bool = False,
     ):
         if head not in ("gap", "flatten"):
             raise ValueError(f"head debe ser 'gap' o 'flatten', recibido {head!r}")
@@ -97,13 +105,15 @@ class TinyCNN:
         # (acota la memoria de GPU al evaluar P partículas × B imágenes).
         self.max_elems = float(max_elems)
 
+        self.layer_gain = bool(layer_gain)
+        g = int(self.layer_gain)
         specs: List[CNNLayerSpec] = []
         offset = 0
         c_in, side = in_channels, image_size
         self._out_sides: List[int] = []
         for i, c_out in enumerate(channels):
-            size = c_out * c_in * ksize * ksize + c_out
-            specs.append(CNNLayerSpec(i, "conv", c_in, c_out, ksize, offset, size))
+            size = c_out * c_in * ksize * ksize + c_out + g
+            specs.append(CNNLayerSpec(i, "conv", c_in, c_out, ksize, offset, size, self.layer_gain))
             offset += size
             side = (side - ksize + 1) // 2          # conv 'valid' + maxpool 2
             if side < 1:
@@ -112,13 +122,15 @@ class TinyCNN:
             c_in = c_out
 
         n_feat = c_in if head == "gap" else c_in * side * side
-        size = n_feat * n_classes + n_classes
-        specs.append(CNNLayerSpec(len(specs), "fc", n_feat, n_classes, 0, offset, size))
+        size = n_feat * n_classes + n_classes + g
+        specs.append(CNNLayerSpec(len(specs), "fc", n_feat, n_classes, 0, offset, size,
+                                  self.layer_gain))
         offset += size
 
         self.layer_specs = specs
         self.num_layers = len(specs)
-        self.d_total = offset
+        self.d_total = offset                                  # con las ganancias
+        self.n_net = offset - g * len(specs)                   # pesos + sesgos
         self.layer_sizes = [in_channels] + list(channels) + [n_classes]
         # Forma de la L2 (core/loss.py:L2_FORMS); el runner la fija con --l2-form.
         self.l2_form = "mean"
@@ -128,35 +140,52 @@ class TinyCNN:
     def layer_dim(self, k: int) -> int:
         return self.layer_specs[k].size
 
-    def weight_mask(self, k: Optional[int] = None) -> torch.Tensor:
-        """Máscara bool de pesos (True) y sesgos (False): de la capa k o de todo el vector.
-
-        Cada bloque guarda primero los pesos (filtros o matriz) y luego el bias.
-        """
+    def _masks(self, k: Optional[int], which: int) -> torch.Tensor:
+        """Máscara bool (0 = pesos, 1 = sesgos, 2 = ganancias) del bloque k o de todo el
+        vector. Cada bloque guarda los pesos (filtros o matriz), el bias y, si tiene
+        ganancia, u."""
         specs = self.layer_specs if k is None else [self.layer_specs[k]]
-        parts = []
-        for spec in specs:
-            n_b = spec.n_out
-            parts.append(torch.ones(spec.size - n_b, dtype=torch.bool, device=self.device))
-            parts.append(torch.zeros(n_b, dtype=torch.bool, device=self.device))
-        return torch.cat(parts)
+        return torch.cat([segment_masks(s.n_weights, s.n_out, s.gain, self.device)[which]
+                          for s in specs])
+
+    def weight_mask(self, k: Optional[int] = None) -> torch.Tensor:
+        """Máscara bool de pesos (True); sesgos y ganancias False. Del bloque k o de todo el vector."""
+        return self._masks(k, 0)
+
+    def bias_mask(self, k: Optional[int] = None) -> torch.Tensor:
+        return self._masks(k, 1)
+
+    def gain_mask(self, k: Optional[int] = None) -> torch.Tensor:
+        return self._masks(k, 2)
+
+    def l2_kwargs(self, k: Optional[int] = None) -> dict:
+        """Máscaras e índice de ganancia para `l2_penalty` (bloque k o vector completo)."""
+        specs = self.layer_specs if k is None else [self.layer_specs[k]]
+        gain_index = torch.cat([
+            segment_gain_index(s.n_weights, s.n_out, s.gain,
+                               s.offset if k is None else 0, self.device) for s in specs])
+        return {"weight_mask": self.weight_mask(k),
+                "mean_mask": ~self.gain_mask(k) if self.layer_gain else None,
+                "gain_index": gain_index if self.layer_gain else None}
 
     def l2(self, params: torch.Tensor, lambda_l2: float, n_train: int,
            k: Optional[int] = None) -> torch.Tensor:
-        """L2 de `params` (vector completo, o sólo el bloque `k`) con la forma `self.l2_form`."""
-        return l2_penalty(params, lambda_l2, self.d_total, n_train,
-                          form=self.l2_form, weight_mask=self.weight_mask(k))
+        """L2 de `params` (vector completo, o sólo el bloque `k`) con la forma `self.l2_form`.
+        Con ganancia, sobre los pesos efectivos (s·W)."""
+        return l2_penalty(params, lambda_l2, self.n_net, n_train,
+                          form=self.l2_form, **self.l2_kwargs(k))
 
     def _split(self, seg: torch.Tensor, spec: CNNLayerSpec):
-        """seg: (..., size) → (W, b). W: (..., c_out, c_in, k, k) o (..., n_in, n_out)."""
+        """seg: (..., size) → (W efectivo, b). W: (..., c_out, c_in, k, k) o (..., n_in, n_out)."""
         lead = seg.shape[:-1]
+        n_w = spec.n_weights
         if spec.kind == "conv":
-            n_w = spec.n_out * spec.n_in * spec.ksize * spec.ksize
             W = seg[..., :n_w].reshape(*lead, spec.n_out, spec.n_in, spec.ksize, spec.ksize)
         else:
-            n_w = spec.n_in * spec.n_out
             W = seg[..., :n_w].reshape(*lead, spec.n_in, spec.n_out)
-        return W, seg[..., n_w:]
+        if spec.gain:
+            W = W * torch.exp(seg[..., -1]).reshape(*lead, *([1] * (W.dim() - len(lead))))
+        return W, seg[..., n_w : n_w + spec.n_out]
 
     def _layer_from_flat(self, flat: torch.Tensor, k: int):
         spec = self.layer_specs[k]
@@ -287,7 +316,7 @@ class TinyCNN:
         """cost_fn(positions: (P, layer_dim(k))) -> (P,) con CE + L2, variando SOLO la capa k."""
         spec_k = self.layer_specs[k]
         n_train = X.shape[0]
-        w_mask_k = self.weight_mask(k)
+        l2_kw = self.l2_kwargs(k)
         l2_form = self.l2_form
 
         with torch.no_grad():
@@ -303,8 +332,8 @@ class TinyCNN:
             P = positions.shape[0]
             W_k, b_k = self._split(positions, spec_k)
             ce = self._mean_ce(h_before, y, k, [(W_k, b_k, True)] + frozen_post, P)
-            out = ce + l2_penalty(positions, lambda_l2, self.d_total, n_train,
-                                  form=l2_form, weight_mask=w_mask_k)
+            out = ce + l2_penalty(positions, lambda_l2, self.n_net, n_train,
+                                  form=l2_form, **l2_kw)
             return out.squeeze(0) if squeeze else out
 
         return cost_fn
@@ -317,7 +346,7 @@ class TinyCNN:
     ) -> Callable[[torch.Tensor], torch.Tensor]:
         """Cost fn para un swarm único optimizando TODOS los parámetros (T4)."""
         n_train = X.shape[0]
-        w_mask = self.weight_mask()
+        l2_kw = self.l2_kwargs()
         l2_form = self.l2_form
 
         def cost_fn(positions: torch.Tensor) -> torch.Tensor:
@@ -330,8 +359,8 @@ class TinyCNN:
                 W, b = self._split(positions[:, spec.offset : spec.offset + spec.size], spec)
                 layers.append((W, b, True))
             ce = self._mean_ce(X, y, 0, layers, P)
-            out = ce + l2_penalty(positions, lambda_l2, self.d_total, n_train,
-                                  form=l2_form, weight_mask=w_mask)
+            out = ce + l2_penalty(positions, lambda_l2, self.n_net, n_train,
+                                  form=l2_form, **l2_kw)
             return out.squeeze(0) if squeeze else out
 
         return cost_fn
