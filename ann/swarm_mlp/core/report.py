@@ -125,6 +125,7 @@ CONFIG_FIELDS: Dict[str, Any] = {
     "model": "mlp",
     "cnn_size": None,
     "fitness_samples": None,
+    "image_size": None,          # sólo datasets redimensionados (MCW)
     "match_evals_of": None,
     # Preprocesamiento y rango de búsqueda (2026-10-30). None (MLP o run.json previo)
     # se lee como el default, así las corridas viejas y nuevas caen en el mismo grupo.

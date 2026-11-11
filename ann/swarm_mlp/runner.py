@@ -27,7 +27,8 @@ if str(_HERE) not in sys.path:
 
 from core.budget import evals_per_session, iters_for_budget
 from core.cnn import ACT_NORMS, CNN_SIZES, TinyCNN
-from core.images import IMAGE_DATASETS, INPUT_NORMS, prepare_image_dataset
+from core.images import (CV_IMAGE_DATASETS, DEFAULT_IMAGE_SIZE, IMAGE_DATASETS, INPUT_NORMS,
+                          prepare_image_dataset, prepare_image_dataset_kfold)
 from core.data import prepare_dataset, prepare_dataset_kfold, BENCHMARK_DATASETS, PAPER_DATASETS
 from core.bounds import BOUNDS_MODES
 from core.loss import L2_FORMS
@@ -74,7 +75,13 @@ def parse_args():
                         "la función de costo (estratificadas por data_seed; 0 = todo el resto). "
                         "Es el 'train' de la corrida.")
     p.add_argument("--val-size", type=int, default=5000,
-                   help="(cnn) Imágenes de validación, sacadas del train oficial (estratificadas).")
+                   help="(cnn) Imágenes de validación, sacadas del train oficial (estratificadas). "
+                        "Sólo datasets con test oficial; en K-fold la validación es la misma "
+                        "fracción del no-test que en el MLP.")
+    p.add_argument("--image-size", type=int, default=None,
+                   help="(cnn) Lado en píxeles al que se redimensionan los datasets de tamaño "
+                        "variable (" + ", ".join(f"{k}: default {v}" for k, v in DEFAULT_IMAGE_SIZE.items())
+                        + "). Los de tamaño fijo usan el nativo.")
     p.add_argument("--input-norm", default="none", choices=INPUT_NORMS,
                    help="(cnn) 'standardize' = restar la media y dividir por el desvío de cada "
                         "canal, calculados sólo sobre las imágenes de fitness. Default 'none' "
@@ -187,12 +194,24 @@ def parse_args():
     if args.model == "cnn":
         if args.dataset not in IMAGE_DATASETS:
             p.error(f"--model cnn requiere un dataset de imágenes: {', '.join(IMAGE_DATASETS)}.")
-        if args.cv_folds > 1:
-            p.error("--model cnn usa el test oficial: no admite --cv-folds (usar --data-seed).")
+        if args.dataset in CV_IMAGE_DATASETS:
+            if args.cv_folds < 2:
+                p.error(f"{args.dataset} no tiene test oficial: usar --cv-folds K (K >= 2), "
+                        "como en el MLP.")
+            if args.image_size is None:
+                args.image_size = DEFAULT_IMAGE_SIZE[args.dataset]
+        else:
+            if args.cv_folds > 1:
+                p.error(f"{args.dataset} usa el test oficial: no admite --cv-folds (usar --data-seed).")
+            if args.image_size is not None:
+                p.error(f"--image-size sólo aplica a datasets de tamaño variable: "
+                        f"{', '.join(DEFAULT_IMAGE_SIZE)}.")
         if args.hidden_sizes:
             p.error("--hidden-sizes es del MLP; la CNN usa --cnn-size.")
     elif args.dataset in IMAGE_DATASETS:
         p.error(f"{args.dataset} es un dataset de imágenes: usar --model cnn.")
+    elif args.image_size is not None:
+        p.error("--image-size es de la CNN (--model cnn).")
     if args.match_evals_of and args.eval_budget is not None:
         p.error("--match-evals-of y --eval-budget son excluyentes.")
     if args.selection_se < 0:
@@ -221,6 +240,24 @@ def _prepare(args, device, dtype, data_seed):
                                      val_size=args.val_size, fitness_samples=args.fitness_samples,
                                      input_norm=args.input_norm, norm_eps=args.norm_eps)
     return prepare_dataset(args.dataset, device=device, dtype=dtype, data_seed=data_seed)
+
+
+#: Campos de la cfg de una corrida que el cv_summary de la CNN copia para el reporte.
+#: `fitness_samples` va aparte: el pedido (0 = todo el pool), no el conteo del último fold.
+_CNN_CV_FIELDS = ("model", "cnn_size", "image_size", "input_norm", "act_norm",
+                  "bounds_mode", "bounds", "bounds_scale")
+
+
+def _prepare_fold(args, device, dtype, data_seed, fold_idx):
+    """Un fold de K-fold CV: tabular (MLP) o imágenes sin test oficial (CNN)."""
+    if args.model == "cnn":
+        return prepare_image_dataset_kfold(args.dataset, k=args.cv_folds, fold_idx=fold_idx,
+                                           device=device, dtype=dtype, data_seed=data_seed,
+                                           fitness_samples=args.fitness_samples,
+                                           input_norm=args.input_norm, norm_eps=args.norm_eps,
+                                           image_size=args.image_size)
+    return prepare_dataset_kfold(args.dataset, k=args.cv_folds, fold_idx=fold_idx,
+                                 device=device, dtype=dtype, data_seed=data_seed)
 
 
 def _build_model(args, data, device, dtype):
@@ -283,6 +320,10 @@ def _build_cfg_and_run(
         "cnn_size": args.cnn_size if args.model == "cnn" else None,
         "fitness_samples": int(data["X_train"].shape[0]),
         "val_size": int(data["X_val"].shape[0]),
+        # Sólo los datasets redimensionados (None en los de tamaño fijo, como en los
+        # run.json previos, para que caigan en el mismo grupo del reporte).
+        "image_size": args.image_size,
+        "dedupe": data.get("dedupe"),   # MCW: archivos repetidos descartados
         "input_norm": args.input_norm if args.model == "cnn" else None,
         "act_norm": args.act_norm if args.model == "cnn" else None,
         "norm_eps": args.norm_eps if args.model == "cnn" else None,
@@ -330,8 +371,14 @@ def _run_tag(args, hidden) -> str:
     """
     # Arquitectura: capas ocultas del MLP, o el tamaño con nombre de la CNN más las
     # imágenes de fitness (cambian el costo y el resultado).
-    arch_tag = (f"cnn-{args.cnn_size}_fit{args.fitness_samples}_val{args.val_size}"
-                if args.model == "cnn" else "hid" + "-".join(map(str, hidden)))
+    # En K-fold la validación es una fracción fija (no --val-size) y el tamaño de la
+    # imagen es un parámetro: va en el tag en lugar de val.
+    if args.model == "cnn" and args.dataset in CV_IMAGE_DATASETS:
+        arch_tag = f"cnn-{args.cnn_size}_img{args.image_size}_fit{args.fitness_samples}"
+    elif args.model == "cnn":
+        arch_tag = f"cnn-{args.cnn_size}_fit{args.fitness_samples}_val{args.val_size}"
+    else:
+        arch_tag = "hid" + "-".join(map(str, hidden))
     rounds_tag = (f"_rounds{args.n_rounds}"
                   if args.technique in ("t1", "t2-jacobi") and args.n_rounds > 1 else "")
     opt_tag = optimizer_tag({"optimizer": args.optimizer})
@@ -570,10 +617,7 @@ def main():
     cv_data_seed = data_seeds[0]
 
     # Carga preliminar para conocer n_features y armar el tag del output dir.
-    probe = prepare_dataset_kfold(
-        args.dataset, k=args.cv_folds, fold_idx=0,
-        device=device, dtype=dtype, data_seed=cv_data_seed,
-    )
+    probe = _prepare_fold(args, device, dtype, cv_data_seed, fold_idx=0)
     n_features = probe["n_features"]
     n_classes = probe["n_classes"]
     hidden = hidden_for_tag if hidden_for_tag else default_hidden(n_features)
@@ -589,10 +633,7 @@ def main():
         print(f"📁 FOLD {fold_idx + 1}/{args.cv_folds}")
         print('═' * 70)
 
-        data_fold = prepare_dataset_kfold(
-            args.dataset, k=args.cv_folds, fold_idx=fold_idx,
-            device=device, dtype=dtype, data_seed=cv_data_seed,
-        )
+        data_fold = _prepare_fold(args, device, dtype, cv_data_seed, fold_idx)
         print(f"📊 Splits fold {fold_idx}: "
               f"train={data_fold['X_train'].shape[0]}  "
               f"val={data_fold['X_val'].shape[0]}  "
@@ -638,6 +679,10 @@ def main():
             "data_seed": cv_data_seed,
             "layer_sizes": [n_features] + list(hidden) + [n_classes],
             "device": str(device),
+            # La CNN en K-fold (datasets sin test oficial): los campos que la identifican
+            # en el reporte. Sólo para la CNN, así los resúmenes del MLP no cambian.
+            **({k: result["config"][k] for k in _CNN_CV_FIELDS} if args.model == "cnn" else {}),
+            **({"fitness_samples": args.fitness_samples} if args.model == "cnn" else {}),
         },
         "folds": fold_summaries,
         "aggregated": _aggregate(fold_summaries),

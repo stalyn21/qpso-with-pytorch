@@ -15,6 +15,11 @@
 #   SIZES="small medium" DATASETS="mnist fmnist" SEEDS="100 101 102 103 104" ./sweep_cnn.sh
 # Corre en serie para que los tiempos de pared sean comparables.
 #
+# Datasets sin test oficial (CV_DATASETS, por defecto mcw): K-fold CV estratificado con
+# CV_FOLDS folds, como el MLP, en lugar de --val-size. IMAGE_SIZE fija el lado al que se
+# redimensionan (vacío = el default de core/images.py:DEFAULT_IMAGE_SIZE).
+#   DATASETS="mcw" FITNESS_LIST="0" ./sweep_cnn.sh              # MCW, todo el pool de fitness
+#
 # Variantes de preprocesamiento y rango de búsqueda: VARIANTS es una lista de
 # "input_norm,act_norm,bounds_mode" (ver runner.py --help); BOUNDS_SCALE aplica a fanin.
 #   VARIANTS="none,none,fixed none,none,fanin standardize,none,fixed none,layer,fixed" ./sweep_cnn.sh
@@ -33,6 +38,9 @@ ITERS_LIST=${ITERS_LIST:-"200"}
 G_VALUES=${G_VALUES:-"1.2"}
 FITNESS_LIST=${FITNESS_LIST:-"2000"}
 VAL_SIZE=${VAL_SIZE:-5000}
+CV_DATASETS=${CV_DATASETS:-"mcw"}
+CV_FOLDS=${CV_FOLDS:-5}
+IMAGE_SIZE=${IMAGE_SIZE:-}
 L2_FORM=${L2_FORM:-sample}
 LAMBDAS=${LAMBDAS:-"0"}
 WARM_PCT=${WARM_PCT:-30}
@@ -49,11 +57,25 @@ RES_DIR=${RES_DIR:-$OUT/_resources}
 
 echo "OUT=$OUT SIZES=[$SIZES] DATASETS=[$DATASETS] TECHNIQUES=[$TECHNIQUES] SEEDS=[$SEEDS]"
 echo "PARTICLES=[$PARTICLES] ITERS_LIST=[$ITERS_LIST] G_VALUES=[$G_VALUES] FITNESS_LIST=[$FITNESS_LIST]"
+echo "CV_DATASETS=[$CV_DATASETS] CV_FOLDS=$CV_FOLDS IMAGE_SIZE=${IMAGE_SIZE:-default}"
 echo "VAL_SIZE=$VAL_SIZE L2=$L2_FORM:[$LAMBDAS] WARM_PCT=$WARM_PCT PATIENCE=$PATIENCE MATCH_T4=$MATCH_T4"
 echo "VARIANTS=[$VARIANTS] BOUNDS_SCALE=$BOUNDS_SCALE"
 echo "SEL=$SEL_METRIC:$SEL_SE DATA_SEED=$DATA_SEED MONITOR=$MONITOR($MONITOR_INTERVAL s) -> $RES_DIR"
 for seed in $SEEDS; do
   for ds in $DATASETS; do
+    # Partición: test oficial + --val-size, o K-fold para los datasets sin test oficial.
+    ds_args=(--val-size "$VAL_SIZE")
+    ds_tag=""
+    case " $CV_DATASETS " in
+      *" $ds "*)
+        ds_args=(--cv-folds "$CV_FOLDS")
+        ds_tag="_cv${CV_FOLDS}"
+        if [ -n "$IMAGE_SIZE" ]; then
+          ds_args+=(--image-size "$IMAGE_SIZE")
+          ds_tag+="_img${IMAGE_SIZE}"
+        fi
+        ;;
+    esac
     for size in $SIZES; do
       for fit in $FITNESS_LIST; do
         for p in $PARTICLES; do
@@ -67,7 +89,7 @@ for seed in $SEEDS; do
                   [ "$t" = "t4" ] && match=(--match-evals-of "$MATCH_T4")
                   mon=()
                   if [ "$MONITOR" = "1" ]; then
-                    label="${t}_${ds}_${size}_fit${fit}_P${p}_I${it}_g${g}_l2-${lam}_in-${in_norm}_act-${act_norm}_b-${b_mode}_seed${seed}"
+                    label="${t}_${ds}${ds_tag}_${size}_fit${fit}_P${p}_I${it}_g${g}_l2-${lam}_in-${in_norm}_act-${act_norm}_b-${b_mode}_seed${seed}"
                     mon=(python monitor.py --out "$RES_DIR/$label" --interval "$MONITOR_INTERVAL" \
                          --disk-path "$OUT" --)
                   fi
@@ -75,14 +97,14 @@ for seed in $SEEDS; do
                   "${mon[@]}" python runner.py --model cnn --cnn-size "$size" --technique "$t" --dataset "$ds" \
                     --n-sessions 1 --n-rounds 1 --n-particles "$p" --warm-percent "$WARM_PCT" \
                     --max-iter "$it" --patience "$PATIENCE" "${match[@]}" --g "$g" \
-                    --fitness-samples "$fit" --val-size "$VAL_SIZE" \
+                    --fitness-samples "$fit" "${ds_args[@]}" \
                     --l2-form "$L2_FORM" --lambda-l2 "$lam" \
                     --input-norm "$in_norm" --act-norm "$act_norm" \
                     --bounds-mode "$b_mode" --bounds-scale "$BOUNDS_SCALE" \
                     --selection-metric "$SEL_METRIC" --selection-se "$SEL_SE" --data-seed "$DATA_SEED" \
                     --seed "$seed" --output-dir "$OUT" \
                     > /dev/null || echo "FALLO seed=$seed $ds $size fit=$fit P=$p I=$it g=$g l2=$lam $var $t"
-                  echo "seed=$seed $ds $size fit=$fit P=$p I=$it g=$g l2=$L2_FORM:$lam $var $t $(( $(date +%s) - t0 ))s"
+                  echo "seed=$seed $ds$ds_tag $size fit=$fit P=$p I=$it g=$g l2=$L2_FORM:$lam $var $t $(( $(date +%s) - t0 ))s"
                 done
                done
               done
