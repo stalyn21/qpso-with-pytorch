@@ -7,8 +7,9 @@ Protocolo (MNIST y Fashion-MNIST):
     * fitness: `fitness_samples` imágenes, sobre las que los enjambres evalúan la
       función de costo (0 = todo el resto del train). Es la "train" de la corrida:
       train_acc y la L2 (n_train) se miden sobre ella.
-- Píxeles en [0, 1] (división por 255), sin otra normalización: no hay ajuste que
-  pueda filtrar información de validación o test.
+- Píxeles en [0, 1] (división por 255). Con `input_norm="standardize"` además se
+  resta la media y se divide por el desvío de cada canal, calculados SÓLO sobre las
+  imágenes de fitness: validación y test no aportan nada al ajuste.
 
 MCW (Multiclass Weather) entra antes de la corrida final; necesita fijar resolución
 y no tiene test oficial.
@@ -24,6 +25,9 @@ from core.features import DEFAULT_CACHE_DIR
 
 #: Datasets de imágenes y su clase de torchvision.
 IMAGE_DATASETS = ("fmnist", "mnist")
+
+#: Normalizaciones de la entrada (ver docstring del módulo).
+INPUT_NORMS = ("none", "standardize")
 
 _TORCHVISION = {"fmnist": "FashionMNIST", "mnist": "MNIST"}
 
@@ -46,10 +50,14 @@ def prepare_image_dataset(
     data_seed: int = 100,
     val_size: int = 5000,
     fitness_samples: int = 2000,
+    input_norm: str = "none",
+    norm_eps: float = 1e-6,
 ) -> Dict[str, Any]:
     """Splits de `name` como tensores (N, C, H, W) en `device` (ver docstring del módulo)."""
     if name not in IMAGE_DATASETS:
         raise ValueError(f"Dataset de imágenes desconocido: {name}. Opciones: {IMAGE_DATASETS}")
+    if input_norm not in INPUT_NORMS:
+        raise ValueError(f"input_norm desconocido: {input_norm}. Opciones: {INPUT_NORMS}")
     X_tr, y_tr = _load_official(name, train=True)
     X_te, y_te = _load_official(name, train=False)
 
@@ -64,6 +72,18 @@ def prepare_image_dataset(
     else:
         idx_fit = idx_rest
 
+    X_fit = X_tr[np.sort(idx_fit)]
+    X_val = X_tr[np.sort(idx_val)]
+    if input_norm == "standardize":
+        # Estadísticas por canal, sólo de las imágenes de fitness.
+        mean = X_fit.mean(axis=(0, 2, 3), keepdims=True, dtype=np.float64)
+        std = X_fit.std(axis=(0, 2, 3), keepdims=True, dtype=np.float64)
+        scale = 1.0 / np.maximum(std, norm_eps)
+        X_fit, X_val, X_te = ((a - mean) * scale for a in (X_fit, X_val, X_te))
+        stats = {"input_mean": mean.ravel().tolist(), "input_std": std.ravel().tolist()}
+    else:
+        stats = {}
+
     def f(a):
         return torch.as_tensor(a, dtype=dtype, device=device)
 
@@ -72,12 +92,14 @@ def prepare_image_dataset(
 
     c, h, w = X_tr.shape[1:]
     return {
-        "X_train": f(X_tr[np.sort(idx_fit)]), "y_train": l(y_tr[np.sort(idx_fit)]),
-        "X_val": f(X_tr[np.sort(idx_val)]), "y_val": l(y_tr[np.sort(idx_val)]),
+        "X_train": f(X_fit), "y_train": l(y_tr[np.sort(idx_fit)]),
+        "X_val": f(X_val), "y_val": l(y_tr[np.sort(idx_val)]),
         "X_test": f(X_te), "y_test": l(y_te),
         "n_features": int(c * h * w),
         "n_classes": int(y_tr.max() + 1),
         "in_channels": int(c),
         "image_size": int(h),
         "train_pool": int(len(idx_rest)),
+        "input_norm": input_norm,
+        **stats,
     }

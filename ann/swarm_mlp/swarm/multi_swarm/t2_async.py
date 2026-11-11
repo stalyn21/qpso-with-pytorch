@@ -42,6 +42,7 @@ from typing import Any, Dict, List, Optional
 
 import torch
 
+from core.bounds import dim_bounds
 from core.selection import Selector, val_score
 from core.mlp import MLP
 from swarm.optimizer_factory import SwarmOptimizer, build_swarm_optimizer, swap_cost_fn
@@ -150,7 +151,6 @@ def run_session_t2_async(
 ) -> Dict[str, Any]:
     device_str = cfg.get("device_resolved", cfg.get("device", "cpu"))
     use_cuda = torch.device(device_str).type == "cuda"
-    low, high = cfg["bounds"]
 
     # Estado compartido entre threads. Las escrituras a slices disjuntos son
     # lock-free; las lecturas (clone) son ad-hoc por step.
@@ -168,7 +168,7 @@ def run_session_t2_async(
     opts: List[SwarmOptimizer] = []
     for k in range(mlp.num_layers):
         spec = mlp.layer_specs[k]
-        bounds = [(low, high)] * spec.size
+        bounds = dim_bounds(mlp, cfg, k)
         # cost_fn inicial vs params_init; se reemplaza en cada step desde el worker.
         init_cf = mlp.build_layer_cost_fn(
             X=data["X_train"], y=data["y_train"],

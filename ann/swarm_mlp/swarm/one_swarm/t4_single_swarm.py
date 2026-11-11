@@ -16,6 +16,7 @@ from typing import Any, Dict
 
 import torch
 
+from core.bounds import dim_bounds
 from core.selection import Selector, val_score
 from core.mlp import MLP
 from qpso_torch import CallbackEvent
@@ -30,8 +31,7 @@ def run_session_t4(
     cfg: Dict[str, Any],
     session_seed: int,
 ) -> Dict[str, Any]:
-    low, high = cfg["bounds"]
-    bounds = [(low, high)] * mlp.d_total
+    bounds = dim_bounds(mlp, cfg)
 
     cost_fn = mlp.build_full_cost_fn(
         X=data["X_train"], y=data["y_train"],

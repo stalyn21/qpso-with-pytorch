@@ -33,6 +33,7 @@ from typing import Any, Dict
 
 import torch
 
+from core.bounds import dim_bounds
 from core.mlp import MLP
 from core.selection import Selector, val_score
 from swarm.optimizer_factory import build_swarm_optimizer, swap_cost_fn
@@ -59,7 +60,6 @@ def run_session_t3(
     cfg: Dict[str, Any],
     session_seed: int,
 ) -> Dict[str, Any]:
-    low, high = cfg["bounds"]
     X_train, y_train = data["X_train"], data["y_train"]
     X_val, y_val = data["X_val"], data["y_val"]
 
@@ -88,7 +88,7 @@ def run_session_t3(
             cfg,
             cf=init_cost_fn,
             dim=spec.size,
-            bounds=[(low, high)] * spec.size,
+            bounds=dim_bounds(mlp, cfg, k),
             seed=session_seed * 1000 + k,
             dtype=mlp.dtype,
         )

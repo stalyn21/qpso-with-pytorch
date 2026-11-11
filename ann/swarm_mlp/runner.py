@@ -12,6 +12,7 @@ Todos los modos son sin data leakage (scaler/reductor fit sólo en train).
 """
 import argparse
 import json
+import math
 from pathlib import Path
 import sys
 import numpy as np
@@ -25,9 +26,10 @@ if str(_HERE) not in sys.path:
     sys.path.insert(0, str(_HERE))
 
 from core.budget import evals_per_session, iters_for_budget
-from core.cnn import CNN_SIZES, TinyCNN
-from core.images import IMAGE_DATASETS, prepare_image_dataset
+from core.cnn import ACT_NORMS, CNN_SIZES, TinyCNN
+from core.images import IMAGE_DATASETS, INPUT_NORMS, prepare_image_dataset
 from core.data import prepare_dataset, prepare_dataset_kfold, BENCHMARK_DATASETS, PAPER_DATASETS
+from core.bounds import BOUNDS_MODES
 from core.loss import L2_FORMS
 from core.selection import SELECTION_METRICS
 from core.mlp import MLP
@@ -73,6 +75,15 @@ def parse_args():
                         "Es el 'train' de la corrida.")
     p.add_argument("--val-size", type=int, default=5000,
                    help="(cnn) Imágenes de validación, sacadas del train oficial (estratificadas).")
+    p.add_argument("--input-norm", default="none", choices=INPUT_NORMS,
+                   help="(cnn) 'standardize' = restar la media y dividir por el desvío de cada "
+                        "canal, calculados sólo sobre las imágenes de fitness. Default 'none' "
+                        "(píxeles /255, comportamiento previo).")
+    p.add_argument("--act-norm", default="none", choices=ACT_NORMS,
+                   help="(cnn) 'layer' = normalizar la salida de cada conv por imagen sobre "
+                        "(C, H, W), sin parámetros (no agrega dimensiones). Default 'none'.")
+    p.add_argument("--norm-eps", type=float, default=1e-5,
+                   help="(cnn) Epsilon de --act-norm y piso del desvío de --input-norm.")
     p.add_argument("--match-evals-of", default=None, choices=sorted(TECHNIQUES),
                    help="Presupuesto de evaluaciones = el que gasta esta técnica con --max-iter "
                         "y las mismas partículas; la técnica corrida recibe las iteraciones que "
@@ -151,7 +162,14 @@ def parse_args():
                         "Cuesta una evaluación extra del swarm por paso. "
                         "--no-reevaluate-pbest reproduce el comportamiento previo (valores "
                         "obsoletos) para la ablación. T1, T2-jacobi y T4 lo ignoran.")
-    p.add_argument("--bounds", type=float, nargs=2, default=[-1.0, 1.0])
+    p.add_argument("--bounds", type=float, nargs=2, default=[-1.0, 1.0],
+                   help="(--bounds-mode fixed) Rango de búsqueda de todos los parámetros.")
+    p.add_argument("--bounds-mode", default="fixed", choices=BOUNDS_MODES,
+                   help="'fixed' = --bounds para todas las capas (comportamiento previo). "
+                        "'fanin' = cada capa en ±(--bounds-scale)/sqrt(fan_in) (core/bounds.py).")
+    p.add_argument("--bounds-scale", type=float, default=math.sqrt(6),
+                   help="(--bounds-mode fanin) Constante c del rango ±c/sqrt(fan_in). "
+                        "Default √6 ≈ 2.449 (uniforme de He); 1 = init por defecto de PyTorch.")
     p.add_argument("--seed", type=int, default=42, help="Semilla base (se deriva una distinta por sesión)")
     p.add_argument("--data-seed", type=int, nargs="+", default=[100],
                    help="Semilla(s) del split de datos. Un valor (default 100) = split fijo. "
@@ -200,7 +218,8 @@ def _prepare(args, device, dtype, data_seed):
     """Datos de un split: tabulares (MLP) o imágenes con test oficial (CNN)."""
     if args.model == "cnn":
         return prepare_image_dataset(args.dataset, device=device, dtype=dtype, data_seed=data_seed,
-                                     val_size=args.val_size, fitness_samples=args.fitness_samples)
+                                     val_size=args.val_size, fitness_samples=args.fitness_samples,
+                                     input_norm=args.input_norm, norm_eps=args.norm_eps)
     return prepare_dataset(args.dataset, device=device, dtype=dtype, data_seed=data_seed)
 
 
@@ -210,7 +229,8 @@ def _build_model(args, data, device, dtype):
         size = CNN_SIZES[args.cnn_size]
         model = TinyCNN(in_channels=data["in_channels"], image_size=data["image_size"],
                         channels=size["channels"], head=size["head"],
-                        n_classes=data["n_classes"], device=device, dtype=dtype)
+                        n_classes=data["n_classes"], device=device, dtype=dtype,
+                        act_norm=args.act_norm, norm_eps=args.norm_eps)
         print(f"🧠 CNN {args.cnn_size} {size}: params={model.d_total}   "
               f"enjambres={[s.size for s in model.layer_specs]}")
     else:
@@ -263,6 +283,9 @@ def _build_cfg_and_run(
         "cnn_size": args.cnn_size if args.model == "cnn" else None,
         "fitness_samples": int(data["X_train"].shape[0]),
         "val_size": int(data["X_val"].shape[0]),
+        "input_norm": args.input_norm if args.model == "cnn" else None,
+        "act_norm": args.act_norm if args.model == "cnn" else None,
+        "norm_eps": args.norm_eps if args.model == "cnn" else None,
         "lambda_l2": args.lambda_l2,
         "l2_form": args.l2_form,
         "selection_metric": args.selection_metric,
@@ -272,6 +295,8 @@ def _build_cfg_and_run(
         "alpha": resolve_alpha(args.alpha),
         "reevaluate_pbest": args.reevaluate_pbest,
         "bounds": tuple(args.bounds),
+        "bounds_mode": args.bounds_mode,
+        "bounds_scale": args.bounds_scale if args.bounds_mode == "fanin" else None,
         "seed": args.seed,
         "data_seed": data_seed,
         "device": args.device,
@@ -335,6 +360,15 @@ def _run_tag(args, hidden) -> str:
     # Con presupuesto de evaluaciones, `max_iter` depende de la técnica y de la red:
     # lo que identifica a la corrida es el presupuesto.
     # Con --match-evals-of, el presupuesto es el de la técnica de referencia con max_iter.
+    # Preprocesamiento y rango de búsqueda: sólo cuando no son los históricos.
+    if args.model == "cnn" and args.input_norm != "none":
+        hp_tag += f"_in{args.input_norm[:3]}"
+    if args.model == "cnn" and args.act_norm != "none":
+        hp_tag += f"_act{args.act_norm}"
+    if args.bounds_mode == "fanin":
+        hp_tag += f"_bfanin{args.bounds_scale:.3g}"
+    elif tuple(args.bounds) != (-1.0, 1.0):
+        hp_tag += f"_b{args.bounds[0]:g}-{args.bounds[1]:g}"
     budget_tag = (f"evals{args.eval_budget}" if args.eval_budget is not None
                   else f"evalsof-{args.match_evals_of}-iters{args.max_iter}" if args.match_evals_of
                   else f"iters{args.max_iter}")

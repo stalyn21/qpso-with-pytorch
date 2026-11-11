@@ -23,6 +23,7 @@ from typing import Any, Dict
 
 import torch
 
+from core.bounds import dim_bounds
 from core.selection import Selector, val_score
 from core.mlp import MLP
 from qpso_torch import CallbackEvent
@@ -37,7 +38,6 @@ def run_session_t1(
     cfg: Dict[str, Any],
     session_seed: int,
 ) -> Dict[str, Any]:
-    low, high = cfg["bounds"]
     n_rounds = int(cfg.get("n_rounds", 1))
     per_layer = []
 
@@ -64,7 +64,7 @@ def run_session_t1(
                 ("entrada" if k == 0 else f"oculta{k}")
             )
             dim_k = spec.size
-            bounds = [(low, high)] * dim_k
+            bounds = dim_bounds(mlp, cfg, k)
 
             # Cost fn usa el `current` actual: capas != k congeladas a su valor reciente.
             cost_fn = mlp.build_layer_cost_fn(

@@ -126,7 +126,17 @@ CONFIG_FIELDS: Dict[str, Any] = {
     "cnn_size": None,
     "fitness_samples": None,
     "match_evals_of": None,
+    # Preprocesamiento y rango de búsqueda (2026-10-30). None (MLP o run.json previo)
+    # se lee como el default, así las corridas viejas y nuevas caen en el mismo grupo.
+    "input_norm": "none",
+    "act_norm": "none",
+    "bounds_mode": "fixed",
+    "bounds": (-1.0, 1.0),
+    "bounds_scale": None,
 }
+
+#: Campos cuyo None equivale al default (ver CONFIG_FIELDS).
+_NONE_IS_DEFAULT = ("input_norm", "act_norm", "bounds_mode")
 
 #: Campos que PUEDEN diferir entre técnicas en una misma comparación: a igual
 #: número de evaluaciones (`--match-evals-of`), T4 recibe otras iteraciones que T3.
@@ -147,6 +157,9 @@ def _hashable(v):
 def config_of(cfg: Dict[str, Any]) -> Dict[str, Any]:
     """Campos de identidad de un `config`, con los valores por defecto de los resúmenes viejos."""
     out = {k: _hashable(cfg.get(k, default)) for k, default in CONFIG_FIELDS.items()}
+    for k in _NONE_IS_DEFAULT:
+        if out[k] is None:
+            out[k] = CONFIG_FIELDS[k]
     # El factor de contracción-expansión que aplica según el optimizador.
     if out["optimizer"] == "qpsoo":
         out["g"] = None

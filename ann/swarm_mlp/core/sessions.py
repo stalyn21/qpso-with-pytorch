@@ -21,6 +21,7 @@ import time
 import numpy as np
 import torch
 
+from core.bounds import layer_range
 from core.budget import METER, TRACE_COLUMNS
 from core.mlp import MLP
 from core.metrics import accuracy, classification_metrics, confusion_matrix, mse_int
@@ -113,21 +114,21 @@ def l2_norm_squared(params: torch.Tensor) -> float:
 
 def init_params_from_swarms(
     mlp: MLP,
-    bounds: tuple,
+    cfg: Dict[str, Any],
     seed: int,
     device: torch.device,
     dtype: torch.dtype,
 ) -> torch.Tensor:
     """Inicializa los parámetros como concatenación de muestras random por capa.
 
-    Matemáticamente equivalente a un único random global (la distribución es la misma),
-    pero construido por capa para honrar la semántica "cada swarm aporta su segmento".
+    Cada capa se muestrea uniforme en su rango de búsqueda (`core.bounds`): con
+    `bounds_mode="fixed"` es el mismo rango para todas, igual que antes.
     """
     g = torch.Generator(device="cpu").manual_seed(int(seed))
-    low, high = bounds
     segments = []
     for k in range(mlp.num_layers):
         dim_k = mlp.layer_specs[k].size
+        low, high = layer_range(mlp, cfg, k)
         r = torch.rand(dim_k, generator=g, dtype=torch.float64)
         segments.append(r * (high - low) + low)
     flat = torch.cat(segments)
@@ -144,7 +145,7 @@ def run_sessions(
     device = data["X_train"].device
     dtype = mlp.dtype
 
-    params_init = init_params_from_swarms(mlp, cfg["bounds"], cfg["seed"], device, dtype)
+    params_init = init_params_from_swarms(mlp, cfg, cfg["seed"], device, dtype)
 
     sessions: List[SessionResult] = []
     best_idx = 0

@@ -8,7 +8,13 @@ entrenable (conv o densa) = una "capa" = un swarm.
 
 Arquitectura (pensada para que el espacio de búsqueda sea tratable por swarms):
 
-    [conv 3x3 → ReLU → maxpool 2] × len(channels)  →  cabeza  →  densa → logits
+    [conv 3x3 → (norm) → ReLU → maxpool 2] × len(channels)  →  cabeza  →  densa → logits
+
+`act_norm="layer"` normaliza la salida de cada conv POR IMAGEN sobre (C, H, W) a
+media 0 y varianza 1, sin parámetros (LayerNorm sin γ ni β): no agrega dimensiones a
+los enjambres y no depende del lote, así que la predicción de una imagen no cambia
+con el chunk en que se evalúa. Mantiene la escala de las activaciones aunque los
+pesos que propone el enjambre sean malos.
 
 `head="gap"` promedia cada canal (global average pooling): la capa densa queda
 diminuta. `head="flatten"` aplana el mapa final: más parámetros, más capacidad.
@@ -35,7 +41,16 @@ from .loss import cross_entropy_from_logits, l2_penalty
 CNN_SIZES: Dict[str, Dict] = {
     "small":  {"channels": (8, 16),  "head": "gap"},   # 1,418 params en FMNIST
     "medium": {"channels": (16, 32), "head": "gap"},   # 5,130 params en FMNIST
+    # Cabeza aplanada (2026-11-02): GAP tira la información espacial y limita el techo
+    # (Adam con 2,000 imágenes de FMNIST: small 0.755, medium 0.797; small-flat 0.825,
+    # medium-flat 0.834). La densa crece con el tamaño de la imagen.
+    "small-flat":  {"channels": (8, 16),  "head": "flatten"},   # 5,258 params en FMNIST
+    "medium-flat": {"channels": (16, 32), "head": "flatten"},   # 12,810 params en FMNIST
 }
+
+
+#: Normalizaciones de activaciones (ver docstring del módulo).
+ACT_NORMS = ("none", "layer")
 
 
 @dataclass
@@ -63,9 +78,15 @@ class TinyCNN:
         device: torch.device = torch.device("cpu"),
         dtype: torch.dtype = torch.float32,
         max_elems: float = 1.2e8,
+        act_norm: str = "none",
+        norm_eps: float = 1e-5,
     ):
         if head not in ("gap", "flatten"):
             raise ValueError(f"head debe ser 'gap' o 'flatten', recibido {head!r}")
+        if act_norm not in ACT_NORMS:
+            raise ValueError(f"act_norm debe ser uno de {ACT_NORMS}, recibido {act_norm!r}")
+        self.act_norm = act_norm
+        self.norm_eps = float(norm_eps)
         self.device = device
         self.dtype = dtype
         self.head = head
@@ -141,6 +162,15 @@ class TinyCNN:
         spec = self.layer_specs[k]
         return self._split(flat[spec.offset : spec.offset + spec.size], spec)
 
+    def _norm(self, out: torch.Tensor, groups: int = 1) -> torch.Tensor:
+        """Normaliza (B, groups·C, H, W) por imagen y por grupo (partícula) sobre (C, H, W)."""
+        if self.act_norm == "none":
+            return out
+        B = out.shape[0]
+        z = out.reshape(B, groups, -1)
+        var, mean = torch.var_mean(z, dim=-1, unbiased=False, keepdim=True)
+        return ((z - mean) * torch.rsqrt(var + self.norm_eps)).reshape(out.shape)
+
     def _apply_head(self, h: torch.Tensor) -> torch.Tensor:
         """(B, C, H, W) → (B, F)."""
         return h.mean(dim=(2, 3)) if self.head == "gap" else h.flatten(1)
@@ -152,7 +182,7 @@ class TinyCNN:
         h = X
         for j in range(k):
             W, b = self._layer_from_flat(flat, j)
-            h = F.max_pool2d(F.relu(F.conv2d(h, W, b)), 2)
+            h = F.max_pool2d(F.relu(self._norm(F.conv2d(h, W, b))), 2)
         if self.layer_specs[k].kind == "fc":
             h = self._apply_head(h)
         return h
@@ -206,6 +236,7 @@ class TinyCNN:
                     out = out.reshape(B, P * spec.n_out, out.shape[-2], out.shape[-1])
                 else:
                     out = F.conv2d(h, W, b)
+                out = self._norm(out, P if per_particle else 1)
                 h = F.max_pool2d(F.relu(out), 2)
                 # Si la siguiente capa es la densa, aplicar la cabeza.
                 if self.layer_specs[k + i + 1].kind == "fc":

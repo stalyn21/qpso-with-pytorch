@@ -33,6 +33,7 @@ from typing import Any, Dict, List, Optional
 
 import torch
 
+from core.bounds import dim_bounds
 from core.metrics import selection_key
 from core.mlp import MLP
 from qpso_torch import CallbackEvent
@@ -128,7 +129,6 @@ def run_session_t2_jacobi(
     device_str = cfg.get("device_resolved", cfg.get("device", "cpu"))
     use_cuda = torch.device(device_str).type == "cuda"
     n_rounds = int(cfg.get("n_rounds", 1))
-    low, high = cfg["bounds"]
 
     current = params_init.clone()
     per_layer = []
@@ -150,7 +150,7 @@ def run_session_t2_jacobi(
     opts: List[SwarmOptimizer] = []
     for k in range(mlp.num_layers):
         spec = mlp.layer_specs[k]
-        bounds = [(low, high)] * spec.size
+        bounds = dim_bounds(mlp, cfg, k)
         # cost_fn inicial: contra params_init. Será reemplazada via reuse_with en rounds posteriores.
         cost_fn_init = mlp.build_layer_cost_fn(
             X=data["X_train"], y=data["y_train"],
