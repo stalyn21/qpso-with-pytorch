@@ -82,6 +82,15 @@ def run_session_t1(
             # Candidatos de esta capa: la red completa con el gbest de la capa k sobre
             # el contexto congelado. Se elige con la regla de core.selection al terminar.
             selector = Selector.from_cfg(cfg, data)
+            # Opcional (--t1-incumbent): el segmento actual de la capa entra primero
+            # como candidato, igual que el punto de partida en T2 y T3. Sin esto la
+            # capa sólo puede elegir entre mejoras del gbest (por train), aunque todas
+            # sean peores en validación que lo que ya tenía.
+            if cfg.get("t1_incumbent", False):
+                selector.offer(
+                    val_score(mlp, frozen_snapshot, X_val, y_val, data["n_classes"]),
+                    current[spec.offset : spec.offset + spec.size].clone(),
+                    {"iter_at_best": 0})
 
             def make_callback(selector_ref, spec_ref, frozen_ref):
                 def on_new_best(opt):

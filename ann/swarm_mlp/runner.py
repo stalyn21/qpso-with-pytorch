@@ -169,6 +169,11 @@ def parse_args():
                         "Cuesta una evaluación extra del swarm por paso. "
                         "--no-reevaluate-pbest reproduce el comportamiento previo (valores "
                         "obsoletos) para la ablación. T1, T2-jacobi y T4 lo ignoran.")
+    p.add_argument("--t1-incumbent", action=argparse.BooleanOptionalAction, default=False,
+                   help="(T1) El segmento actual de cada capa entra como candidato a la "
+                        "selección por validación, como el punto de partida en T2 y T3. "
+                        "Default: apagado (comportamiento previo). Cuesta un chequeo de "
+                        "validación extra por capa y ninguna evaluación de fitness.")
     p.add_argument("--bounds", type=float, nargs=2, default=[-1.0, 1.0],
                    help="(--bounds-mode fixed) Rango de búsqueda de todos los parámetros.")
     p.add_argument("--bounds-mode", default="fixed", choices=BOUNDS_MODES,
@@ -335,6 +340,7 @@ def _build_cfg_and_run(
         "g": args.g,
         "alpha": resolve_alpha(args.alpha),
         "reevaluate_pbest": args.reevaluate_pbest,
+        "t1_incumbent": bool(args.t1_incumbent) if args.technique == "t1" else False,
         "bounds": tuple(args.bounds),
         "bounds_mode": args.bounds_mode,
         "bounds_scale": args.bounds_scale if args.bounds_mode == "fanin" else None,
@@ -386,6 +392,8 @@ def _run_tag(args, hidden) -> str:
     # los paths del resto de las celdas.
     reeval_tag = ("_noreeval"
                   if args.technique in ("t2", "t3") and not args.reevaluate_pbest else "")
+    if args.technique == "t1" and args.t1_incumbent:
+        reeval_tag += "_inc"
     # Hiperparámetros barridos en el análisis de sensibilidad: sin esto, dos valores
     # de g (o de alpha, o de lambda) escribirían en el mismo directorio.
     hp_tag = ""

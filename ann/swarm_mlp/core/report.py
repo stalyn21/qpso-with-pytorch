@@ -118,6 +118,7 @@ CONFIG_FIELDS: Dict[str, Any] = {
     "lambda_l2": None,
     "l2_form": "mean",
     "reevaluate_pbest": False,
+    "t1_incumbent": False,
     "selection_metric": "acc",
     "selection_se": 0.0,
     "data_seed": 100,
