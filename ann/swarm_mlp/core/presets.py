@@ -10,6 +10,9 @@ Las claves son los `dest` de argparse (`--l2-form` → `l2_form`).
 - L2 `sample` con λ 0 (sin regularización).
 - Regla de selección v2: balanced accuracy con 1 SE y desempate por CE.
 - 1 sesión y 1 ronda; warm-start con el 30 % de las partículas.
+- `--t1-incumbent` (decisión 2026-11-11): en T1 el segmento actual de cada capa compite
+  en la selección por validación, como el punto de partida en T2 y T3. Las otras
+  técnicas lo ignoran.
 
 Quedan fuera porque el protocolo los fija distinto según el modelo o el experimento:
 `g` (MLP 1.2, CNN 1.13), `--patience` (MLP = iteraciones, CNN 1,000,000; ver
@@ -26,5 +29,6 @@ PRESETS: Dict[str, Dict[str, Any]] = {
         "n_sessions": 1,
         "n_rounds": 1,
         "warm_percent": 30.0,
+        "t1_incumbent": True,
     },
 }
